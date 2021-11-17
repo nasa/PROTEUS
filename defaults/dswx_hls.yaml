@@ -1,0 +1,35 @@
+runconfig:
+    name: dswx_hls_workflow_default
+  
+    groups:
+        pge_name_group:
+            pge_name: DSWX_HLS_PGE
+       
+        input_file_group:
+            # REQUIRED - Single HLS dataset (directory or files)
+            input_file_path:
+       
+        dynamic_ancillary_file_group:
+            # Digital elevation model
+            dem_file:
+
+            # Land cover map
+            landcover_file:
+
+            # Built up land map
+            built_up_cover_fraction_file:
+       
+        product_path_group:
+            # Directory where PGE will place results
+            product_path:
+       
+            # Directory where SAS can write temporary data
+            scratch_path:
+       
+            # Intermediate file name.  SAS writes the output product to the following file.
+            # After the SAS completes, the PGE wrapper renames the product file
+            # according to proper file naming conventions.
+            sas_output_file:
+       
+        primary_executable:
+            product_type: DSWX_HLS
