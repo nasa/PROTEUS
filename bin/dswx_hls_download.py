@@ -81,6 +81,13 @@ def _get_parser():
                         type=str,
                         help='Output RGB file')
 
+    parser.add_argument('--output-infrared-rgb',
+                        '--output-infrared-rgb-file',
+                        dest='output_infrared_rgb_file',
+                        type=str,
+                        help='Output infrared SWIR-1, NIR, and Red RGB'
+                        '-color-composition file')
+
     parser.add_argument('--bwtr'
                         '--output-binary-water',
                         dest='output_binary_water',
@@ -253,24 +260,24 @@ def main():
     dataset_filename = dataset_filename_list[0]
     logger.info(f'dataset filename: {dataset_filename}')
 
-    if (args.output_dswx_file or args.output_rgb_file or args.output_cloud_mask):
-        generate_dswx_layers(
-            dataset_filename,
-            args.output_dswx_file, 
-            dem_file=args.dem_file, 
-            output_interpreted_band=args.output_interpreted_band,
-            output_rgb_file=args.output_rgb_file,
-            output_binary_water=args.output_binary_water,
-            output_diagnostic_test_band=args.output_diagnostic_test_band,
-            output_non_masked_dswx=args.output_non_masked_dswx,
-            output_shadow_masked_dswx=args.output_shadow_masked_dswx,
-            output_shadow_layer=args.output_shadow_layer,
-            output_cloud_mask=args.output_cloud_mask,
-            landcover_file=args.landcover_file, 
-            built_up_cover_fraction_file=args.built_up_cover_fraction_file,
-            flag_offset_and_scale_inputs=args.flag_offset_and_scale_inputs,
-            scratch_dir=args.scratch_dir,
-            flag_debug=args.flag_debug)
+    generate_dswx_layers(
+        dataset_filename,
+        args.output_dswx_file, 
+        dem_file=args.dem_file, 
+        output_interpreted_band=args.output_interpreted_band,
+        output_rgb_file=args.output_rgb_file,
+        output_infrared_rgb_file=args.output_infrared_rgb_file,
+        output_binary_water=args.output_binary_water,
+        output_diagnostic_test_band=args.output_diagnostic_test_band,
+        output_non_masked_dswx=args.output_non_masked_dswx,
+        output_shadow_masked_dswx=args.output_shadow_masked_dswx,
+        output_shadow_layer=args.output_shadow_layer,
+        output_cloud_mask=args.output_cloud_mask,
+        landcover_file=args.landcover_file, 
+        built_up_cover_fraction_file=args.built_up_cover_fraction_file,
+        flag_offset_and_scale_inputs=args.flag_offset_and_scale_inputs,
+        scratch_dir=args.scratch_dir,
+        flag_debug=args.flag_debug)
 
 
 if __name__ == '__main__':

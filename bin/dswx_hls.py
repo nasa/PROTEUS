@@ -224,6 +224,13 @@ def _get_parser():
                         type=str,
                         help='Output RGB file')
 
+    parser.add_argument('--output-infrared-rgb',
+                        '--output-infrared-rgb-file',
+                        dest='output_infrared_rgb_file',
+                        type=str,
+                        help='Output infrared SWIR-1, NIR, and Red RGB'
+                        '-color-composition file')
+
     parser.add_argument('--bwtr'
                         '--output-binary-water',
                         dest='output_binary_water',
@@ -256,7 +263,7 @@ def _get_parser():
                         help='Output terrain shadow layer file')
 
     parser.add_argument('--cloud'
-                        '--output-mask',
+                        '--output-cloud-mask',
                         dest='output_cloud_mask',
                         type=str,
                         help='Output cloud/cloud-shadow classification file')
@@ -676,10 +683,10 @@ def _get_interpreted_dswx_ctable():
     # set color for each value
     dswx_ctable.SetColorEntry(0, (255, 255, 255))  # White - Not water
     dswx_ctable.SetColorEntry(1, (0, 0, 255))  # Blue - Water (high confidence)
-    dswx_ctable.SetColorEntry(2, (0, 255, 255))  # Cyan - Water (moderate conf.)
+    dswx_ctable.SetColorEntry(2, (64, 64, 255))  # Light blue - Water (moderate conf.)
     dswx_ctable.SetColorEntry(3, (0, 255, 0))  # Green - Potential wetland
-    dswx_ctable.SetColorEntry(4, (128, 255, 128))  # Light green - Low confidence 
-                                              # water or wetland
+    dswx_ctable.SetColorEntry(4, (0, 255, 255))  # Cyan - Low confidence 
+                                                 # water or wetland
     dswx_ctable.SetColorEntry(9, (128, 128, 128))  # Gray - QA masked
     dswx_ctable.SetColorEntry(255, (0, 0, 0, 255))  # Black - Fill value
     return dswx_ctable
@@ -930,7 +937,8 @@ def _save_output_rgb_file(red, green, blue, output_file,
                           offset_dict, scale_dict, 
                           flag_offset_and_scale_inputs,
                           geotransform, projection,
-                          invalid_ind = None, output_files_list = None):
+                          invalid_ind = None, output_files_list = None,
+                          flag_infrared = False):
     _makedirs(output_file)
     shape = blue.shape
     driver = gdal.GetDriverByName("GTiff")
@@ -959,14 +967,24 @@ def _save_output_rgb_file(red, green, blue, output_file,
 
     # HLS images were not yet corrected for offset and scale factor
     if not flag_offset_and_scale_inputs:
-        red = scale_dict['red'] * (np.asarray(red, dtype=np.float32) -
-                                   offset_dict['red'])
 
-        green = scale_dict['green'] * (np.asarray(green, dtype=np.float32) -
-                                       offset_dict['green'])
+        if not flag_infrared:
+            red_key = 'red'
+            green_key = 'green'
+            blue_key = 'blue'
+        else:
+            red_key = 'swir1'
+            green_key = 'nir'
+            blue_key = 'red'
 
-        blue = scale_dict['blue'] * (np.asarray(blue, dtype=np.float32) -
-                                     offset_dict['blue'])
+        red = scale_dict[red_key] * (np.asarray(red, dtype=np.float32) -
+                                   offset_dict[red_key])
+
+        green = scale_dict[green_key] * (np.asarray(green, dtype=np.float32) -
+                                       offset_dict[green_key])
+
+        blue = scale_dict[blue_key] * (np.asarray(blue, dtype=np.float32) -
+                                     offset_dict[blue_key])
 
     if invalid_ind is not None:
         red[invalid_ind] = np.nan
@@ -1252,6 +1270,7 @@ def generate_dswx_layers(input_list, output_file,
                          dem_file=None,
                          output_interpreted_band=None,
                          output_rgb_file=None,
+                         output_infrared_rgb_file=None,
                          output_binary_water=None,
                          output_diagnostic_test_band=None,
                          output_non_masked_dswx=None,
@@ -1392,6 +1411,15 @@ def generate_dswx_layers(input_list, output_file,
                               geotransform, projection,
                               invalid_ind=invalid_ind,
                               output_files_list=output_files_list)
+    
+    if output_infrared_rgb_file:
+        _save_output_rgb_file(swir1, nir, red, output_infrared_rgb_file,
+                              offset_dict, scale_dict,
+                              flag_offset_and_scale_inputs,
+                              geotransform, projection,
+                              invalid_ind=invalid_ind,
+                              output_files_list=output_files_list,
+                              flag_infrared=True)
 
     diagnostic_test_band = _compute_diagnostic_tests(
         blue, green, red, nir, swir1, swir2)
@@ -1511,7 +1539,8 @@ def main():
         args.output_file,
         dem_file=args.dem_file, 
         output_interpreted_band=args.output_interpreted_band,
-        output_rgb_file=args.output_rgb_file, 
+        output_rgb_file=args.output_rgb_file,
+        output_infrared_rgb_file=args.output_infrared_rgb_file,
         output_binary_water=args.output_binary_water,
         output_diagnostic_test_band=args.output_diagnostic_test_band,
         output_non_masked_dswx=args.output_non_masked_dswx,
