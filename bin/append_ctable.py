@@ -30,7 +30,7 @@
 
 import argparse
 from osgeo import gdal
-from dswx_hls import save_mask, save_dswx_product
+from dswx_hls import save_mask, save_dswx_product, band_description_dict
 
 
 def _get_parser():
@@ -54,16 +54,30 @@ def _get_parser():
 
     # Parameters
     parser_dataset = parser.add_mutually_exclusive_group()
-    parser_dataset.add_argument('--mask',
-                                action='store_false',
-                                default=None,
-                                dest='interpreted_dswx',
-                                help='Append color table to mask')
+    parser_dataset.add_argument('--cloud'
+                                '--cloud-mask',
+                                action='store_true',
+                                dest='cloud_mask',
+                                help='Append color table to cloud mask')
 
-    parser_dataset.add_argument('--interpreted-dswx',
+    parser_dataset.add_argument('--wtr',
+                                '--interpreted-band',
                                 action='store_true',
                                 dest='interpreted_dswx',
                                 help='Append color table to interpreted DSWx layer')
+
+    parser.add_argument('--intr',
+                        '--non-masked-dswx',
+                        action='store_true',
+                        dest='non_masked_dswx',
+                        help='Append color table to non-masked DSWx layer file')
+
+    parser.add_argument('--insm',
+                        '--shadow-masked-dswx',
+                        action='store_true',
+                        dest='shadow_masked_dswx',
+                        help='Append color table to interpreted layer refined using'
+                        ' land cover and terrain shadow testing ')
 
     return parser
 
@@ -77,17 +91,31 @@ def main():
     geotransform = layer_gdal_dataset.GetGeoTransform()
     projection = layer_gdal_dataset.GetProjection()
     if layer_gdal_dataset.RasterCount > 1:
-        band = layer_gdal_dataset.GetRasterBand(1)
+
+        band_description_keys_list = list(band_description_dict.keys())
+        if args.non_masked_dswx:
+            layer_name = 'INTR'
+        elif args.shadow_masked_dswx:
+            layer_name = 'INSM'
+        elif args.cloud_mask:
+            layer_name = 'CLOUD'
+        else:
+            layer_name = 'WTR'
+
+        band = band_description_keys_list.index(layer_name) + 1
+        print(f'Loading DSWx-HLS product (band: {band})')
+        band = layer_gdal_dataset.GetRasterBand(band)
         image = band.ReadAsArray()
     else:
         image = layer_gdal_dataset.ReadAsArray()
 
-    if args.interpreted_dswx is False:
-        print('Appending color table to mask')
-        save_mask(image, args.output_file, geotransform, projection)
+    metadata_dict = {}
+    if args.cloud_mask:
+        print('Appending color table to cloud mask')
+        save_mask(image, args.output_file, metadata_dict, geotransform, 
+                  projection)
     else:
         print('Appending color table to interpreted DSWx layer')
-        metadata_dict = {}
         save_dswx_product(image, args.output_file, metadata_dict,
                           geotransform, projection)
 
