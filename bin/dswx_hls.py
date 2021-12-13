@@ -193,7 +193,7 @@ def _get_parser():
                         '--output-file',
                         dest='output_file',
                         type=str,
-                        help='Output masked DSWx layer')
+                        help='Output DSWx-HLS product (GeoTIFF)')
 
     parser.add_argument('--wtr',
                         '--interpreted-band',
@@ -205,7 +205,7 @@ def _get_parser():
                         '--output-rgb-file',
                         dest='output_rgb_file',
                         type=str,
-                        help='Output RGB file')
+                        help='Output RGB reflectance file')
 
     parser.add_argument('--output-infrared-rgb',
                         '--output-infrared-rgb-file',
@@ -263,7 +263,7 @@ def _get_parser():
                         '--temporary-dir',
                         dest='scratch_dir',
                         type=str,
-                        help='Scratch directory')
+                        help='Scratch (temporary) directory')
 
     parser.add_argument('--debug',
                         dest='flag_debug',

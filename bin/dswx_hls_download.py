@@ -37,7 +37,7 @@ def _get_parser():
                         '--output-dswx',
                         dest='output_dswx_file',
                         type=str,
-                        help='Output file')
+                        help='Output DSWx-HLS product (GeoTIFF)')
    
     parser.add_argument('--wtr',
                         '--interpreted-band',

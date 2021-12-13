@@ -4,14 +4,15 @@ from dswx_hls import save_mask, save_dswx_product, band_description_dict
 
 
 def _get_parser():
-    parser = argparse.ArgumentParser(description='',
-                                          formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description='Append color table to DSWx-HLS layers or Q/A mask',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # Inputs
     parser.add_argument('input_file',
                         type=str,
                         nargs=1,
-                        help='Input images')
+                        help='Input DSWx-HLS product, DSWx-HLS layer, or Q/A mask')
 
     # Outputs
     parser.add_argument('-o',
@@ -20,7 +21,7 @@ def _get_parser():
                         type=str,
                         required=True,
                         default='output_file',
-                        help='Output file')
+                        help='Output file with appended color table')
 
     # Parameters
     parser_dataset = parser.add_mutually_exclusive_group()
@@ -28,7 +29,7 @@ def _get_parser():
                                 '--cloud-mask',
                                 action='store_true',
                                 dest='cloud_mask',
-                                help='Append color table to cloud mask')
+                                help='Append color table to cloud/cloud-shadow mask')
 
     parser_dataset.add_argument('--wtr',
                                 '--interpreted-band',
