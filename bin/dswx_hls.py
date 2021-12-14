@@ -34,7 +34,9 @@ from modules import l30_v1_band_dict, \
                              s30_v2_band_dict, \
                              interpreted_dswx_band_dict, \
                              band_description_dict, \
-                             METADATA_FIELDS_TO_COPY_FROM_HLS_LIST
+                             METADATA_FIELDS_TO_COPY_FROM_HLS_LIST, \
+                             get_mask_ctable, \
+                             get_interpreted_dswx_ctable
 
 # from memory_profiler import profile
  
@@ -245,7 +247,9 @@ def _compute_diagnostic_tests(blue, green, red,
     for i in range(shape[0]):
         for j in range(shape[1]):
 
-            # Test 1
+            # Implementation of water tests described in [1, 2]
+
+            # Test 1 
             if (mndwi[i, j] > wigt):
                 diagnostic_test_band[i, j] += 1
 
@@ -445,7 +449,6 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
         image_dict['projection'] = \
             layer_gdal_dataset.GetProjection()
         band = layer_gdal_dataset.GetRasterBand(1)
-        # image_dict['gdal_dtype'] = band.DataType
         image_dict['fill_data'] = band.GetNoDataValue()
         image_dict['length'] = layer_gdal_dataset.RasterYSize
         image_dict['width'] = layer_gdal_dataset.RasterXSize
@@ -516,46 +519,6 @@ def _load_hls_product_v2(file_list, image_dict, offset_dict,
 
     return True
 
-def _get_interpreted_dswx_ctable():
-    # create color table
-    dswx_ctable = gdal.ColorTable()
-
-    # set color for each value
-    dswx_ctable.SetColorEntry(0, (255, 255, 255))  # White - Not water
-    dswx_ctable.SetColorEntry(1, (0, 0, 255))  # Blue - Water (high confidence)
-    dswx_ctable.SetColorEntry(2, (64, 64, 255))  # Light blue - Water (moderate conf.)
-    dswx_ctable.SetColorEntry(3, (0, 255, 0))  # Green - Potential wetland
-    dswx_ctable.SetColorEntry(4, (0, 255, 255))  # Cyan - Low confidence 
-                                                 # water or wetland
-    dswx_ctable.SetColorEntry(9, (128, 128, 128))  # Gray - QA masked
-    dswx_ctable.SetColorEntry(255, (0, 0, 0, 255))  # Black - Fill value
-    return dswx_ctable
-
-
-def _get_mask_ctable():
-
-    # create color table
-    mask_ctable = gdal.ColorTable()
-
-    '''
-    set color for each value
-    - Mask cloud shadow bit (0)
-    - Mask snow/ice bit (1)
-    - Mask cloud bit (2)
-    '''
-
-    mask_ctable.SetColorEntry(0, (255, 255, 255))  # White - Not masked
-    mask_ctable.SetColorEntry(1, (64, 64, 64))  # Dark gray - Cloud shadow
-    mask_ctable.SetColorEntry(2, (0, 255, 255))  # Cyan - snow/ice
-    mask_ctable.SetColorEntry(3, (0, 0, 255))  # Blue - Cloud shadow and snow/ice
-    mask_ctable.SetColorEntry(4, (192, 192, 192))  # Light gray - Cloud
-    mask_ctable.SetColorEntry(5, (128, 128, 128))  # Gray - Cloud and cloud shadow
-    mask_ctable.SetColorEntry(6, (255, 0, 255))  # Magenta - Cloud and snow/ice
-    mask_ctable.SetColorEntry(7, (128, 128, 255))  # Light blue - Cloud, cloud shadow, and snow/ice
-    mask_ctable.SetColorEntry(255, (0, 0, 0, 255))  # Black - Fill value
-    return mask_ctable
-
-
 def _get_binary_water_ctable():
 
     # create color table
@@ -612,7 +575,7 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
         gdal_band.SetNoDataValue(255)
         if n_valid_bands == 1:
             # set color table and color interpretation
-            dswx_ctable = _get_interpreted_dswx_ctable()
+            dswx_ctable = get_interpreted_dswx_ctable()
             gdal_band.SetRasterColorTable(dswx_ctable)
             gdal_band.SetRasterColorInterpretation(
                 gdal.GCI_PaletteIndex)
@@ -650,7 +613,7 @@ def save_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
     mask_band.SetNoDataValue(255)
 
     # set color table and color interpretation
-    mask_ctable = _get_mask_ctable()
+    mask_ctable = get_mask_ctable()
     mask_band.SetRasterColorTable(mask_ctable)
     mask_band.SetRasterColorInterpretation(
         gdal.GCI_PaletteIndex)
