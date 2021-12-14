@@ -85,9 +85,6 @@ METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSOR_PRODUCT_ID',
                                          'SPATIAL_COVERAGE',
                                          'CLOUD_COVERAGE',
                                          'SPATIAL_RESAMPLING_ALG',
-                                         # 'HORIZONTAL_CS_NAME',
-                                         # 'ULX',
-                                         # 'ULY',
                                          'MEAN_SUN_AZIMUTH_ANGLE',
                                          'MEAN_SUN_ZENITH_ANGLE',
                                          'MEAN_VIEW_AZIMUTH_ANGLE',
@@ -97,6 +94,15 @@ METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSOR_PRODUCT_ID',
                                          'IDENTIFIER_PRODUCT_DOI']
 
 def get_interpreted_dswx_ctable():
+    """Create and return GDAL color table for DSWx-HLS 
+       surface water interpreted layers.
+
+      Returns
+      -------
+      dswx_ctable : GDAL ColorTable object
+           GDAL color table for DSWx-HLS surface water interpreted layers
+     
+    """
     # create color table
     dswx_ctable = gdal.ColorTable()
 
@@ -113,6 +119,14 @@ def get_interpreted_dswx_ctable():
 
 
 def get_mask_ctable():
+    """Create and return GDAL color table for HLS Q/A mask.
+
+      Returns
+      -------
+      dswx_ctable : GDAL ColorTable object
+           GDAL color table for HLS Q/A mask.
+     
+    """
 
     # create color table
     mask_ctable = gdal.ColorTable()
