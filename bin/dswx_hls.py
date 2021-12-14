@@ -790,8 +790,6 @@ def _relocate(input_file, geotransform, projection,
 
     gdal_ds = gdal.Open(relocated_file)
     relocated_array = gdal_ds.ReadAsArray()
-    # gdal_ds.SetProjection(projection)
-    # gdal_ds.FlushCache()
     del gdal_ds
 
     return relocated_array
