@@ -53,26 +53,6 @@ pswt_2_nir = 2500  # Partial Surface Water Test-2 NIR Threshold
 pswt_2_swir1 = 3000  # Partial Surface Water Test-2 SWIR1 Threshold
 pswt_2_swir2 = 1000  # Partial Surface Water Test-2 SWIR2 Threshold
 
-'''
-# Other thresholds and parameter options from DSWe (USGS)
-
-percent_slope_high = np.nan  # Slope tolerance for high confidence water
-percent_slope_moderate = np.nan  # Slope tolerance for moderate confidence water
-percent_slope_wetland = np.nan  # Slope confidence for potential wetland
-percent_slope_low = np.nan  # Slope tolerance for low confidence water or wetland
-hillshade = np.nan  # Hillshade tolerance value
-
-# options
-include_tests = True  # If set, create a diagnostic test file. 
-include_ps = True  # If set, create a percent slope file. 
-include_hs = True  # If set, create a hillshade (shaded relief) file.
-use_zeven_thorne = True  # If set, use Zevenbergen and Thorne’s slope algorithm.
-                         # Otherwise, use Horn’s slope algorithm.
-use_toa = True  # If set, Top of Atmosphere (TOA) reflectance input is used.
-verbose = True  # If set, more detailed intermediate messages are printed.
-version = True  # Displays the DSWE application version number.
-'''
-
 FLAG_APPLY_MASK_INVALID_IND = True
 
 
@@ -195,46 +175,7 @@ def _get_parser():
 
     return parser
 
-'''
-====================================================================
-Code from the first implementation. Percent slope was substituted
-by shade relief computed by GDAL
--------------------------------------------------------------------
 
-def _compute_slope_zeven_thorne(elevation):
-    pass
-
-
-def _compute_slope_horn(elevation):
-
-    dz_dx_kernel = [[0.125,     0, -0.125],
-                    [ 0.25,     0, -0.25],
-                    [0.125,     0, -0.125]]
-
-    slope_x = convolve(elevation, dz_dx_kernel)
-
-    dz_dy_kernel = [[-0.125, -0.25, -0.125],
-                    [     0,     0,     -0],
-                    [ 0.125,  0.25,  0.125]]
-
-    slope_y = convolve(elevation, dz_dy_kernel)
-
-    return slope_x, slope_y
-    
-
-def _compute_percent_slope(elevation, use_zeven_thorne):
-
-    if use_zeven_thorne:
-        slope_x, slope_y = _compute_slope_zeven_thorne(elevation)
-    
-    else:
-        slope_x, slope_y = _compute_slope_horn(elevation)
-
-    slope = np.sqrt(slope_x ** 2 + slope_y ** 2)
-
-====================================================================
-
-''' 
 
 def _generate_interpreted_layer(diagnostic_test_band):
 
