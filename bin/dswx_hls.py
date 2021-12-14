@@ -120,7 +120,8 @@ def _get_parser():
                         '--output-rgb-file',
                         dest='output_rgb_file',
                         type=str,
-                        help='Output RGB reflectance file')
+                        help='Output RGB reflectance file (GeoTIFF)'
+                        ' copied from input HLS product.')
 
     parser.add_argument('--output-infrared-rgb',
                         '--output-infrared-rgb-file',
