@@ -92,7 +92,7 @@ def _get_parser():
                         '--interpreted-band',
                         dest='output_interpreted_band',
                         type=str,
-                        help='Output interpreted DSWx layer')
+                        help='Output interpreted DSWx layer (GeoTIFF)')
 
     parser.add_argument('--output-rgb',
                         '--output-rgb-file',
@@ -106,44 +106,45 @@ def _get_parser():
                         dest='output_infrared_rgb_file',
                         type=str,
                         help='Output infrared SWIR-1, NIR, and Red RGB'
-                        '-color-composition file')
+                        '-color-composition GeoTIFF file')
 
     parser.add_argument('--bwtr'
                         '--output-binary-water',
                         dest='output_binary_water',
                         type=str,
-                        help='Output binary water mask')
+                        help='Output binary water mask (GeoTIFF)')
 
     parser.add_argument('--diag',
                         '--output-diagnostic-layer',
                         dest='output_diagnostic_test_band',
                         type=str,
-                        help='Output diagnostic test layer file')
+                        help='Output diagnostic test layer file (GeoTIFF)')
 
     parser.add_argument('--intr',
                         '--output-non-masked-dswx',
                         dest='output_non_masked_dswx',
                         type=str,
-                        help='Output non-masked DSWx layer file')
+                        help='Output non-masked DSWx layer file (GeoTIFF)')
 
     parser.add_argument('--insm',
                         '--output-shadow-masked-dswx',
                         dest='output_shadow_masked_dswx',
                         type=str,
-                        help='Output interpreted layer refined using'
-                        ' land cover and terrain shadow testing ')
+                        help='Output GeoTIFF file with interpreted layer'
+                        ' refined using land cover and terrain shadow testing')
 
     parser.add_argument('--shad',
                         '--output-shadow-layer',
                         dest='output_shadow_layer',
                         type=str,
-                        help='Output terrain shadow layer file')
+                        help='Output terrain shadow layer file (GeoTIFF)')
 
     parser.add_argument('--cloud'
                         '--output-cloud-mask',
                         dest='output_cloud_mask',
                         type=str,
-                        help='Output cloud/cloud-shadow classification file')
+                        help='Output cloud/cloud-shadow classification file'
+                        ' (GeoTIFF)')
 
     # Parameters
     parser.add_argument('--offset-and-scale-inputs',
