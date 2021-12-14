@@ -8,7 +8,7 @@ import numpy as np
 
 from dswx_hls import generate_dswx_layers, configure_log_file
 
-logger = logging.getLogger('dswx_hls')
+logger = logging.getLogger('dswx_hls_download')
 
 
 def _get_parser():
