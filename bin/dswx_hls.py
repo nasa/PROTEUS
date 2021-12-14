@@ -53,8 +53,6 @@ pswt_2_nir = 2500  # Partial Surface Water Test-2 NIR Threshold
 pswt_2_swir1 = 3000  # Partial Surface Water Test-2 SWIR1 Threshold
 pswt_2_swir2 = 1000  # Partial Surface Water Test-2 SWIR2 Threshold
 
-FLAG_APPLY_MASK_INVALID_IND = True
-
 
 def _get_parser():
     parser = argparse.ArgumentParser(
@@ -1135,9 +1133,7 @@ def generate_dswx_layers(input_list, output_file,
                                             'temp_built_up_cover_fraction.tif')
 
     # Set invalid pixels to fill value (255)
-    if not FLAG_APPLY_MASK_INVALID_IND:
-        invalid_ind = None
-    elif not flag_offset_and_scale_inputs:
+    if not flag_offset_and_scale_inputs:
         invalid_ind = np.where(blue < -5000)
     else:
         invalid_ind = np.where(blue < -0.5)
