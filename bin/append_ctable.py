@@ -21,7 +21,7 @@ def _get_parser():
                         type=str,
                         required=True,
                         default='output_file',
-                        help='Output file with appended color table')
+                        help='Output GeoTIFF file with appended color table')
 
     # Parameters
     parser_dataset = parser.add_mutually_exclusive_group()
