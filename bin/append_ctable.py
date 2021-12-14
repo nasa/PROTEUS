@@ -5,7 +5,7 @@ from dswx_hls import save_mask, save_dswx_product, band_description_dict
 
 def _get_parser():
     parser = argparse.ArgumentParser(
-        description='Append color table to DSWx-HLS layers or Q/A mask',
+        description='Append color table to DSWx-HLS products or Q/A masks',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # Inputs

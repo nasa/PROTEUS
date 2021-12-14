@@ -12,8 +12,9 @@ logger = logging.getLogger('dswx_hls')
 
 
 def _get_parser():
-    parser = argparse.ArgumentParser(description='',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description='Downloads HLS products using nasa_hls tool',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # Inputs
     parser.add_argument('--dem',    

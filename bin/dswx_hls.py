@@ -1,7 +1,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # References:
 #
-# [1] Jones, J. W., "Efficient wetland surface water detection and 
+# [1] J. W. Jones, "Efficient wetland surface water detection and 
 # monitoring via Landsat: Comparison with in situ data from the Everglades 
 # Depth Estimation Network", Remote Sensing, 7(9), 12503-12538. 
 # http://dx.doi.org/10.3390/rs70912503, 2015
@@ -163,8 +163,9 @@ METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSOR_PRODUCT_ID',
                                          'IDENTIFIER_PRODUCT_DOI']
 
 def _get_parser():
-    parser = argparse.ArgumentParser(description='',
-                                          formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description='Generate a DSWx-HLS product from an HLS product',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # Inputs
     parser.add_argument('input_list',
