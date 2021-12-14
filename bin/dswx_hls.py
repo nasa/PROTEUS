@@ -38,8 +38,6 @@ from modules.dswx_hls import l30_v1_band_dict, \
                              get_mask_ctable, \
                              get_interpreted_dswx_ctable
 
-# from memory_profiler import profile
- 
 logger = logging.getLogger('dswx_hls')
 
 # Thresholds
@@ -591,7 +589,7 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
     gdal_ds.FlushCache()
     gdal_ds = None
 
-    save_as_cog(output_file, scratch_dir)
+    save_as_cog(output_file, scratch_dir, logger)
 
     if output_files_list is not None:
         output_files_list.append(output_file)
@@ -704,24 +702,6 @@ def _save_output_rgb_file(red, green, blue, output_file,
     gdal_ds = driver.Create(output_file, shape[1], shape[0], 3, gdal_dtype)
     gdal_ds.SetGeoTransform(geotransform)
     gdal_ds.SetProjection(projection)
-
-    '''
-    # change NULL value
-    null_value = -32800.0
-    if null_value is not None:
-
-        # Red
-        ind_null = np.where(red == null_value)
-        red[ind_null] = np.nan
-
-        # Green
-        ind_null = np.where(green == null_value)
-        green[ind_null] = np.nan
-
-        # Red
-        ind_null = np.where(blue == null_value)
-        blue[ind_null] = np.nan
-    '''
 
     # HLS images were not yet corrected for offset and scale factor
     if not flag_offset_and_scale_inputs:
