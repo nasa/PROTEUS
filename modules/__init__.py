@@ -1,1 +1,1 @@
-from dswx_hls.py import *
+from dswx_hls import *
