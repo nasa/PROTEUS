@@ -11,7 +11,7 @@ from collections import OrderedDict
 from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32
 from osgeo import gdal, osr
-from .core import save_as_cog, compute_otsu_threshold
+from .core import save_as_cog
 from .dswx_hls_constants import wigt, \
                                 awgt, \
                                 pswt_1_mndwi, \
@@ -175,6 +175,51 @@ def _get_mask_ctable():
     mask_ctable.SetColorEntry(7, (128, 128, 255))  # Light blue - Cloud, cloud shadow, and snow/ice
     mask_ctable.SetColorEntry(255, (0, 0, 0, 255))  # Black - Fill value
     return mask_ctable
+
+
+def compute_otsu_threshold(image, is_normalized = True):
+    """Compute Otsu threshold 
+       source: https://learnopencv.com/otsu-thresholding-with-opencv/
+
+       Parameters
+       ----------
+       image: numpy.ndarray
+              Input image
+       is_normalized: bool (optional)
+              Flag to inform the function if input image is normalized
+     
+    """
+    # Set total number of bins in the histogram
+    bins_num = 256
+
+    # Get the image histogram
+    hist, bin_edges = np.histogram(image, bins=bins_num)
+
+    # Get normalized histogram if it is required
+    if is_normalized:
+        hist = np.divide(hist.ravel(), hist.max())
+
+    # Calculate centers of bins
+    bin_mids = (bin_edges[:-1] + bin_edges[1:]) / 2.
+
+    # Iterate over all thresholds (indices) and get the probabilities w1(t), w2(t)
+    weight1 = np.cumsum(hist)
+    weight2 = np.cumsum(hist[::-1])[::-1]
+
+    # Get the class means mu0(t)
+    mean1 = np.cumsum(hist * bin_mids) / weight1
+    # Get the class means mu1(t)
+    mean2 = (np.cumsum((hist * bin_mids)[::-1]) / weight2[::-1])[::-1]
+
+    inter_class_variance = weight1[:-1] * weight2[1:] * (mean1[:-1] - mean2[1:]) ** 2
+
+    # Maximize the inter_class_variance function val
+    index_of_max_val = np.argmax(inter_class_variance)
+
+    threshold = bin_mids[:-1][index_of_max_val]
+    logger.info(f"Otsu's algorithm implementation thresholding result: {threshold}")
+
+    return image < threshold
 
 
 def _generate_interpreted_layer(diagnostic_test_band):
@@ -965,7 +1010,6 @@ def _apply_shadow_layer(masked_dswx_band, shadow_layer):
     return masked_dswx_band
 
 
-# @profile
 def generate_dswx_layers(input_list, output_file,
                          dem_file=None,
                          output_interpreted_band=None,
