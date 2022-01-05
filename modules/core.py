@@ -1,7 +1,8 @@
 import os
-from osgeo import gdal
+import shutil
 import tempfile
 import logging
+from osgeo import gdal
 
 def save_as_cog(filename, scratch_dir = '.', logger = None):
     """Save (overwrite) a GeoTIFF file as a cloud-optimized GeoTIFF.
