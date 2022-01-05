@@ -10,9 +10,19 @@ from datetime import datetime
 from collections import OrderedDict
 from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32
-from scipy.ndimage import convolve
 from osgeo import gdal, osr
 from .core import save_as_cog, compute_otsu_threshold
+from .dswx_hls_constants import wigt, \
+                                awgt, \
+                                pswt_1_mndwi, \
+                                pswt_1_nir, \
+                                pswt_1_swir1, \
+                                pswt_1_ndvi, \
+                                pswt_2_mndwi, \
+                                pswt_2_blue, \
+                                pswt_2_nir, \
+                                pswt_2_swir1, \
+                                pswt_2_swir2
 
 logger = logging.getLogger('dswx_hls')
 
@@ -109,18 +119,6 @@ METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSOR_PRODUCT_ID',
                                          'ACCODE',
                                          'IDENTIFIER_PRODUCT_DOI']
 
-# Thresholds
-wigt = 0.0124  # Modified Normalized Difference Wetness Index (MNDWI) Threshold
-awgt = 0.0  # Automated Water Extent Shadow Threshold
-pswt_1_mndwi = -0.44  # Partial Surface Water Test-1 MNDWI Threshold
-pswt_1_nir = 1500  # Partial Surface Water Test-1 NIR Threshold
-pswt_1_swir1 = 900  # Partial Surface Water Test-1 SWIR1 Threshold
-pswt_1_ndvi = 0.7  # Partial Surface Water Test-1 NDVI Threshold
-pswt_2_mndwi = -0.5  # Partial Surface Water Test-2 MNDWI Threshold
-pswt_2_blue = 1000  # Partial Surface Water Test-2 Blue Threshold
-pswt_2_nir = 2500  # Partial Surface Water Test-2 NIR Threshold
-pswt_2_swir1 = 3000  # Partial Surface Water Test-2 SWIR1 Threshold
-pswt_2_swir2 = 1000  # Partial Surface Water Test-2 SWIR2 Threshold
 
 def _get_interpreted_dswx_ctable():
     """Create and return GDAL RGB color table for DSWx-HLS 
@@ -196,7 +194,7 @@ def _generate_interpreted_layer(diagnostic_test_band):
     return interpreted_dswx_band
 
 
-def get_binary_water_layer(masked_dswx_band):
+def _get_binary_water_layer(masked_dswx_band):
  
     binary_water_layer = np.zeros_like(masked_dswx_band)
 
@@ -213,7 +211,7 @@ def get_binary_water_layer(masked_dswx_band):
     return binary_water_layer
 
 
-def compute_diagnostic_tests(blue, green, red,
+def _compute_diagnostic_tests(blue, green, red,
                               nir, swir1, swir2):
 
     # Temporarily supress RuntimeWarnings:
@@ -279,7 +277,8 @@ def compute_diagnostic_tests(blue, green, red,
     return diagnostic_test_band
 
 
-def _compute_mask_and_filter_interpreted_layer(interpreted_dswx_band, qa_band):
+def _compute_mask_and_filter_interpreted_layer(interpreted_dswx_band,
+                                               qa_band):
     '''
     QA band - Landsat 8
     BITS:
@@ -1120,7 +1119,7 @@ def generate_dswx_layers(input_list, output_file,
                               output_files_list=output_files_list,
                               flag_infrared=True)
 
-    diagnostic_test_band = compute_diagnostic_tests(
+    diagnostic_test_band = _compute_diagnostic_tests(
         blue, green, red, nir, swir1, swir2)
 
     if output_diagnostic_test_band:
@@ -1184,7 +1183,7 @@ def generate_dswx_layers(input_list, output_file,
                   description=band_description_dict['CLOUD'],
                   output_files_list=output_files_list)
 
-    binary_water_layer = get_binary_water_layer(masked_dswx_band)
+    binary_water_layer = _get_binary_water_layer(masked_dswx_band)
     if output_binary_water:
         _save_binary_water(binary_water_layer, output_binary_water,
                            dswx_metadata_dict,
