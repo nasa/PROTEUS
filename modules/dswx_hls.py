@@ -91,7 +91,6 @@ interpreted_dswx_band_dict = {
     0b10001 : 4,
     0b10010 : 4,
     0b10100 : 4}
-    # 0b255 :  # 255 (Fill)
 
 band_description_dict = {
     'WTR': 'Water classification (WTR)',
