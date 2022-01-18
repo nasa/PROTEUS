@@ -124,10 +124,10 @@ def _get_interpreted_dswx_ctable():
     """Create and return GDAL RGB color table for DSWx-HLS 
        surface water interpreted layers.
 
-      Returns
-      -------
-      dswx_ctable : GDAL ColorTable object
-           GDAL color table for DSWx-HLS surface water interpreted layers
+       Returns
+       -------
+       dswx_ctable : GDAL ColorTable object
+            GDAL color table for DSWx-HLS surface water interpreted layers
      
     """
     # create color table
@@ -148,10 +148,10 @@ def _get_interpreted_dswx_ctable():
 def _get_mask_ctable():
     """Create and return GDAL RGB color table for HLS Q/A mask.
 
-      Returns
-      -------
-      dswx_ctable : GDAL ColorTable object
-           GDAL color table for HLS Q/A mask.
+       Returns
+       -------
+       dswx_ctable : GDAL ColorTable object
+            GDAL color table for HLS Q/A mask.
      
     """
 
@@ -177,7 +177,7 @@ def _get_mask_ctable():
     return mask_ctable
 
 
-def compute_otsu_threshold(image, is_normalized = True):
+def _compute_otsu_threshold(image, is_normalized = True):
     """Compute Otsu threshold 
        source: https://learnopencv.com/otsu-thresholding-with-opencv/
 
@@ -187,6 +187,11 @@ def compute_otsu_threshold(image, is_normalized = True):
               Input image
        is_normalized: bool (optional)
               Flag to inform the function if input image is normalized
+
+       Returns
+       -------
+       binary_array : numpy.ndarray
+            Binary array after thresholding input image with Otsu's threshold
      
     """
     # Set total number of bins in the histogram
@@ -222,35 +227,61 @@ def compute_otsu_threshold(image, is_normalized = True):
     return image < threshold
 
 
-def _generate_interpreted_layer(diagnostic_test_band):
+def _generate_interpreted_layer(diagnostic_layer):
+    """Generate interpreted layer from diagnostic test band
+
+       Parameters
+       ----------
+       diagnostic_layer: numpy.ndarray
+              Diagnostic test band
+
+       Returns
+       -------
+       interpreted_layer : numpy.ndarray
+            Interpreted layer
+     
+    """
 
     logger.info('step 2 - get interpreted DSWX band')
-    shape = diagnostic_test_band.shape
-    interpreted_dswx_band = np.zeros(shape, dtype = np.uint8)
+    shape = diagnostic_layer.shape
+    interpreted_layer = np.zeros(shape, dtype = np.uint8)
     for i in range(shape[0]):
         for j in range(shape[1]):
             for key, value in interpreted_dswx_band_dict.items():
-                if diagnostic_test_band[i, j] == key:
-                    interpreted_dswx_band[i, j] = value
+                if diagnostic_layer[i, j] == key:
+                    interpreted_layer[i, j] = value
                     break
             else:
-                interpreted_dswx_band[i, j] = 255
+                interpreted_layer[i, j] = 255
 
-    return interpreted_dswx_band
+    return interpreted_layer
 
 
-def _get_binary_water_layer(masked_dswx_band):
+def _get_binary_water_layer(interpreted_water_layer):
+    """Generate binary water layer from interpreted water layer
+
+       Parameters
+       ----------
+       masked_dswx_band: numpy.ndarray
+              Interpreted water layer
+
+       Returns
+       -------
+       binary_water_layer : numpy.ndarray
+            Binary water layer
+     
+    """
  
-    binary_water_layer = np.zeros_like(masked_dswx_band)
+    binary_water_layer = np.zeros_like(interpreted_water_layer)
 
     # water classes: 1 to 4
     for class_value in range(1, 5):
-        ind = np.where(masked_dswx_band == class_value)
+        ind = np.where(interpreted_water_layer == class_value)
         binary_water_layer[ind] = 1
 
     # invalid classes: 9 (Q/A masked) or 255 (fill value)    
     for class_value in [9, 255]:
-        ind = np.where(masked_dswx_band == class_value)
+        ind = np.where(interpreted_water_layer == class_value)
         binary_water_layer[ind] = 255
 
     return binary_water_layer
@@ -258,6 +289,31 @@ def _get_binary_water_layer(masked_dswx_band):
 
 def _compute_diagnostic_tests(blue, green, red,
                               nir, swir1, swir2):
+    """Compute diagnost tests over reflectance channels: Blue,
+    Green, Red, NIR, SWIR-1, and SWIR-2, and return
+    diagnostic test band
+
+       Parameters
+       ----------
+       blue: numpy.ndarray
+              Blue channel
+       green: numpy.ndarray
+              Green channel
+       red: numpy.ndarray
+              Red channel
+       nir: numpy.ndarray
+              Near infrared (NIR) channel
+       swir1: numpy.ndarray
+              Short-wave infrared 1 (SWIR-1) channel
+       swir2: numpy.ndarray
+              Short-wave infrared 2 (SWIR-2) channel
+
+       Returns
+       -------
+       diagnostic_layer : numpy.ndarray
+            Diagnostic test band
+     
+    """
 
     # Temporarily supress RuntimeWarnings:
     # - divide by zero encountered in true_divide
@@ -284,7 +340,7 @@ def _compute_diagnostic_tests(blue, green, red,
 
     # Diagnostic test band
     shape = blue.shape
-    diagnostic_test_band = np.zeros(shape, dtype = np.uint8)
+    diagnostic_layer = np.zeros(shape, dtype = np.uint8)
 
     logger.info('step 1 - compute diagnostic tests')
     for i in range(shape[0]):
@@ -294,22 +350,22 @@ def _compute_diagnostic_tests(blue, green, red,
 
             # Test 1 
             if (mndwi[i, j] > wigt):
-                diagnostic_test_band[i, j] += 1
+                diagnostic_layer[i, j] += 1
 
             # Test 2
             if (mbsrv[i, j] > mbsrn[i, j]):
-                diagnostic_test_band[i, j] += 2
+                diagnostic_layer[i, j] += 2
 
             # Test 3
             if (awesh[i, j] > awgt):
-                diagnostic_test_band[i, j] += 4
+                diagnostic_layer[i, j] += 4
 
             # Test 4
             if (mndwi[i, j] > pswt_1_mndwi and 
                     swir1[i, j] < pswt_1_swir1 and
                     nir[i, j] < pswt_1_nir and
                     ndvi[i, j] < pswt_1_ndvi):
-                diagnostic_test_band[i, j] += 8
+                diagnostic_layer[i, j] += 8
 
             # Test 5
             if (mndwi[i, j] > pswt_2_mndwi and
@@ -317,13 +373,33 @@ def _compute_diagnostic_tests(blue, green, red,
                     swir1[i, j] < pswt_2_swir1 and
                     swir2[i, j] < pswt_2_swir2 and
                     nir[i, j] < pswt_2_nir):
-                diagnostic_test_band[i, j] += 16
+                diagnostic_layer[i, j] += 16
 
-    return diagnostic_test_band
+    return diagnostic_layer
 
 
-def _compute_mask_and_filter_interpreted_layer(interpreted_dswx_band,
-                                               qa_band):
+def _compute_mask_and_filter_interpreted_layer(
+    unmasked_interpreted_water_layer, qa_band):
+    """Compute cloud/cloud-shadow mask and filter interpreted water layer
+
+       Parameters
+       ----------
+       unmasked_interpreted_water_layer: numpy.ndarray
+              Cloud-unmasked interpreted water layer
+       qa_band: numpy ndarray
+              HLS Q/A band
+
+       Returns
+       -------
+       masked_interpreted_water_layer : numpy.ndarray
+              Cloud-masked interpreted water layer
+
+    """
+
+    shape = unmasked_interpreted_water_layer.shape
+    masked_interpreted_water_layer = unmasked_interpreted_water_layer.copy()
+    mask = np.zeros(shape, dtype = np.uint8)
+
     '''
     QA band - Landsat 8
     BITS:
@@ -341,9 +417,6 @@ def _compute_mask_and_filter_interpreted_layer(interpreted_dswx_band,
 
     (*) set output as 9
     '''
-    shape = interpreted_dswx_band.shape
-    masked_dswx_band = interpreted_dswx_band.copy()
-    mask = np.zeros(shape, dtype = np.uint8)
 
     for i in range(shape[0]):
         for j in range(shape[1]):
@@ -363,15 +436,46 @@ def _compute_mask_and_filter_interpreted_layer(interpreted_dswx_band,
             if mask[i, j] == 0:
                 continue
             
-            masked_dswx_band[i, j] = 9
+            masked_interpreted_water_layer[i, j] = 9
 
-    return mask, masked_dswx_band
+    return mask, masked_interpreted_water_layer
 
 
 def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
                         dswx_metadata_dict, key,
                         flag_offset_and_scale_inputs, flag_debug = False,
-                        band_name = None):
+                        band_suffix = None):
+    """Load HLS band from file into memory
+
+       Parameters
+       ----------
+       filename: str
+              Filename containing HLS band
+       image_dict: dict
+              Image dictionary that will store HLS band array
+       offset_dict: dict
+              Offset dictionary that will store band offset
+       scale_dict: dict
+              Scale dictionary that will store band scaling factor
+       dswx_metadata_dict: dict
+              Metadata dictionary that will store band metadata
+       key: str
+              Name of the band (e.g., "blue", "green", "swir1", etc)
+       flag_offset_and_scale_inputs: bool
+              Flag to indicate if the band should be offseted and scaled
+       flag_debug: bool (optional)
+              Flag to indicate if execution is for debug purposes. If so,
+              only a subset of the image will be loaded into memory
+       band_suffix: str (optional)
+              Indicate band suffix that should be removed from file
+              name to extract band name
+
+       Returns
+       -------
+       flag_success : bool
+              Flag indicating if band was successfuly loaded into memory
+
+    """
 
     layer_gdal_dataset = gdal.Open(filename)
     if layer_gdal_dataset is None:
@@ -379,8 +483,8 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
 
     if 'hls_dataset_name' not in image_dict.keys():
         hls_dataset_name = os.path.splitext(os.path.basename(filename))[0]
-        if band_name:
-            hls_dataset_name = hls_dataset_name.replace(f'.{band_name}', '')
+        if band_suffix:
+            hls_dataset_name = hls_dataset_name.replace(f'.{band_suffix}', '')
         image_dict['hls_dataset_name'] = hls_dataset_name
 
     offset = 0.0
@@ -467,6 +571,33 @@ def _load_hls_product_v1(filename, image_dict, offset_dict,
                          scale_dict, dswx_metadata_dict,
                          flag_offset_and_scale_inputs,
                          flag_debug = False):
+    """Load a HLS (v.1) product (all required bands) from file 
+       into memory
+
+       Parameters
+       ----------
+       filename: str
+              Filename containing HLS product
+       image_dict: dict
+              Image dictionary that will store HLS product's arrays
+       offset_dict: dict
+              Offset dictionary that will store product's offsets
+       scale_dict: dict
+              Scale dictionary that will store product's scaling factor
+       dswx_metadata_dict: dict
+              Metadata dictionary that will store product's metadata
+       flag_offset_and_scale_inputs: bool
+              Flag to indicate if bands should be offseted and scaled
+       flag_debug (optional)
+              Flag to indicate if execution is for debug purposes. If so,
+              only a subset of the product will be loaded into memory
+
+       Returns
+       -------
+       flag_success : bool
+              Flag indicating if band was successfuly loaded into memory
+
+    """
 
     if isinstance(filename, list):
         filename = filename[0]
@@ -497,7 +628,33 @@ def _load_hls_product_v1(filename, image_dict, offset_dict,
 def _load_hls_product_v2(file_list, image_dict, offset_dict, 
                          scale_dict, dswx_metadata_dict,
                          flag_offset_and_scale_inputs, flag_debug = False):
+    """Load a HLS (v.2) product (all required bands) from a list of files
+       into memory
 
+       Parameters
+       ----------
+       file_list: str
+              File list containing HLS product
+       image_dict: dict
+              Image dictionary that will store HLS product's arrays
+       offset_dict: dict
+              Offset dictionary that will store product's offsets
+       scale_dict: dict
+              Scale dictionary that will store product's scaling factor
+       dswx_metadata_dict: dict
+              Metadata dictionary that will store product's metadata
+       flag_offset_and_scale_inputs: bool
+              Flag to indicate if bands should be offseted and scaled
+       flag_debug (optional)
+              Flag to indicate if execution is for debug purposes. If so,
+              only a subset of the product will be loaded into memory
+
+       Returns
+       -------
+       flag_success : bool
+              Flag indicating if band was successfuly loaded into memory
+
+    """
     logger.info('loading HLS v.2.0 layers:')
     for key in l30_v2_band_dict.keys():
 
@@ -520,13 +677,20 @@ def _load_hls_product_v2(file_list, image_dict, offset_dict,
                                       scale_dict, dswx_metadata_dict,
                                       key, flag_offset_and_scale_inputs,
                                       flag_debug = flag_debug,
-                                      band_name = band_name)
+                                      band_suffix = band_name)
         if not success:
             return False
 
     return True
 
 def _get_binary_water_ctable():
+    """Get binary water RGB color table
+
+       Returns
+       -------
+       binary_water_ctable : gdal.ColorTable
+              Binary water RGB color table
+    """
 
     # create color table
     binary_water_ctable = gdal.ColorTable()
@@ -539,6 +703,29 @@ def _get_binary_water_ctable():
 def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
                       projection, scratch_dir='.', output_files_list = None,
                       description = None, **dswx_processed_bands):
+    """Save DSWx-HLS product
+
+       Parameters
+       ----------
+       wtr: numpy.ndarray
+              Water classification layer WTR
+       output_file: str
+              Output filename
+       dswx_metadata_dict: dict
+              Metadata dictionary to be written into the DSWx-HLS product
+       geotransform: numpy.ndarray
+              Geotransform describing the DSWx-HLS product geolocation
+       projection: str
+              DSWx-HLS product's projection
+       scratch_dir: str (optional)
+              Directory for temporary files
+       output_files_list: list (optional)
+              Mutable list of output files
+       description: str (optional)
+              Band description
+       **dswx_processed_bands: dict
+              Remaining bands to be included into the DSWx-HLS product 
+    """
 
     _makedirs(output_file)
     shape = wtr.shape
@@ -607,6 +794,25 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
 
 def save_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
               description = None, output_files_list = None):
+    """Save DSWx-HLS cloud/cloud-mask layer
+
+       Parameters
+       ----------
+       mask: numpy.ndarray
+              Cloud/cloud-shadow layer
+       output_file: str
+              Output filename
+       dswx_metadata_dict: dict
+              Metadata dictionary to be written into the output file
+       geotransform: numpy.ndarray
+              Geotransform describing the output file geolocation
+       projection: str
+              Output file's projection
+       description: str (optional)
+              Band description
+       output_files_list: list (optional)
+              Mutable list of output files
+    """
 
     _makedirs(output_file)
     shape = mask.shape
@@ -639,6 +845,25 @@ def save_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
 def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
                        geotransform, projection, description = None,
                        output_files_list = None):
+    """Save DSWx-HLS binary water layer
+
+       Parameters
+       ----------
+       binary_water_layer: numpy.ndarray
+              Binary water layer
+       output_file: str
+              Output filename
+       dswx_metadata_dict: dict
+              Metadata dictionary to be written into the output file
+       geotransform: numpy.ndarray
+              Geotransform describing the output file geolocation
+       projection: str
+              Output file's projection
+       description: str (optional)
+              Band description
+       output_files_list: list (optional)
+              Mutable list of output files
+    """
     _makedirs(output_file)
     shape = binary_water_layer.shape
     driver = gdal.GetDriverByName("GTiff")
@@ -669,6 +894,25 @@ def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
 
 def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
                 projection, description = None, output_files_list = None):
+    """Save a generic DSWx-HLS layer (e.g., diagnostic layer, shadow layer, etc.)
+
+       Parameters
+       ----------
+       input_array: numpy.ndarray
+              DSWx-HLS layer to be saved
+       output_file: str
+              Output filename
+       dswx_metadata_dict: dict
+              Metadata dictionary to be written into the output file
+       geotransform: numpy.ndarray
+              Geotransform describing the output file geolocation
+       projection: str
+              Output file's projection
+       description: str (optional)
+              Band description
+       output_files_list: list (optional)
+              Mutable list of output files
+    """
 
     _makedirs(output_file)
     shape = input_array.shape
@@ -704,6 +948,36 @@ def _save_output_rgb_file(red, green, blue, output_file,
                           geotransform, projection,
                           invalid_ind = None, output_files_list = None,
                           flag_infrared = False):
+    """Save the a three-band reflectance-layer (RGB or infrared RGB) GeoTIFF
+
+       Parameters
+       ----------
+       red: numpy.ndarray
+              Red reflectance layer
+       green: numpy.ndarray
+              Green reflectance layer
+       blue: numpy.ndarray
+              Blue reflectance layer
+       output_file: str
+              Output filename
+       offset_dict: dict
+              Offset dictionary that stores band offsets
+       scale_dict: dict
+              Scale dictionary that stores bands scaling factor
+       flag_offset_and_scale_inputs: bool
+              Flag to indicate if the band has been already offseted and scaled
+       geotransform: numpy.ndarray
+              Geotransform describing the output file geolocation
+       projection: str
+              Output file's projection
+       invalid_ind: list
+              List of invalid indices to be set to NaN       
+       output_files_list: list (optional)
+              Mutable list of output files
+       flag_infrared: bool
+              Flag to indicate if layer represents infrared reflectance,
+              i.e., Red, NIR, and SWIR-1
+    """
     _makedirs(output_file)
     shape = blue.shape
     driver = gdal.GetDriverByName("GTiff")
@@ -756,21 +1030,56 @@ def _save_output_rgb_file(red, green, blue, output_file,
 
 
 def get_projection_proj4(projection):
+    """Return projection in proj4 format
+
+       projection : str
+              Projection
+
+       Returns
+       -------
+       projection_proj4 : str
+              Projection in proj4 format
+    """
     srs = osr.SpatialReference()
     if projection.upper() == 'WGS84':
         srs.SetWellKnownGeogCS(projection)
     else:
         srs.ImportFromProj4(projection)
-    projection = srs.ExportToProj4()
-    projection = projection.strip()
-    return projection
+    projection_proj4 = srs.ExportToProj4()
+    projection_proj4 = projection_proj4.strip()
+    return projection_proj4
 
 
 def _relocate(input_file, geotransform, projection,
               length, width,
               resample_algorithm='nearest',
               relocated_file=None):
+    """Relocate/reproject a file (e.g., landcover or DEM) based on geolocation
+       defined by a geotransform, output dimensions (length and width)
+       and projection
 
+       Parameters
+       ----------
+       input_file: str
+              Input filename
+       geotransform: numpy.ndarray
+              Geotransform describing the output file geolocation
+       projection: str
+              Output file's projection
+       length: int
+              Output length
+       width: int
+              Output width
+       resample_algorithm: str
+              Resample algorithm
+       relocated_file: str
+              Relocated file (output file)
+
+       Returns
+       -------
+       relocated_array : numpy.ndarray
+              Relocated array
+    """
     logger.info(f'relocating file: {input_file}')
 
     dy = geotransform[5]
@@ -805,22 +1114,44 @@ def _relocate(input_file, geotransform, projection,
 
     return relocated_array
 
-def _deep_update(original, update):
-    '''
-    update default runconfig key with user supplied dict
+def _deep_update(main_dict, update_dict):
+    """Update input dictionary with a second (update) dictionary
     https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
-    '''
-    for key, val in update.items():
+
+       Parameters
+       ----------
+       main_dict: dict
+              Input dictionary
+       update_dict: dict
+              Update dictionary
+       
+       Returns
+       -------
+       updated_dict : dict
+              Updated dictionary
+    """
+    for key, val in update_dict.items():
         if isinstance(val, dict):
-            original[key] = _deep_update(original.get(key, {}), val)
+            main_dict[key] = _deep_update(main_dict.get(key, {}), val)
         else:
-            original[key] = val
+            main_dict[key] = val
 
-    # return updated original
-    return original
+    # return updated main_dict
+    return main_dict
 
 
-def generate_dswx_layers_runconfig(runconfig_file, args):
+def parse_runconfig_file(runconfig_file, args):
+    """
+    Parse run configuration file updating an argument (argparse) object
+    
+       Parameters
+       ----------
+       runconfig_file: str
+              Run configuration (runconfig) filename
+       args: argparse.Namespace
+              Argument (argparse) object
+    """
+
     if not os.path.isfile(runconfig_file):
         logger.info(f'ERROR invalid file {runconfig_file}')
         return
@@ -887,6 +1218,7 @@ def generate_dswx_layers_runconfig(runconfig_file, args):
         logger.info(f'input HLS files directory: {input_file_path[0]}')
         input_list = glob.glob(os.path.join(input_file_path[0], '*.tif'))
     else:
+        print(input_file_path)
         input_list = input_file_path
 
     # print main runconfig parameters
@@ -910,9 +1242,12 @@ def generate_dswx_layers_runconfig(runconfig_file, args):
     elif args.landcover_file is None:
         args.landcover_file = landcover_file
  
-    if args.built_up_cover_fraction_file is not None and built_up_cover_fraction_file is not None:
-        logger.warning(f'command line output file "{args.built_up_cover_fraction_file}"'
-              f' has precedence over runconfig output file "{built_up_cover_fraction_file}"')
+    if (args.built_up_cover_fraction_file is not None and 
+            built_up_cover_fraction_file is not None):
+        logger.warning('command line output file'
+                       f' "{args.built_up_cover_fraction_file}"'
+                       ' has precedence over runconfig output file'
+                       f' "{built_up_cover_fraction_file}"')
     elif args.built_up_cover_fraction_file is None:
         args.built_up_cover_fraction_file = built_up_cover_fraction_file
 
@@ -924,7 +1259,18 @@ def generate_dswx_layers_runconfig(runconfig_file, args):
 
 
 def _get_dswx_metadata_dict(output_file):
+    """Create and return metadata dictionary
 
+       Parameters
+       ----------
+       output_file: str
+              Output filename
+
+       Returns
+       -------
+       dswx_metadata_dict : collections.OrderedDict
+              Metadata dictionary
+    """
     dswx_metadata_dict = OrderedDict()
 
     # identification
@@ -945,6 +1291,21 @@ def _get_dswx_metadata_dict(output_file):
 def _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset,
                                      dem_file=None, landcover_file=None,
                                      built_up_cover_fraction_file=None):
+    """Populate metadata dictionary with input files
+
+       Parameters
+       ----------
+       dswx_metadata_dict : collections.OrderedDict
+              Metadata dictionary
+       hls_dataset: str
+              HLS dataset name
+       dem_file: str
+              DEM filename
+       landcover_file: str
+              Landcover filename
+       built_up_cover_fraction_file: str
+              Built-up cover fraction filename
+    """
 
     # input datasets
     dswx_metadata_dict['HLS_DATASET'] = hls_dataset
@@ -956,7 +1317,20 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset,
                                      else '(not provided)'
 
 
-def configure_log_file(log_file):
+def create_logger(log_file):
+    """Create logger object for a log file
+
+       Parameters
+       ----------
+       log_file: str
+              Log file
+
+       Returns
+       -------
+       logger : logging.Logger
+              Logger object
+    """
+
     # create logger
     logger.setLevel(logging.DEBUG)
 
@@ -991,6 +1365,24 @@ def configure_log_file(log_file):
 
 def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
                       sun_elevation_angle):
+    """Compute hillshade using GDAL's DEMProcessing() function
+
+       Parameters
+       ----------
+       dem_file: str
+              DEM filename
+       scratch_dir: str
+              Scratch directory
+       sun_azimuth_angle: float
+              Sun azimuth angle
+       sun_elevation_angle: float
+              Sun elevation angle
+
+       Returns
+       -------
+       hillshade : numpy.ndarray
+              Hillshade
+    """
     shadow_layer_file = tempfile.NamedTemporaryFile(
         dir=scratch_dir, suffix='.tif').name
 
@@ -998,16 +1390,30 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
                       azimuth=sun_azimuth_angle,
                       altitude=sun_elevation_angle)
     gdal_ds = gdal.Open(shadow_layer_file)
-    shadow_layer = gdal_ds.ReadAsArray()
+    hillshade = gdal_ds.ReadAsArray()
     del gdal_ds
-    return shadow_layer
+    return hillshade
 
 
-def _apply_shadow_layer(masked_dswx_band, shadow_layer):
+def _apply_shadow_layer(interpreted_layer, shadow_layer):
+    """Apply shadow layer onto interpreted layer
+
+       Parameters
+       ----------
+       interpreted_layer: numpy.ndarray
+              Interpreted layer
+       shadow_layer: numpy.ndarray
+              Shadow layer
+
+       Returns
+       -------
+       interpreted_layer : numpy.ndarray
+              Shadow-masked interpreted layer
+    """
     # shadows are set to 0 (not water)
     ind = np.where(shadow_layer == 1)
-    masked_dswx_band[ind] = 0
-    return masked_dswx_band
+    interpreted_layer[ind] = 0
+    return interpreted_layer
 
 
 def generate_dswx_layers(input_list, output_file,
@@ -1016,7 +1422,7 @@ def generate_dswx_layers(input_list, output_file,
                          output_rgb_file=None,
                          output_infrared_rgb_file=None,
                          output_binary_water=None,
-                         output_diagnostic_test_band=None,
+                         output_diagnostic_layer=None,
                          output_non_masked_dswx=None,
                          output_shadow_masked_dswx=None,
                          output_shadow_layer=None,
@@ -1026,6 +1432,52 @@ def generate_dswx_layers(input_list, output_file,
                          flag_offset_and_scale_inputs=False,
                          scratch_dir='.',
                          flag_debug=False):
+    """Apply shadow layer onto interpreted layer
+
+       Parameters
+       ----------
+       input_list: list
+              Input file list
+       output_file: str
+              Output filename
+       dem_file: str (optional)
+              DEM filename
+       output_interpreted_band: str (optional)
+              Output interpreted band filename
+       output_rgb_file: str (optional)
+              Output RGB filename
+       output_infrared_rgb_file: str (optional)
+              Output infrared RGB filename
+       output_binary_water: str (optional)
+              Output binary water filename
+       output_diagnostic_layer: str (optional)
+              Output diagnostic layer filename
+       output_non_masked_dswx: str (optional)
+              Output (non-masked) interpreted layer filename
+       output_shadow_masked_dswx: str (optional)
+              Output shadow-masked filename
+       output_shadow_layer: str (optional)
+              Output shadow layer filename
+       output_cloud_mask: str (optional)
+              Output cloud/cloud-shadow mask filename
+       landcover_file: str (optional)
+              Output landcover filename
+       built_up_cover_fraction_file: str (optional)
+              Output built-up cover fraction filename
+       flag_offset_and_scale_inputs: bool (optional)
+              Flag indicating if DSWx-HLS should be offsetted and scaled
+       scratch_dir: str (optional)
+              Temporary directory
+       flag_debug: bool (optional)
+              Flag to indicate if execution is for debug purposes. If so,
+              only a subset of the image will be loaded into memory
+
+       Returns
+       -------
+       success : bool
+              Flag success indicating if execution was successful
+    """
+
 
     if scratch_dir is None:
         scratch_dir = '.'
@@ -1118,7 +1570,7 @@ def generate_dswx_layers(input_list, output_file,
                         relocated_file=dem_cropped_file)
         hillshade = _compute_hillshade(dem_cropped_file, scratch_dir,
                                          sun_azimuth_angle, sun_elevation_angle)
-        shadow_layer = compute_otsu_threshold(hillshade, is_normalized = True)
+        shadow_layer = _compute_otsu_threshold(hillshade, is_normalized = True)
 
         if output_shadow_layer:
             _save_array(shadow_layer, output_shadow_layer,
@@ -1163,17 +1615,17 @@ def generate_dswx_layers(input_list, output_file,
                               output_files_list=output_files_list,
                               flag_infrared=True)
 
-    diagnostic_test_band = _compute_diagnostic_tests(
+    diagnostic_layer = _compute_diagnostic_tests(
         blue, green, red, nir, swir1, swir2)
 
-    if output_diagnostic_test_band:
-        _save_array(diagnostic_test_band, output_diagnostic_test_band,
+    if output_diagnostic_layer:
+        _save_array(diagnostic_layer, output_diagnostic_layer,
                     dswx_metadata_dict, geotransform, projection,
                     description=band_description_dict['DIAG'],
                     output_files_list=output_files_list)
 
     interpreted_dswx_band = _generate_interpreted_layer(
-        diagnostic_test_band)
+        diagnostic_layer)
 
     if invalid_ind is not None:
         interpreted_dswx_band[invalid_ind] = 255
@@ -1241,7 +1693,7 @@ def generate_dswx_layers(input_list, output_file,
                       geotransform, 
                       projection,
                       bwtr=binary_water_layer,
-                      diag=diagnostic_test_band,
+                      diag=diagnostic_layer,
                       intr=interpreted_dswx_band,
                       insm=shadow_masked_dswx,
                       shad=shadow_layer,

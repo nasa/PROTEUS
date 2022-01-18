@@ -15,9 +15,10 @@
 import logging
 import argparse
 import mimetypes
+# from memory_profiler import profile
 from modules.dswx_hls import generate_dswx_layers, \
-                             configure_log_file, \
-                             generate_dswx_layers_runconfig
+                             create_logger, \
+                             parse_runconfig_file
 
 logger = logging.getLogger('dswx_hls')
 
@@ -84,7 +85,7 @@ def _get_parser():
 
     parser.add_argument('--diag',
                         '--output-diagnostic-layer',
-                        dest='output_diagnostic_test_band',
+                        dest='output_diagnostic_layer',
                         type=str,
                         help='Output diagnostic test layer file (GeoTIFF)')
 
@@ -148,7 +149,7 @@ def main():
 
     args = parser.parse_args()
 
-    configure_log_file(args.log_file)
+    create_logger(args.log_file)
 
     mimetypes.add_type("text/yaml", ".yaml", strict=True)
     flag_first_file_is_text = 'text' in mimetypes.guess_type(
@@ -159,8 +160,7 @@ def main():
         return
  
     if flag_first_file_is_text:
-        generate_dswx_layers_runconfig(args.input_list[0], args)
-
+        parse_runconfig_file(args.input_list[0], args)
 
     generate_dswx_layers(
         args.input_list,
@@ -170,7 +170,7 @@ def main():
         output_rgb_file=args.output_rgb_file,
         output_infrared_rgb_file=args.output_infrared_rgb_file,
         output_binary_water=args.output_binary_water,
-        output_diagnostic_test_band=args.output_diagnostic_test_band,
+        output_diagnostic_layer=args.output_diagnostic_layer,
         output_non_masked_dswx=args.output_non_masked_dswx,
         output_shadow_masked_dswx=args.output_shadow_masked_dswx,
         output_shadow_layer=args.output_shadow_layer,
