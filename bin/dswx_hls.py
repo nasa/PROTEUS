@@ -7,7 +7,7 @@
 # Depth Estimation Network", Remote Sensing, 7(9), 12503-12538. 
 # http://dx.doi.org/10.3390/rs70912503, 2015
 # 
-# [2] R. Dittmeier, LANDSAT DYNAMIC SURFACE WATER EXTENT (DSWE) ALGORITHM 
+# [2] R. Dittmeier, "LANDSAT DYNAMIC SURFACE WATER EXTENT (DSWE) ALGORITHM 
 # DESCRIPTION DOCUMENT (ADD)", USGS, March 2018
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -15,7 +15,6 @@
 import logging
 import argparse
 import mimetypes
-# from memory_profiler import profile
 from modules.dswx_hls import generate_dswx_layers, \
                              create_logger, \
                              parse_runconfig_file
@@ -143,7 +142,6 @@ def _get_parser():
 
     return parser
 
-# @profile
 def main():
     parser = _get_parser()
 
