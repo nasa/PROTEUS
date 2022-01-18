@@ -134,14 +134,22 @@ def _get_interpreted_dswx_ctable():
     dswx_ctable = gdal.ColorTable()
 
     # set color for each value
-    dswx_ctable.SetColorEntry(0, (255, 255, 255))  # White - Not water
-    dswx_ctable.SetColorEntry(1, (0, 0, 255))  # Blue - Water (high confidence)
-    dswx_ctable.SetColorEntry(2, (64, 64, 255))  # Light blue - Water (moderate conf.)
-    dswx_ctable.SetColorEntry(3, (0, 255, 0))  # Green - Potential wetland
-    dswx_ctable.SetColorEntry(4, (0, 255, 255))  # Cyan - Low confidence 
-                                                 # water or wetland
-    dswx_ctable.SetColorEntry(9, (128, 128, 128))  # Gray - QA masked
-    dswx_ctable.SetColorEntry(255, (0, 0, 0, 0))  # Black - Fill value
+
+    # White - Not water
+    dswx_ctable.SetColorEntry(0, (255, 255, 255))
+    # Blue - Water (high confidence)
+    dswx_ctable.SetColorEntry(1, (0, 0, 255))
+    # Light blue - Water (moderate conf.)
+    dswx_ctable.SetColorEntry(2, (64, 64, 255))
+    # Green - Potential wetland
+    dswx_ctable.SetColorEntry(3, (0, 255, 0))
+    # Cyan - Low confidence  water or wetland
+    dswx_ctable.SetColorEntry(4, (0, 255, 255))
+    # Gray - QA masked
+    dswx_ctable.SetColorEntry(9, (128, 128, 128))
+    # Black/transparent - Fill value
+    dswx_ctable.SetColorEntry(255, (0, 0, 0, 0))
+
     return dswx_ctable
 
 
@@ -164,16 +172,24 @@ def _get_mask_ctable():
     - Mask snow/ice bit (1)
     - Mask cloud bit (2)
     '''
-
-    mask_ctable.SetColorEntry(0, (255, 255, 255))  # White - Not masked
-    mask_ctable.SetColorEntry(1, (64, 64, 64))  # Dark gray - Cloud shadow
-    mask_ctable.SetColorEntry(2, (0, 255, 255))  # Cyan - snow/ice
-    mask_ctable.SetColorEntry(3, (0, 0, 255))  # Blue - Cloud shadow and snow/ice
-    mask_ctable.SetColorEntry(4, (192, 192, 192))  # Light gray - Cloud
-    mask_ctable.SetColorEntry(5, (128, 128, 128))  # Gray - Cloud and cloud shadow
-    mask_ctable.SetColorEntry(6, (255, 0, 255))  # Magenta - Cloud and snow/ice
-    mask_ctable.SetColorEntry(7, (128, 128, 255))  # Light blue - Cloud, cloud shadow, and snow/ice
-    mask_ctable.SetColorEntry(255, (0, 0, 0, 255))  # Black - Fill value
+    # White - Not masked
+    mask_ctable.SetColorEntry(0, (255, 255, 255))
+    # Dark gray - Cloud shadow
+    mask_ctable.SetColorEntry(1, (64, 64, 64))
+    # Cyan - snow/ice
+    mask_ctable.SetColorEntry(2, (0, 255, 255))
+    # Blue - Cloud shadow and snow/ice
+    mask_ctable.SetColorEntry(3, (0, 0, 255))
+    # Light gray - Cloud
+    mask_ctable.SetColorEntry(4, (192, 192, 192))
+    # Gray - Cloud and cloud shadow
+    mask_ctable.SetColorEntry(5, (128, 128, 128))
+    # Magenta - Cloud and snow/ice
+    mask_ctable.SetColorEntry(6, (255, 0, 255))
+    # Light blue - Cloud, cloud shadow, and snow/ice
+    mask_ctable.SetColorEntry(7, (128, 128, 255))
+    # Black/transparent - Fill value
+    mask_ctable.SetColorEntry(255, (0, 0, 0, 0))
     return mask_ctable
 
 
@@ -694,9 +710,12 @@ def _get_binary_water_ctable():
 
     # create color table
     binary_water_ctable = gdal.ColorTable()
-    binary_water_ctable.SetColorEntry(0, (255, 255, 255))  # No water
-    binary_water_ctable.SetColorEntry(1, (0, 0, 255))  # Water
-    binary_water_ctable.SetColorEntry(255, (0, 0, 0, 255))  # Black - Fill value
+    # No water
+    binary_water_ctable.SetColorEntry(0, (255, 255, 255))
+    # Water
+    binary_water_ctable.SetColorEntry(1, (0, 0, 255))
+    # Black/transparent - Fill value
+    binary_water_ctable.SetColorEntry(255, (0, 0, 0, 0))
     return binary_water_ctable
 
 
