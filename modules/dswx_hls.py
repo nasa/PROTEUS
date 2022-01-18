@@ -141,7 +141,7 @@ def _get_interpreted_dswx_ctable():
     dswx_ctable.SetColorEntry(4, (0, 255, 255))  # Cyan - Low confidence 
                                                  # water or wetland
     dswx_ctable.SetColorEntry(9, (128, 128, 128))  # Gray - QA masked
-    dswx_ctable.SetColorEntry(255, (0, 0, 0, 255))  # Black - Fill value
+    dswx_ctable.SetColorEntry(255, (0, 0, 0, 0))  # Black - Fill value
     return dswx_ctable
 
 
