@@ -361,7 +361,7 @@ def _compute_diagnostic_tests(blue, green, red,
     for i in range(shape[0]):
         for j in range(shape[1]):
 
-            # Implementation of water tests described in [1, 2]
+            # Surface water tests (see [1, 2])
 
             # Test 1 
             if (mndwi[i, j] > wigt):
