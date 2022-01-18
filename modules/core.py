@@ -33,11 +33,8 @@ def save_as_cog(filename, scratch_dir = '.', logger = None):
                               'BLOCKXSIZE=1024',
                               'BLOCKYSIZE=1024',
                               'COMPRESS=DEFLATE',
-                              # 'COMPRESS_OVERVIEW=DEFLATE',
                               'PREDICTOR=2',
-                              'COPY_SRC_OVERVIEWS=YES',
-                              # 'GDAL_TIFF_OVR_BLOCKSIZE=1024'
-                              ]
+                              'COPY_SRC_OVERVIEWS=YES']
     gdal.Translate(temp_file, filename,
                    creationOptions=gdal_translate_options)
 
