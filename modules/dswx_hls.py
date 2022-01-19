@@ -12,17 +12,6 @@ from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32
 from osgeo import gdal, osr
 from .core import save_as_cog
-from .dswx_hls_constants import wigt, \
-                                awgt, \
-                                pswt_1_mndwi, \
-                                pswt_1_nir, \
-                                pswt_1_swir1, \
-                                pswt_1_ndvi, \
-                                pswt_2_mndwi, \
-                                pswt_2_blue, \
-                                pswt_2_nir, \
-                                pswt_2_swir1, \
-                                pswt_2_swir2
 
 logger = logging.getLogger('dswx_hls')
 
@@ -117,6 +106,65 @@ METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSOR_PRODUCT_ID',
                                          'NBAR_SOLAR_ZENITH',
                                          'ACCODE',
                                          'IDENTIFIER_PRODUCT_DOI']
+
+
+class HlsThresholds:
+    """
+    Placeholder for HLS reflectance thresholds for generating DSWx-HLS products
+    ...
+
+    Attributes
+    ----------
+
+    wigt : float
+        Modified Normalized Difference Wetness Index (MNDWI) Threshold
+
+    awgt : float
+        Automated Water Extent Shadow Threshold
+
+    pswt_1_mndwi : float
+        Partial Surface Water Test-1 MNDWI Threshold
+
+    pswt_1_nir : float
+        Partial Surface Water Test-1 NIR Threshold
+
+    pswt_1_swir1 : float
+        Partial Surface Water Test-1 SWIR1 Threshold
+
+    pswt_1_ndvi : float
+        Partial Surface Water Test-1 NDVI Threshold
+
+    pswt_2_mndwi : float
+        Partial Surface Water Test-2 MNDWI Threshold
+
+    pswt_2_blue : float
+        Partial Surface Water Test-2 Blue Threshold
+
+    pswt_2_nir : float
+        Partial Surface Water Test-2 NIR Threshold
+
+    pswt_2_swir1 : float
+        Partial Surface Water Test-2 SWIR1 Threshold
+
+    pswt_2_swir2 : float
+        Partial Surface Water Test-2 SWIR2 Threshold
+
+    """
+
+    def __init__(self):
+
+        self.wigt = None
+        self.awgt = None
+        self.pswt_1_mndwi = None
+        self.pswt_1_nir = None
+        self.pswt_1_swir1 = None
+        self.pswt_1_ndvi = None
+        self.pswt_2_mndwi = None
+        self.pswt_2_blue = None
+        self.pswt_2_nir = None
+        self.pswt_2_swir1 = None
+        self.pswt_2_swir2 = None
+
 
 
 def _get_interpreted_dswx_ctable():
@@ -302,8 +350,8 @@ def _get_binary_water_layer(interpreted_water_layer):
     return binary_water_layer
 
 
-def _compute_diagnostic_tests(blue, green, red,
-                              nir, swir1, swir2):
+def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2, 
+                              hls_thresholds):
     """Compute diagnost tests over reflectance channels: Blue,
     Green, Red, NIR, SWIR-1, and SWIR-2, and return
     diagnostic test band
@@ -322,6 +370,8 @@ def _compute_diagnostic_tests(blue, green, red,
               Short-wave infrared 1 (SWIR-1) channel
        swir2: numpy.ndarray
               Short-wave infrared 2 (SWIR-2) channel
+       hls_thresholds:
+              HLS reflectance thresholds for generating DSWx-HLS products
 
        Returns
        -------
@@ -364,7 +414,7 @@ def _compute_diagnostic_tests(blue, green, red,
             # Surface water tests (see [1, 2])
 
             # Test 1 
-            if (mndwi[i, j] > wigt):
+            if (mndwi[i, j] > hls_thresholds.wigt):
                 diagnostic_layer[i, j] += 1
 
             # Test 2
@@ -372,22 +422,22 @@ def _compute_diagnostic_tests(blue, green, red,
                 diagnostic_layer[i, j] += 2
 
             # Test 3
-            if (awesh[i, j] > awgt):
+            if (awesh[i, j] > hls_thresholds.awgt):
                 diagnostic_layer[i, j] += 4
 
             # Test 4
-            if (mndwi[i, j] > pswt_1_mndwi and 
-                    swir1[i, j] < pswt_1_swir1 and
-                    nir[i, j] < pswt_1_nir and
-                    ndvi[i, j] < pswt_1_ndvi):
+            if (mndwi[i, j] > hls_thresholds.pswt_1_mndwi and 
+                    swir1[i, j] < hls_thresholds.pswt_1_swir1 and
+                    nir[i, j] < hls_thresholds.pswt_1_nir and
+                    ndvi[i, j] < hls_thresholds.pswt_1_ndvi):
                 diagnostic_layer[i, j] += 8
 
             # Test 5
-            if (mndwi[i, j] > pswt_2_mndwi and
-                    blue[i, j] < pswt_2_blue and
-                    swir1[i, j] < pswt_2_swir1 and
-                    swir2[i, j] < pswt_2_swir2 and
-                    nir[i, j] < pswt_2_nir):
+            if (mndwi[i, j] > hls_thresholds.pswt_2_mndwi and
+                    blue[i, j] < hls_thresholds.pswt_2_blue and
+                    swir1[i, j] < hls_thresholds.pswt_2_swir1 and
+                    swir2[i, j] < hls_thresholds.pswt_2_swir2 and
+                    nir[i, j] < hls_thresholds.pswt_2_nir):
                 diagnostic_layer[i, j] += 16
 
     return diagnostic_layer
@@ -1158,27 +1208,22 @@ def _deep_update(main_dict, update_dict):
     return main_dict
 
 
-def parse_runconfig_file(runconfig_file, args):
+def parse_runconfig_file(user_runconfig_file = None, args = None):
     """
-    Parse run configuration file updating an argument (argparse) object
+    Parse run configuration file updating an argument
+    (argparse.Namespace) and an HlsThresholds object
     
        Parameters
        ----------
-       runconfig_file: str
+       user_runconfig_file: str (optional)
               Run configuration (runconfig) filename
-       args: argparse.Namespace
-              Argument (argparse) object
+       args: argparse.Namespace (optional)
+              Argument object
     """
-
-    if not os.path.isfile(runconfig_file):
-        logger.info(f'ERROR invalid file {runconfig_file}')
-        return
-
-    logger.info(f'Input runconfig file: {runconfig_file}')
 
     bin_dirname = os.path.dirname(__file__)
     source_dirname = os.path.split(bin_dirname)[0]
-    default_runconfig_file = f'{source_dirname}/schemas/dswx_hls.yaml'
+    default_runconfig_file = f'{source_dirname}/defaults/dswx_hls.yaml'
 
     logger.info(f'Default runconfig file: {default_runconfig_file}')
 
@@ -1186,28 +1231,51 @@ def parse_runconfig_file(runconfig_file, args):
     logger.info(f'YAML schema: {yaml_schema}')
 
     schema = yamale.make_schema(yaml_schema, parser='ruamel')
-    data = yamale.make_data(runconfig_file, parser='ruamel')
-
-    logger.info(f'Validating runconfig file: {runconfig_file}')
-    yamale.validate(schema, data)
 
     # parse default config
     parser = ruamel_yaml(typ='safe')
     with open(default_runconfig_file, 'r') as f:
         default_runconfig = parser.load(f)
 
-    # parse user config
-    with open(runconfig_file) as f_yaml:
-        user_runconfig = parser.load(f_yaml)
+    if user_runconfig_file is not None:
+        if not os.path.isfile(user_runconfig_file):
+            logger.info(f'ERROR invalid file {user_runconfig_file}')
+            return
 
-    # copy user suppiled config into default config
-    _deep_update(default_runconfig, user_runconfig)
+        logger.info(f'Input runconfig file: {user_runconfig_file}')
+
+        data = yamale.make_data(user_runconfig_file, parser='ruamel')
+
+        logger.info(f'Validating runconfig file: {user_runconfig_file}')
+        yamale.validate(schema, data)
+
+        # parse user config
+        with open(user_runconfig_file) as f_yaml:
+            user_runconfig = parser.load(f_yaml)
+
+        # copy user suppiled config into default config
+        runconfig = _deep_update(default_runconfig, user_runconfig)
+
+    else:
+        runconfig = default_runconfig
+
+    hls_thresholds = HlsThresholds()
+    hls_thresholds_user = runconfig['runconfig']['groups']['hls_thresholds']
 
     # copy runconfig parameters from dictionary
-    input_file_path = user_runconfig['runconfig']['groups']['input_file_group'][
+    if hls_thresholds_user is not None:
+        print('HLS thresholds:')
+        for key in hls_thresholds_user.keys():
+            print(f'     {key}: {hls_thresholds_user[key]}')
+            hls_thresholds.__setattr__(key, hls_thresholds_user[key])
+
+    if args is None:
+        return hls_thresholds
+
+    input_file_path = runconfig['runconfig']['groups']['input_file_group'][
         'input_file_path']
 
-    ancillary_ds_group = user_runconfig['runconfig']['groups'][
+    ancillary_ds_group = runconfig['runconfig']['groups'][
         'dynamic_ancillary_file_group']
 
     if 'dem_file' not in ancillary_ds_group:
@@ -1226,21 +1294,20 @@ def parse_runconfig_file(runconfig_file, args):
         built_up_cover_fraction_file = ancillary_ds_group[
             'built_up_cover_fraction_file']
 
-    output_file = user_runconfig['runconfig']['groups']['product_path_group'][
+    output_file = runconfig['runconfig']['groups']['product_path_group'][
         'sas_output_file']
 
-    scratch_dir = user_runconfig['runconfig']['groups']['product_path_group'][
+    scratch_dir = runconfig['runconfig']['groups']['product_path_group'][
         'scratch_path']
 
-    if len(input_file_path) == 1 and os.path.isdir(input_file_path[0]):
+    if (input_file_path is not None and len(input_file_path) == 1 and
+            os.path.isdir(input_file_path[0])):
         logger.info(f'input HLS files directory: {input_file_path[0]}')
         input_list = glob.glob(os.path.join(input_file_path[0], '*.tif'))
-    else:
-        print(input_file_path)
+        args.input_list = input_list
+    elif input_file_path is not None:
         input_list = input_file_path
-
-    # print main runconfig parameters
-    args.input_list = input_list
+        args.input_list = input_list
 
     if args.output_file is not None and output_file is not None:
         logger.warning(f'command line output file "{args.output_file}"'
@@ -1275,6 +1342,7 @@ def parse_runconfig_file(runconfig_file, args):
     elif args.scratch_dir is None:
         args.scratch_dir = scratch_dir
 
+    return hls_thresholds
 
 def _get_dswx_metadata_dict(output_file):
     """Create and return metadata dictionary
@@ -1435,6 +1503,7 @@ def _apply_shadow_layer(interpreted_layer, shadow_layer):
 
 
 def generate_dswx_layers(input_list, output_file,
+                         hls_thresholds = None,
                          dem_file=None,
                          output_interpreted_band=None,
                          output_rgb_file=None,
@@ -1458,6 +1527,8 @@ def generate_dswx_layers(input_list, output_file,
               Input file list
        output_file: str
               Output filename
+       hls_thresholds: HlsThresholds (optional)
+              HLS reflectance thresholds for generating DSWx-HLS products
        dem_file: str (optional)
               DEM filename
        output_interpreted_band: str (optional)
@@ -1496,6 +1567,8 @@ def generate_dswx_layers(input_list, output_file,
               Flag success indicating if execution was successful
     """
 
+    if hls_thresholds is None:
+        hls_thresholds = parse_runconfig_file()
 
     if scratch_dir is None:
         scratch_dir = '.'
@@ -1634,7 +1707,7 @@ def generate_dswx_layers(input_list, output_file,
                               flag_infrared=True)
 
     diagnostic_layer = _compute_diagnostic_tests(
-        blue, green, red, nir, swir1, swir2)
+        blue, green, red, nir, swir1, swir2, hls_thresholds)
 
     if output_diagnostic_layer:
         _save_array(diagnostic_layer, output_diagnostic_layer,

@@ -156,13 +156,19 @@ def main():
     if len(args.input_list) > 1 and flag_first_file_is_text:
         logger.info('ERROR only one runconfig file is allowed')
         return
- 
+
     if flag_first_file_is_text:
-        parse_runconfig_file(args.input_list[0], args)
+        user_runconfig_file = args.input_list[0]
+    else:
+        user_runconfig_file = None
+
+    hls_thresholds = parse_runconfig_file(
+        user_runconfig_file = user_runconfig_file, args = args)
 
     generate_dswx_layers(
         args.input_list,
         args.output_file,
+        hls_thresholds = hls_thresholds,
         dem_file=args.dem_file, 
         output_interpreted_band=args.output_interpreted_band,
         output_rgb_file=args.output_rgb_file,

@@ -33,3 +33,42 @@ runconfig:
        
         primary_executable:
             product_type: enum('DSWX_HLS')
+
+        hls_thresholds: include('hls_thresholds_options', required=False)
+
+---
+
+hls_thresholds_options:
+
+    # Modified Normalized Difference Wetness Index (MNDWI) Threshold
+    wigt: num(required=False)
+
+    # Automated Water Extent Shadow Threshold
+    awgt: num(required=False)
+
+    # Partial Surface Water Test-1 MNDWI Threshold
+    pswt_1_mndwi: num(required=False)
+
+    # Partial Surface Water Test-1 NIR Threshold
+    pswt_1_nir: num(required=False)
+
+    # Partial Surface Water Test-1 SWIR1 Threshold
+    pswt_1_swir1: num(required=False)
+
+    # Partial Surface Water Test-1 NDVI Threshold
+    pswt_1_ndvi: num(required=False)
+
+    # Partial Surface Water Test-2 MNDWI Threshold
+    pswt_2_mndwi: num(required=False)
+
+    # Partial Surface Water Test-2 Blue Threshold
+    pswt_2_blue: num(required=False)
+
+    # Partial Surface Water Test-2 NIR Threshold
+    pswt_2_nir: num(required=False)
+
+    # Partial Surface Water Test-2 SWIR1 Threshold
+    pswt_2_swir1: num(required=False)
+
+    # Partial Surface Water Test-2 SWIR2 Threshold
+    pswt_2_swir2: num(required=False)
