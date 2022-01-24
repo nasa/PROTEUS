@@ -43,10 +43,9 @@ def save_as_cog(filename, scratch_dir = '.', logger = None):
 
     logger.info('COG step 3: validate')
     try:
-        from extern.validate_cloud_optimized_geotiff import main as validate_cog
+        from proteus.extern.validate_cloud_optimized_geotiff import main as validate_cog
     except ModuleNotFoundError:
-        logger.info('WARNING could not import module'
-                    ' validate_cloud_optimized_geotiff')
+        logger.info('WARNING could not import module validate_cloud_optimized_geotiff')
         return
 
     argv = ['--full-check=yes', filename]

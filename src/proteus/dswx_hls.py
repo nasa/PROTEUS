@@ -9,7 +9,7 @@ from collections import OrderedDict
 from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32
 from osgeo import gdal, osr
-from .core import save_as_cog
+from proteus.core import save_as_cog
 
 logger = logging.getLogger('dswx_hls')
 

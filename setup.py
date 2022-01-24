@@ -10,11 +10,11 @@ long_description = ''
 package_data_dict = {}
 
 package_data_dict[''] = [
-    os.path.join('src', 'defaults', 'dswx_hls.yaml'),
-    os.path.join('src', 'schemas', 'dswx_hls.yaml')]
+    os.path.join('src', 'proteus', 'defaults', 'dswx_hls.yaml'),
+    os.path.join('src', 'proteus', 'schemas', 'dswx_hls.yaml')]
 
 setup(
-    name='Proteus',
+    name='proteus',
     version=version,
     description='Compute Dynamic Surface Water Extent (DSWx)'
                 ' from optical (HLS) and SAR data',

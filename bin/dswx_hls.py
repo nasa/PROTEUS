@@ -15,9 +15,11 @@
 import logging
 import argparse
 import mimetypes
-from src.proteus.dswx_hls import generate_dswx_layers, \
-                             create_logger, \
-                             parse_runconfig_file
+from proteus.dswx_hls import (
+    generate_dswx_layers,
+    create_logger,
+    parse_runconfig_file
+)
 
 logger = logging.getLogger('dswx_hls')
 
