@@ -2,12 +2,12 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # References:
 #
-# [1] J. W. Jones, "Efficient wetland surface water detection and 
-# monitoring via Landsat: Comparison with in situ data from the Everglades 
-# Depth Estimation Network", Remote Sensing, 7(9), 12503-12538. 
+# [1] J. W. Jones, "Efficient wetland surface water detection and
+# monitoring via Landsat: Comparison with in situ data from the Everglades
+# Depth Estimation Network", Remote Sensing, 7(9), 12503-12538.
 # http://dx.doi.org/10.3390/rs70912503, 2015
-# 
-# [2] R. Dittmeier, "LANDSAT DYNAMIC SURFACE WATER EXTENT (DSWE) ALGORITHM 
+#
+# [2] R. Dittmeier, "LANDSAT DYNAMIC SURFACE WATER EXTENT (DSWE) ALGORITHM
 # DESCRIPTION DOCUMENT (ADD)", USGS, March 2018
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -33,7 +33,7 @@ def _get_parser():
                         nargs='+',
                         help='Input YAML run configuration file or HLS product file(s)')
 
-    parser.add_argument('--dem',    
+    parser.add_argument('--dem',
                         dest='dem_file',
                         type=str,
                         help='Input digital elevation model (DEM)')
@@ -44,7 +44,7 @@ def _get_parser():
                         help='Input Land Cover Discrete-Classification-map')
 
     parser.add_argument('--built-up-cover-fraction',
-                        '--builtup-cover-fraction',    
+                        '--builtup-cover-fraction',
                         dest='built_up_cover_fraction_file',
                         type=str,
                         help='Input built-up cover fraction layer')
@@ -169,7 +169,7 @@ def main():
         args.input_list,
         args.output_file,
         hls_thresholds = hls_thresholds,
-        dem_file=args.dem_file, 
+        dem_file=args.dem_file,
         output_interpreted_band=args.output_interpreted_band,
         output_rgb_file=args.output_rgb_file,
         output_infrared_rgb_file=args.output_infrared_rgb_file,
@@ -179,7 +179,7 @@ def main():
         output_shadow_masked_dswx=args.output_shadow_masked_dswx,
         output_shadow_layer=args.output_shadow_layer,
         output_cloud_mask=args.output_cloud_mask,
-        landcover_file=args.landcover_file, 
+        landcover_file=args.landcover_file,
         built_up_cover_fraction_file=args.built_up_cover_fraction_file,
         flag_offset_and_scale_inputs=args.flag_offset_and_scale_inputs,
         scratch_dir=args.scratch_dir,

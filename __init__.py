@@ -1,2 +1,2 @@
-import .bin
-import .src
+import bin
+import src

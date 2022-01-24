@@ -6,13 +6,14 @@ from osgeo import gdal
 
 def save_as_cog(filename, scratch_dir = '.', logger = None):
     """Save (overwrite) a GeoTIFF file as a cloud-optimized GeoTIFF.
+
        Parameters
        ----------
        filename: str
               GeoTIFF to be saved as a cloud-optimized GeoTIFF
        scratch_dir: str (optional)
               Temporary Directory
-     
+
     """
     if logger is None:
         logger = logging.getLogger('proteus')

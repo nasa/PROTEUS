@@ -2,12 +2,12 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 # References:
-# [1] J. W. Jones, "Efficient wetland surface water detection and 
+# [1] J. W. Jones, "Efficient wetland surface water detection and
 # monitoring via Landsat: Comparison with in situ data from the Everglades 
-# Depth Estimation Network", Remote Sensing, 7(9), 12503-12538. 
+# Depth Estimation Network", Remote Sensing, 7(9), 12503-12538.
 # http://dx.doi.org/10.3390/rs70912503, 2015
-# 
-# [2] R. Dittmeier, "LANDSAT DYNAMIC SURFACE WATER EXTENT (DSWE) ALGORITHM 
+#
+# [2] R. Dittmeier, "LANDSAT DYNAMIC SURFACE WATER EXTENT (DSWE) ALGORITHM
 # DESCRIPTION DOCUMENT (ADD)", USGS, March 2018
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -56,15 +56,14 @@ def main():
         print(f'ERROR file not found: {args.input_file[1]}')
         return
 
+    # TODO: compare projections ds.GetProjection()
     layer_gdal_dataset_1 = gdal.Open(args.input_file[0])
     geotransform_1 = layer_gdal_dataset_1.GetGeoTransform()
-    projection_1 = layer_gdal_dataset_1.GetProjection()
     metadata_1 = layer_gdal_dataset_1.GetMetadata()
     nbands_1 = layer_gdal_dataset_1.RasterCount
 
     layer_gdal_dataset_2 = gdal.Open(args.input_file[1])
     geotransform_2 = layer_gdal_dataset_2.GetGeoTransform()
-    projection_2 = layer_gdal_dataset_2.GetProjection()
     metadata_2 = layer_gdal_dataset_2.GetMetadata()
     nbands_2 = layer_gdal_dataset_2.RasterCount
 
