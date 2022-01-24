@@ -16,7 +16,7 @@ import os
 import argparse
 from osgeo import gdal
 import numpy as np
-from dswx_hls import band_description_dict
+from proteus.dswx_hls import band_description_dict
 
 
 def _get_parser():
