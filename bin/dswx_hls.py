@@ -15,7 +15,7 @@
 import logging
 import argparse
 import mimetypes
-from modules.dswx_hls import generate_dswx_layers, \
+from src.proteus.dswx_hls import generate_dswx_layers, \
                              create_logger, \
                              parse_runconfig_file
 

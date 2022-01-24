@@ -10,8 +10,8 @@ long_description = ''
 package_data_dict = {}
 
 package_data_dict[''] = [
-    os.path.join('defaults', 'dswx_hls.yaml'),
-    os.path.join('schemas', 'dswx_hls.yaml')]
+    os.path.join('src', 'defaults', 'dswx_hls.yaml'),
+    os.path.join('src', 'schemas', 'dswx_hls.yaml')]
 
 setup(
     name='Proteus',
@@ -21,10 +21,10 @@ setup(
     package_dir={'dswx_hls': '.'},
     packages=['dswx_hls',
               'dswx_hls.bin',
-              'dswx_hls.extern'],
+              'dswx_hls.src.extern'],
     package_data=package_data_dict,
     classifiers=['Programming Language :: Python', ],
-    # py_modules=['bin/dswx_hls.py'],
+    # py_modules=['src/proteus/core.py'],
     scripts=['bin/dswx_hls.py'],
     install_requires=['argparse', 'numpy', 'yamale', 'ruamel',
                       'osgeo', 'scipy'],
