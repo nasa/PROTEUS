@@ -1218,11 +1218,11 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
     bin_dirname = os.path.dirname(__file__)
     source_dirname = os.path.split(bin_dirname)[0]
-    default_runconfig_file = f'{source_dirname}/defaults/dswx_hls.yaml'
+    default_runconfig_file = f'{source_dirname}/proteus/defaults/dswx_hls.yaml'
 
     logger.info(f'Default runconfig file: {default_runconfig_file}')
 
-    yaml_schema = f'{source_dirname}/schemas/dswx_hls.yaml'
+    yaml_schema = f'{source_dirname}/proteus/schemas/dswx_hls.yaml'
     logger.info(f'YAML schema: {yaml_schema}')
 
     schema = yamale.make_schema(yaml_schema, parser='ruamel')
