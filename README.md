@@ -1,7 +1,6 @@
 # PROTEUS
 PROTEUS - Parallelized Radar Optical Toolbox for Estimating dynamic sUrface water extentS
 
-
 # License
 **Copyright (c) 2021** California Institute of Technology (“Caltech”). U.S. Government
 sponsorship acknowledged.
@@ -30,3 +29,26 @@ OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
 WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+## Installation
+
+Download the source code
+
+```bash
+git clone https://github.com/opera-adt/PROTEUS.git
+```
+
+Install into virtual environment from clone directory via pip:
+
+```bash
+cd PROTEUS
+pip install .
+```
+
+Or via environment path setup:
+
+```bash
+export PROTEUS_HOME='~/tools/PROTEUS'
+export PYTHONPATH=${PYTHONPATH}:${PROTEUS_HOME}/src
+export PATH=${PATH}:${PROTEUS_HOME}/bin
+```

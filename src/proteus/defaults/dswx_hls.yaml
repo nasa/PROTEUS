@@ -1,0 +1,70 @@
+runconfig:
+    name: dswx_hls_workflow_default
+  
+    groups:
+        pge_name_group:
+            pge_name: DSWX_HLS_PGE
+       
+        input_file_group:
+            # REQUIRED - Single HLS dataset (directory or files)
+            input_file_path:
+       
+        dynamic_ancillary_file_group:
+            # Digital elevation model
+            dem_file:
+
+            # Land cover map
+            landcover_file:
+
+            # Built up land map
+            built_up_cover_fraction_file:
+       
+        product_path_group:
+            # Directory where PGE will place results
+            product_path:
+       
+            # Directory where SAS can write temporary data
+            scratch_path:
+       
+            # Intermediate file name.  SAS writes the output product to the following file.
+            # After the SAS completes, the PGE wrapper renames the product file
+            # according to proper file naming conventions.
+            sas_output_file:
+       
+        primary_executable:
+            product_type: DSWX_HLS
+
+        hls_thresholds:
+
+            # Modified Normalized Difference Wetness Index (MNDWI) Threshold
+            wigt: 0.0124
+
+            # Automated Water Extent Shadow Threshold
+            awgt: 0.0
+
+            # Partial Surface Water Test-1 MNDWI Threshold
+            pswt_1_mndwi: -0.44
+
+            # Partial Surface Water Test-1 NIR Threshold
+            pswt_1_nir: 1500
+
+            # Partial Surface Water Test-1 SWIR1 Threshold
+            pswt_1_swir1: 900
+
+            # Partial Surface Water Test-1 NDVI Threshold
+            pswt_1_ndvi: 0.7
+
+            # Partial Surface Water Test-2 MNDWI Threshold
+            pswt_2_mndwi: -0.5
+
+            # Partial Surface Water Test-2 Blue Threshold
+            pswt_2_blue: 1000
+
+            # Partial Surface Water Test-2 NIR Threshold
+            pswt_2_nir: 2500
+
+            # Partial Surface Water Test-2 SWIR1 Threshold
+            pswt_2_swir1: 3000
+
+            # Partial Surface Water Test-2 SWIR2 Threshold
+            pswt_2_swir2: 1000
