@@ -331,18 +331,21 @@ def _get_binary_water_layer(interpreted_water_layer):
             Binary water layer
      
     """
- 
-    binary_water_layer = np.zeros_like(interpreted_water_layer)
+    # fill value: 255
+    binary_water_layer = np.full_like(interpreted_water_layer, 255)
+
+    # water classes: 0
+    ind = np.where(interpreted_water_layer == 0)
+    binary_water_layer[ind] = 0
 
     # water classes: 1 to 4
     for class_value in range(1, 5):
         ind = np.where(interpreted_water_layer == class_value)
         binary_water_layer[ind] = 1
 
-    # invalid classes: 9 (Q/A masked) or 255 (fill value)
-    for class_value in [9, 255]:
-        ind = np.where(interpreted_water_layer == class_value)
-        binary_water_layer[ind] = 255
+    # Q/A masked: 9
+    ind = np.where(interpreted_water_layer == 9)
+    binary_water_layer[ind] = 2
 
     return binary_water_layer
 
@@ -760,8 +763,10 @@ def _get_binary_water_ctable():
     binary_water_ctable.SetColorEntry(0, (255, 255, 255))
     # Water
     binary_water_ctable.SetColorEntry(1, (0, 0, 255))
-    # Black/transparent - Fill value
-    binary_water_ctable.SetColorEntry(255, (0, 0, 0, 0))
+    # Gray - QA masked
+    binary_water_ctable.SetColorEntry(2, (128, 128, 128))
+    # Black - Fill value
+    binary_water_ctable.SetColorEntry(255, (0, 0, 0, 255))
     return binary_water_ctable
 
 
