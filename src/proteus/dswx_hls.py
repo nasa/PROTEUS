@@ -565,20 +565,23 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
 
         sensor = None
 
+        # HLS Sentinel metadata contain attribute SPACECRAFT_NAME
         if 'SPACECRAFT_NAME' in metadata:
             spacecraft_name = metadata['SPACECRAFT_NAME'].upper()
             if 'SENTINEL' not in spacecraft_name and 'LANDSAT' not in spacecraft_name:
                 logger.info(f'ERROR the platform "{spacecraft_name}" is not supported')
                 return False
+
+        # HLS Landsat metadata contain attribute SENSOR
         elif 'SENSOR' in metadata:
             sensor = metadata['SENSOR']
             if 'OLI' in sensor:
-                spacecraft_name = 'LANDSAT-8'
-            elif 'MSI' in sensor:
-                spacecraft_name = 'SENTINEL-2'
+                spacecraft_name = 'Landsat-8'
             else:
                 logger.info(f'ERROR the sensor "{sensor}" is not supported')
                 return False
+
+        # Otherwise, could not find HLS Sentinel or Landsat metadata
         else:
             logger.info('ERROR could not determine the platorm from metadata')
             return False
