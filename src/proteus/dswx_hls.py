@@ -542,7 +542,7 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
 
     """
 
-    layer_gdal_dataset = gdal.Open(filename)
+    layer_gdal_dataset = gdal.Open(filename, gdal.GA_ReadOnly)
     if layer_gdal_dataset is None:
         return None
 
@@ -1176,7 +1176,7 @@ def _relocate(input_file, geotransform, projection,
               xRes=dx, yRes=abs(dy), resampleAlg=resample_algorithm,
               errorThreshold=0)
 
-    gdal_ds = gdal.Open(relocated_file)
+    gdal_ds = gdal.Open(relocated_file, gdal.GA_ReadOnly)
     relocated_array = gdal_ds.ReadAsArray()
     del gdal_ds
 
@@ -1475,7 +1475,7 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
     gdal.DEMProcessing(shadow_layer_file, dem_file, "hillshade",
                       azimuth=sun_azimuth_angle,
                       altitude=sun_elevation_angle)
-    gdal_ds = gdal.Open(shadow_layer_file)
+    gdal_ds = gdal.Open(shadow_layer_file, gdal.GA_ReadOnly)
     hillshade = gdal_ds.ReadAsArray()
     del gdal_ds
     return hillshade

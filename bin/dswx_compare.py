@@ -57,12 +57,12 @@ def main():
         return
 
     # TODO: compare projections ds.GetProjection()
-    layer_gdal_dataset_1 = gdal.Open(args.input_file[0])
+    layer_gdal_dataset_1 = gdal.Open(args.input_file[0], gdal.GA_ReadOnly)
     geotransform_1 = layer_gdal_dataset_1.GetGeoTransform()
     metadata_1 = layer_gdal_dataset_1.GetMetadata()
     nbands_1 = layer_gdal_dataset_1.RasterCount
 
-    layer_gdal_dataset_2 = gdal.Open(args.input_file[1])
+    layer_gdal_dataset_2 = gdal.Open(args.input_file[1], gdal.GA_ReadOnly)
     geotransform_2 = layer_gdal_dataset_2.GetGeoTransform()
     metadata_2 = layer_gdal_dataset_2.GetMetadata()
     nbands_2 = layer_gdal_dataset_2.RasterCount
