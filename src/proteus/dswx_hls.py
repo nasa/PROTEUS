@@ -575,7 +575,7 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             if 'OLI' in sensor:
                 spacecraft_name = 'LANDSAT-8'
             elif 'MSI' in sensor:
-                spacecraft_name = 'SENTINEL-1'
+                spacecraft_name = 'SENTINEL-2'
             else:
                 logger.info(f'ERROR the sensor "{sensor}" is not supported')
                 return False
