@@ -1,7 +1,7 @@
 #!/bin/bash
 
 IMAGE=opera/dswx_hls
-t=interface
+t=beta
 echo "IMAGE is $IMAGE:$t"
 
 # fail on any non-zero exit codes
