@@ -1,0 +1,6 @@
+gdal>=3.0
+numpy
+python>=3.6
+ruamel.yaml
+scipy
+scipy
