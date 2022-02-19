@@ -1,5 +1,5 @@
 include MANIFEST.in
 include *.md
-recursive-include src/defaults *
-recursive-include src/schemas *
-recursive-include src/extern *
+recursive-include src/proteus/defaults *
+recursive-include src/proteus/schemas *
+recursive-include src/proteus/extern *
