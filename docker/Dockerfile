@@ -1,8 +1,5 @@
-FROM centos:8
-# FROM python:3.8 
-# substitute centos:8 with oracle linux 8 (ask JPL Susan)
-
-# MAINTAINER Gustavo H. X. Shiroma <gustavo.h.shiroma@jpl.nasa.gov>
+FROM ubuntu:20.04
+FROM python:3.8 
 
 # Set default UID and GID
 ENV USER_ID 1000
