@@ -54,10 +54,10 @@ USER root
 RUN mkdir -p DSWx-HLS-0.1/build
 RUN export PATH=/opt/conda/bin:$PATH && cd DSWx-HLS-0.1 && python3 setup.py install
 
-RUN mkdir -p runconfig && chown conda:conda runconfig
-RUN mkdir -p input_dir && chown conda:conda input_dir
-RUN mkdir -p output_dir && chown conda:conda output_dir
-RUN mkdir -p scratch_dir && chown conda:conda scratch_dir
+RUN mkdir -p runconfig && chown $UID:$(id -g) runconfig
+RUN mkdir -p input_dir && chown $UID:$(id -g) input_dir
+RUN mkdir -p output_dir && chown $UID:$(id -g) output_dir
+RUN mkdir -p scratch_dir && chown $UID:$(id -g) scratch_dir
 
 USER conda
 
