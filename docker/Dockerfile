@@ -32,11 +32,11 @@ RUN set -ex \
 
 # set default user and workdir
 WORKDIR /home/conda
-ADD dist/Proteus-0.1.tar.gz .
+ADD dist/proteus-0.1.tar.gz .
 
 USER root
-RUN mkdir -p DSWx-HLS-0.1/build
-RUN export PATH=/opt/conda/bin:$PATH && cd DSWx-HLS-0.1 && python3 setup.py install
+RUN mkdir -p proteus-0.1/build
+RUN export PATH=/opt/conda/bin:$PATH && cd proteus-0.1 && python3 setup.py install
 
 RUN mkdir -p runconfig && chown conda:conda runconfig
 RUN mkdir -p input_dir && chown conda:conda input_dir
