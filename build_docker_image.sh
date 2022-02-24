@@ -1,5 +1,7 @@
 #!/bin/bash
 
+python3 setup.py sdist
+
 IMAGE=opera/dswx_hls
 t=beta
 echo "IMAGE is $IMAGE:$t"
