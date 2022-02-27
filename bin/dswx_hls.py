@@ -84,19 +84,25 @@ def _get_parser():
                         type=str,
                         help='Output binary water mask (GeoTIFF)')
 
+    parser.add_argument('--conf'
+                        '--output-confidence-layer',
+                        dest='output_confidence_layer',
+                        type=str,
+                        help='Output confidence layer (GeoTIFF)')
+
     parser.add_argument('--diag',
                         '--output-diagnostic-layer',
                         dest='output_diagnostic_layer',
                         type=str,
                         help='Output diagnostic test layer file (GeoTIFF)')
 
-    parser.add_argument('--intr',
+    parser.add_argument('--wtr-1',
                         '--output-non-masked-dswx',
                         dest='output_non_masked_dswx',
                         type=str,
                         help='Output non-masked DSWx layer file (GeoTIFF)')
 
-    parser.add_argument('--insm',
+    parser.add_argument('--wtr-2',
                         '--output-shadow-masked-dswx',
                         dest='output_shadow_masked_dswx',
                         type=str,
@@ -116,6 +122,13 @@ def _get_parser():
                         help='Output cloud/cloud-shadow classification file'
                         ' (GeoTIFF)')
 
+    parser.add_argument('--out-dem'
+                        '--output-digital-elevation-model',
+                        '--output-elevation-layer',
+                        dest='output_dem_layer',
+                        type=str,
+                        help='Output elevation layer file (GeoTIFF)')
+
     # Parameters
     parser.add_argument('--offset-and-scale-inputs',
                         dest='flag_offset_and_scale_inputs',
@@ -129,6 +142,13 @@ def _get_parser():
                         dest='scratch_dir',
                         type=str,
                         help='Scratch (temporary) directory')
+
+    parser.add_argument('--pid',
+                        '--product-id',
+                        dest='product_id',
+                        type=str,
+                        help='Product ID that will be saved in the output'
+                        "product's metadata")
 
     parser.add_argument('--debug',
                         dest='flag_debug',
@@ -176,15 +196,18 @@ def main():
         output_rgb_file=args.output_rgb_file,
         output_infrared_rgb_file=args.output_infrared_rgb_file,
         output_binary_water=args.output_binary_water,
+        output_confidence_layer=args.output_confidence_layer,
         output_diagnostic_layer=args.output_diagnostic_layer,
         output_non_masked_dswx=args.output_non_masked_dswx,
         output_shadow_masked_dswx=args.output_shadow_masked_dswx,
         output_shadow_layer=args.output_shadow_layer,
         output_cloud_mask=args.output_cloud_mask,
+        output_dem_layer=args.output_dem_layer,
         landcover_file=args.landcover_file,
         built_up_cover_fraction_file=args.built_up_cover_fraction_file,
         flag_offset_and_scale_inputs=args.flag_offset_and_scale_inputs,
         scratch_dir=args.scratch_dir,
+        product_id=args.product_id,
         flag_debug=args.flag_debug)
 
 

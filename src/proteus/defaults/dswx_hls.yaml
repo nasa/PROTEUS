@@ -18,7 +18,10 @@ runconfig:
 
             # Built up land map
             built_up_cover_fraction_file:
-       
+
+        primary_executable:
+            product_type: DSWX_HLS
+
         product_path_group:
             # Directory where PGE will place results
             product_path:
@@ -26,13 +29,32 @@ runconfig:
             # Directory where SAS can write temporary data
             scratch_path:
        
-            # Intermediate file name.  SAS writes the output product to the following file.
-            # After the SAS completes, the PGE wrapper renames the product file
-            # according to proper file naming conventions.
-            sas_output_file:
-       
-        primary_executable:
-            product_type: DSWX_HLS
+            # SAS writes DSWx-HLS products as a set of GeoTIFF layers
+            # All files are saved within the output_directory following
+            # the scheme:
+            # {output_dir}/{product_id}_{layer_name}.tif
+            # If the field product_id is left empty, the prefix "dswx_hls"
+            # will be used instead
+            output_dir:
+            product_id:
+
+            save_wtr: True    # Layer 1 - WTR
+            save_bwtr: True   # Layer 2 - BWTR
+            save_conf: True   # Layer 3 - CONF
+            save_diag: True   # Layer 4 - DIAG
+            save_wtr_1: True   # Layer 5 - WTR-1
+            save_wtr_2: True   # Layer 6 - WTR-2
+            save_land: True   # Layer 7 - LAND
+            save_shad: True   # Layer 8 - SHAD
+            save_cloud: True  # Layer 9 - CLOUD
+            save_dem: True   # Layer 10 - DEM
+
+            # Reflectance RGB color composition
+            save_rgb: False
+
+            # SWIR-1, NIR, and Red reflectance color composition
+            save_infrared_rgb: False
+
 
         hls_thresholds:
 

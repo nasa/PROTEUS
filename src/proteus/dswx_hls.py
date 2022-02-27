@@ -84,13 +84,26 @@ band_description_dict = {
     'BWTR': 'Binary Water (BWTR)',
     'CONF': 'TBD Confidence (CONF)',
     'DIAG': 'Diagnostic layer (DIAG)',
-    'INTR': 'Interpretation of diagnostic layer into water classes (INTR)',
-    'INSM': 'Interpreted layer refined using land cover and terrain shadow testing (INSM)',
+    'WTR-1': 'Interpretation of diagnostic layer into water classes (WTR-1)',
+    'WTR-2': 'Interpreted layer refined using land cover and terrain shadow testing (WTR-2)',
     'LAND': 'Land cover classification (LAND)',
     'SHAD': 'Terrain shadow layer (SHAD)',
     'CLOUD': 'Cloud/cloud-shadow classification (CLOUD)',
     'DEM': 'Digital elevation model (DEM)'}
 
+layer_names_to_args_dict = {
+    'WTR': 'output_interpreted_band',
+    'BWTR': 'output_binary_water',
+    'CONF': 'output_confidence_layer',
+    'DIAG': 'output_diagnostic_layer',
+    'WTR-1': 'output_non_masked_dswx',
+    'WTR-2': 'output_shadow_masked_dswx',
+    'SHAD': 'output_shadow_layer',
+    'CLOUD': 'output_cloud_mask',
+    'DEM': 'output_dem_layer',
+    'RGB': 'output_rgb_file',
+    'INFRARED_RGB': 'output_infrared_rgb_file'}
+ 
 
 METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSOR_PRODUCT_ID',
                                          'SENSING_TIME',
@@ -163,6 +176,59 @@ class HlsThresholds:
         self.pswt_2_swir1 = None
         self.pswt_2_swir2 = None
 
+def create_landcover_mask(input_file, copernicus_landcover_file,
+                          worldcover_file, output_file, scratch_dir):
+    """Create landcover mask LAND combining Copernicus Global Land Service
+       (CGLS) Land Cover Layers collection 3 at 100m and ESA WorldCover 10m.
+
+       input_file : str
+            HLS tile to be used as reference for the map (geographic) grid
+       copernicus_landcover_file : str
+            Copernicus Global Land Service (CGLS) Land Cover Layers
+            collection 3 at 100m
+       worldcover_file : str
+            ESA WorldCover 10m
+       output_file : str
+            Output landcover mask (LAND layer)
+       scratch_dir : str
+              Temporary directory
+    """
+
+    copernicus_landcover_evergreen_classes = [111, 112, 121, 122]
+    copernicus_landcover_buit_up_classses = [50]
+    copernicus_landcover_mask_classses = \
+        (copernicus_landcover_evergreen_classes +
+         copernicus_landcover_buit_up_classses)
+
+    if not os.path.isfile(input_file):
+        logger.error(f'ERROR file not found: {input_file}')
+        return
+
+    if not os.path.isfile(copernicus_landcover_file):
+        logger.error(f'ERROR file not found: {copernicus_landcover_file}')
+        return
+    
+    if not os.path.isfile(worldcover_file):
+        logger.error(f'ERROR file not found: {worldcover_file}')
+        return
+
+    logger.info('')
+    logger.info(f'Input file: {input_file}')
+    logger.info(f'Copernicus landcover 100 m file: {copernicus_landcover_file}')
+    logger.info(f'World cover 10 m file: {worldcover_file}')
+    logger.info('')
+
+    layer_gdal_dataset = gdal.Open(input_file, gdal.GA_ReadOnly)
+    if layer_gdal_dataset is None:
+        logger.error(f'ERROR invalid file: {input_file}')
+    geotransform = layer_gdal_dataset.GetGeoTransform()
+    projection = layer_gdal_dataset.GetProjection()
+    length = layer_gdal_dataset.RasterYSize
+    width = layer_gdal_dataset.RasterXSize
+
+    _relocate(copernicus_landcover_file, geotransform, projection,
+              length, width, scratch_dir, resample_algorithm='nearest',
+              relocated_file=output_file)
 
 
 def _get_interpreted_dswx_ctable():
@@ -1123,7 +1189,7 @@ def get_projection_proj4(projection):
 
 
 def _relocate(input_file, geotransform, projection,
-              length, width,
+              length, width, scratch_dir = '.',
               resample_algorithm='nearest',
               relocated_file=None):
     """Relocate/reproject a file (e.g., landcover or DEM) based on geolocation
@@ -1142,6 +1208,8 @@ def _relocate(input_file, geotransform, projection,
               Output length
        width: int
               Output width
+       scratch_dir: str (optional)
+              Temporary directory
        resample_algorithm: str
               Resample algorithm
        relocated_file: str
@@ -1166,7 +1234,7 @@ def _relocate(input_file, geotransform, projection,
 
     if relocated_file is None:
         relocated_file = tempfile.NamedTemporaryFile(
-                    dir='.', suffix='.tif').name
+                    dir=scratch_dir, suffix='.tif').name
         logger.info(f'temporary file: {relocated_file}')
     else:
         logger.info(f'relocated file: {relocated_file}')
@@ -1267,9 +1335,9 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
     # copy runconfig parameters from dictionary
     if hls_thresholds_user is not None:
-        print('HLS thresholds:')
+        logger.info('HLS thresholds:')
         for key in hls_thresholds_user.keys():
-            print(f'     {key}: {hls_thresholds_user[key]}')
+            logger.info(f'     {key}: {hls_thresholds_user[key]}')
             hls_thresholds.__setattr__(key, hls_thresholds_user[key])
 
     if args is None:
@@ -1297,11 +1365,14 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         built_up_cover_fraction_file = ancillary_ds_group[
             'built_up_cover_fraction_file']
 
-    output_file = runconfig['runconfig']['groups']['product_path_group'][
-        'sas_output_file']
+    scratch_dir = runconfig['runconfig']['groups'][
+        'product_path_group']['scratch_path']
 
-    scratch_dir = runconfig['runconfig']['groups']['product_path_group'][
-        'scratch_path']
+    output_directory = runconfig['runconfig']['groups'][
+        'product_path_group']['output_dir']
+
+    product_id = runconfig['runconfig']['groups'][
+        'product_path_group']['product_id']
 
     if (input_file_path is not None and len(input_file_path) == 1 and
             os.path.isdir(input_file_path[0])):
@@ -1312,42 +1383,64 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         input_list = input_file_path
         args.input_list = input_list
 
+    '''
     if args.output_file is not None and output_file is not None:
         logger.warning(f'command line output file "{args.output_file}"'
               f' has precedence over runconfig output file "{output_file}"')
     elif args.output_file is None:
         args.output_file = output_file
- 
-    if args.dem_file is not None and dem_file is not None:
-        logger.warning(f'command line output file "{args.dem_file}"'
-              f' has precedence over runconfig output file "{dem_file}"')
-    elif args.dem_file is None:
-        args.dem_file = dem_file
- 
-    if args.landcover_file is not None and landcover_file is not None:
-        logger.warning(f'command line output file "{args.landcover_file}"'
-              f' has precedence over runconfig output file "{landcover_file}"')
-    elif args.landcover_file is None:
-        args.landcover_file = landcover_file
- 
-    if (args.built_up_cover_fraction_file is not None and
-            built_up_cover_fraction_file is not None):
-        logger.warning('command line output file'
-                       f' "{args.built_up_cover_fraction_file}"'
-                       ' has precedence over runconfig output file'
-                       f' "{built_up_cover_fraction_file}"')
-    elif args.built_up_cover_fraction_file is None:
-        args.built_up_cover_fraction_file = built_up_cover_fraction_file
+    '''
 
-    if args.scratch_dir is not None and scratch_dir is not None:
-        logger.warning(f'command line output file "{args.scratch_dir}"'
-              f' has precedence over runconfig output file "{scratch_dir}"')
-    elif args.scratch_dir is None:
-        args.scratch_dir = scratch_dir
+    # update args with runconfig parameters listed below
+    list_of_variables_to_update = ['dem_file', 'landcover_file',
+        'built_up_cover_fraction_file', 'scratch_dir', 'product_id']
+
+    for var in list_of_variables_to_update:
+        user_var = getattr(args, var) 
+        runconfig_var = locals()[var]
+        if user_var is not None and runconfig_var is not None:
+            logger.warning(f'command line {var} "{user_var}"'
+                f' has precedence over runconfig {var} "{runconfig_var}".')
+        elif user_var is None:
+            setattr(args, var, runconfig_var)
+ 
+    # If user runconfig was not provided, return
+    if user_runconfig_file is None:
+        return hls_thresholds
+
+    # Save layers
+    if product_id is None:
+        product_id = 'dswx_hls'
+    for layer_name, args_name in layer_names_to_args_dict.items():
+        layer_var_name = layer_name.lower().replace('-', '_')
+        runconfig_field = f'save_{layer_var_name}'
+
+        flag_save_layer = runconfig['runconfig']['groups'][
+            'product_path_group'][runconfig_field]
+        arg_name = layer_names_to_args_dict[layer_name]
+
+        # user (command-line interface) layer filename
+        user_layer_file = getattr(args, arg_name)
+
+        # runconfig layer filename
+        product_basename = f'{product_id}_{layer_var_name}.tif'
+        runconfig_layer_file = os.path.join(output_directory,
+                                            product_basename)
+
+        if user_layer_file is not None and flag_save_layer:
+            logger.warning(f'command line {arg_name} "{user_layer_file}" has'
+                           f' precedence over runconfig {arg_name}'
+                           f' "{runconfig_layer_file}".')
+            continue
+
+        if user_layer_file is not None or not flag_save_layer:
+            continue
+
+        setattr(args, args_name, runconfig_layer_file)
 
     return hls_thresholds
 
-def _get_dswx_metadata_dict(output_file):
+def _get_dswx_metadata_dict(product_id):
     """Create and return metadata dictionary
 
        Parameters
@@ -1363,7 +1456,8 @@ def _get_dswx_metadata_dict(output_file):
     dswx_metadata_dict = OrderedDict()
 
     # identification
-    product_id = os.path.splitext(os.path.basename(output_file))[0]
+
+
     dswx_metadata_dict['PRODUCT_ID'] = product_id
     dswx_metadata_dict['PRODUCT_VERSION'] = '0.1'
     dswx_metadata_dict['PROJECT'] = 'OPERA'
@@ -1512,15 +1606,18 @@ def generate_dswx_layers(input_list, output_file,
                          output_rgb_file=None,
                          output_infrared_rgb_file=None,
                          output_binary_water=None,
+                         output_confidence_layer=None,
                          output_diagnostic_layer=None,
                          output_non_masked_dswx=None,
                          output_shadow_masked_dswx=None,
                          output_shadow_layer=None,
                          output_cloud_mask=None,
+                         output_dem_layer=None,
                          landcover_file=None,
                          built_up_cover_fraction_file=None,
                          flag_offset_and_scale_inputs=False,
                          scratch_dir='.',
+                         product_id=None,
                          flag_debug=False):
     """Apply shadow layer onto interpreted layer
 
@@ -1542,6 +1639,8 @@ def generate_dswx_layers(input_list, output_file,
               Output infrared RGB filename
        output_binary_water: str (optional)
               Output binary water filename
+       output_confidence_layer: str (optional)
+              Output confidence layer filename
        output_diagnostic_layer: str (optional)
               Output diagnostic layer filename
        output_non_masked_dswx: str (optional)
@@ -1552,6 +1651,8 @@ def generate_dswx_layers(input_list, output_file,
               Output shadow layer filename
        output_cloud_mask: str (optional)
               Output cloud/cloud-shadow mask filename
+       output_dem_layer: str (optional)
+              Output elevation layer filename
        landcover_file: str (optional)
               Output landcover filename
        built_up_cover_fraction_file: str (optional)
@@ -1560,6 +1661,9 @@ def generate_dswx_layers(input_list, output_file,
               Flag indicating if DSWx-HLS should be offsetted and scaled
        scratch_dir: str (optional)
               Temporary directory
+       product_id: str (optional)
+              Product ID that will be saved in the output' product's
+              metadata
        flag_debug: bool (optional)
               Flag to indicate if execution is for debug purposes. If so,
               only a subset of the image will be loaded into memory
@@ -1588,10 +1692,16 @@ def generate_dswx_layers(input_list, output_file,
     offset_dict = {}
     scale_dict = {}
     output_files_list = []
+    build_vrt_list = []
     dem = None
     shadow_layer = None
 
-    dswx_metadata_dict = _get_dswx_metadata_dict(output_file)
+    if product_id is None and output_file:
+        product_id = os.path.splitext(os.path.basename(output_file))[0]
+    elif product_id is None:
+        product_id = 'dswx_hls'
+
+    dswx_metadata_dict = _get_dswx_metadata_dict(product_id)
 
     version = None
     if not isinstance(input_list, list) or len(input_list) == 1:
@@ -1651,16 +1761,24 @@ def generate_dswx_layers(input_list, output_file,
     # Sun elevation and zenith angles are complementary
     sun_elevation_angle = 90 - float(sun_zenith_angle)
 
-    print('Mean Sun azimuth angle:', sun_azimuth_angle)
-    print('Mean Sun elevation angle:', sun_elevation_angle)
+    logger.info(f'Mean Sun azimuth angle: {sun_azimuth_angle}')
+    logger.info(f'Mean Sun elevation angle: {sun_elevation_angle}')
 
     if dem_file is not None:
         # DEM
-        dem_cropped_file = 'temp_dem.tif'
+        if output_dem_layer is None:
+            dem_cropped_file = tempfile.NamedTemporaryFile(
+                    dir=scratch_dir, suffix='.tif').name
+
         dem = _relocate(dem_file, geotransform, projection,
-                        length, width,
+                        length, width, scratch_dir,
                         resample_algorithm='cubic',
                         relocated_file=dem_cropped_file)
+
+        # TODO:
+        #     1. crop DEM with a margin
+        #     2. save metadata to DEM layer
+
         hillshade = _compute_hillshade(dem_cropped_file, scratch_dir,
                                          sun_azimuth_angle, sun_elevation_angle)
         shadow_layer = _compute_otsu_threshold(hillshade, is_normalized = True)
@@ -1669,19 +1787,19 @@ def generate_dswx_layers(input_list, output_file,
             _save_array(shadow_layer, output_shadow_layer,
                         dswx_metadata_dict, geotransform, projection,
                         description=band_description_dict['SHAD'],
-                        output_files_list=output_files_list)
+                        output_files_list=build_vrt_list)
 
     if landcover_file is not None:
         # Land Cover
         landcover = _relocate(landcover_file, geotransform, projection,
-                              length, width,
+                              length, width, scratch_dir,
                               relocated_file='temp_landcover.tif')
 
     if built_up_cover_fraction_file is not None:
         # Build-up cover fraction
         built_up_cover_fraction = _relocate(built_up_cover_fraction_file,
                                             geotransform, projection,
-                                            length, width,
+                                            length, width, scratch_dir,
                                             relocated_file =
                                             'temp_built_up_cover_fraction.tif')
 
@@ -1715,7 +1833,7 @@ def generate_dswx_layers(input_list, output_file,
         _save_array(diagnostic_layer, output_diagnostic_layer,
                     dswx_metadata_dict, geotransform, projection,
                     description=band_description_dict['DIAG'],
-                    output_files_list=output_files_list)
+                    output_files_list=build_vrt_list)
 
     interpreted_dswx_band = _generate_interpreted_layer(
         diagnostic_layer)
@@ -1729,9 +1847,9 @@ def generate_dswx_layers(input_list, output_file,
                           dswx_metadata_dict,
                           geotransform,
                           projection,
-                          description=band_description_dict['INTR'],
+                          description=band_description_dict['WTR-1'],
                           scratch_dir=scratch_dir,
-                          output_files_list=output_files_list)
+                          output_files_list=build_vrt_list)
 
     if shadow_layer is not None:
         shadow_masked_dswx = _apply_shadow_layer(
@@ -1744,9 +1862,9 @@ def generate_dswx_layers(input_list, output_file,
                           dswx_metadata_dict,
                           geotransform,
                           projection,
-                          description=band_description_dict['INSM'],
+                          description=band_description_dict['WTR-2'],
                           scratch_dir=scratch_dir,
-                          output_files_list=output_files_list)
+                          output_files_list=build_vrt_list)
 
     cloud, masked_dswx_band = _compute_mask_and_filter_interpreted_layer(
         shadow_masked_dswx, qa)
@@ -1764,13 +1882,13 @@ def generate_dswx_layers(input_list, output_file,
                           projection,
                           description=band_description_dict['WTR'],
                           scratch_dir=scratch_dir,
-                          output_files_list=output_files_list)
+                          output_files_list=build_vrt_list)
 
     if output_cloud_mask:
         save_mask(cloud, output_cloud_mask, dswx_metadata_dict, geotransform,
                   projection,
                   description=band_description_dict['CLOUD'],
-                  output_files_list=output_files_list)
+                  output_files_list=build_vrt_list)
 
     binary_water_layer = _get_binary_water_layer(masked_dswx_band)
     if output_binary_water:
@@ -1778,25 +1896,42 @@ def generate_dswx_layers(input_list, output_file,
                            dswx_metadata_dict,
                            geotransform, projection,
                            description=band_description_dict['BWTR'],
-                           output_files_list=output_files_list)
+                           output_files_list=build_vrt_list)
 
-    save_dswx_product(masked_dswx_band,
-                      output_file,
-                      dswx_metadata_dict,
-                      geotransform, 
-                      projection,
-                      bwtr=binary_water_layer,
-                      diag=diagnostic_layer,
-                      intr=interpreted_dswx_band,
-                      insm=shadow_masked_dswx,
-                      shad=shadow_layer,
-                      cloud=cloud,
-                      dem=dem,
-                      scratch_dir=scratch_dir,
-                      output_files_list=output_files_list)
+    # TODO: fix CONF layer!!!
+    if output_confidence_layer:
+        _save_binary_water(binary_water_layer, output_confidence_layer,
+                           dswx_metadata_dict,
+                           geotransform, projection,
+                           description=band_description_dict['CONF'],
+                           output_files_list=build_vrt_list)
+
+    # save output_file as GeoTIFF
+    if output_file and not output_file.endswith('.vrt'):
+        save_dswx_product(masked_dswx_band,
+                          output_file,
+                          dswx_metadata_dict,
+                          geotransform, 
+                          projection,
+                          bwtr=binary_water_layer,
+                          diag=diagnostic_layer,
+                          wtr_1=interpreted_dswx_band,
+                          wtr_2=shadow_masked_dswx,
+                          shad=shadow_layer,
+                          cloud=cloud,
+                          dem=dem,
+                          scratch_dir=scratch_dir,
+                          output_files_list=output_files_list)
+
+    # save output_file as VRT
+    elif output_file:
+        vrt_options = gdal.BuildVRTOptions(resampleAlg='nearest')
+        gdal.BuildVRT(output_file, build_vrt_list, options=vrt_options)
+        build_vrt_list.append(output_file)
+        logger.info(f'file saved: {output_file}')
 
     logger.info('list of output files:')
-    for filename in output_files_list:
+    for filename in build_vrt_list + output_files_list:
         logger.info(filename)
     
     return True
