@@ -36,7 +36,10 @@ ADD dist/proteus-0.1.tar.gz .
 
 USER root
 RUN mkdir -p proteus-0.1/build
-RUN export PATH=/opt/conda/bin:$PATH && cd proteus-0.1 && python3 setup.py install
+RUN export PATH=/opt/conda/bin:$PATH
+WORKDIR /home/conda/proteus-0.1
+RUN python3 setup.py install
+WORKDIR /home/conda
 
 RUN mkdir -p runconfig && chown conda:conda runconfig
 RUN mkdir -p input_dir && chown conda:conda input_dir
@@ -50,6 +53,7 @@ ENV GDAL_DIR /opt/conda
 ENV PATH $GDAL_DIR/bin:$PATH
 ENV GDAL_DATA $GDAL_DIR/share/gdal
 
-ENV PYTHONPATH DSWx-HLS-0.1:$PYTHONPATH
+ENV PYTHONPATH /home/conda/proteus-0.1/src/:$PYTHONPATH
+ENV PATH /home/conda/proteus-0.1/bin/:$PATH
 
 CMD [ "/bin/bash" ]
