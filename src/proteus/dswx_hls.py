@@ -195,16 +195,6 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
        scratch_dir : str
               Temporary directory
     """
-
-    '''
-    TODO review following classes and update code:
-    copernicus_landcover_evergreen_classes = [111, 112, 121, 122]
-    copernicus_landcover_buit_up_classses = [50]
-    copernicus_landcover_mask_classses = \
-        (copernicus_landcover_evergreen_classes +
-         copernicus_landcover_buit_up_classses)
-    '''
-
     if not os.path.isfile(input_file):
         logger.error(f'ERROR file not found: {input_file}')
         return
@@ -216,6 +206,15 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
     if not os.path.isfile(worldcover_file):
         logger.error(f'ERROR file not found: {worldcover_file}')
         return
+
+    '''
+    TODO review following classes and update code:
+    copernicus_landcover_evergreen_classes = [111, 112, 121, 122]
+    copernicus_landcover_buit_up_classses = [50]
+    copernicus_landcover_mask_classses = \
+        (copernicus_landcover_evergreen_classes +
+         copernicus_landcover_buit_up_classses)
+    '''
 
     logger.info('')
     logger.info(f'Input file: {input_file}')
@@ -1354,6 +1353,9 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     ancillary_ds_group = runconfig['runconfig']['groups'][
         'dynamic_ancillary_file_group']
 
+    product_path_group = runconfig['runconfig']['groups'][
+        'product_path_group']
+
     if 'dem_file' not in ancillary_ds_group:
         dem_file = None
     else:
@@ -1370,14 +1372,13 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         built_up_cover_fraction_file = ancillary_ds_group[
             'built_up_cover_fraction_file']
 
-    scratch_dir = runconfig['runconfig']['groups'][
-        'product_path_group']['scratch_path']
+    if 'scratch_dir' not in product_path_group:
+        scratch_dir = None
+    else:
+        scratch_dir = product_path_group['scratch_path']
 
-    output_directory = runconfig['runconfig']['groups'][
-        'product_path_group']['output_dir']
-
-    product_id = runconfig['runconfig']['groups'][
-        'product_path_group']['product_id']
+    output_directory = product_path_group['output_dir']
+    product_id = product_path_group['product_id']
 
     if (input_file_path is not None and len(input_file_path) == 1 and
             os.path.isdir(input_file_path[0])):
@@ -1420,8 +1421,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         layer_var_name = layer_name.lower().replace('-', '_')
         runconfig_field = f'save_{layer_var_name}'
 
-        flag_save_layer = runconfig['runconfig']['groups'][
-            'product_path_group'][runconfig_field]
+        flag_save_layer = product_path_group[runconfig_field]
         arg_name = layer_names_to_args_dict[layer_name]
 
         # user (command-line interface) layer filename
