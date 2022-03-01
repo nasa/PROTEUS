@@ -181,6 +181,8 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
     """Create landcover mask LAND combining Copernicus Global Land Service
        (CGLS) Land Cover Layers collection 3 at 100m and ESA WorldCover 10m.
 
+       Parameters
+       ----------
        input_file : str
             HLS tile to be used as reference for the map (geographic) grid
        copernicus_landcover_file : str
@@ -194,11 +196,14 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
               Temporary directory
     """
 
+    '''
+    TODO review following classes and update code:
     copernicus_landcover_evergreen_classes = [111, 112, 121, 122]
     copernicus_landcover_buit_up_classses = [50]
     copernicus_landcover_mask_classses = \
         (copernicus_landcover_evergreen_classes +
          copernicus_landcover_buit_up_classses)
+    '''
 
     if not os.path.isfile(input_file):
         logger.error(f'ERROR file not found: {input_file}')
@@ -1396,7 +1401,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         'built_up_cover_fraction_file', 'scratch_dir', 'product_id']
 
     for var in list_of_variables_to_update:
-        user_var = getattr(args, var) 
+        user_var = getattr(args, var)
         runconfig_var = locals()[var]
         if user_var is not None and runconfig_var is not None:
             logger.warning(f'command line {var} "{user_var}"'

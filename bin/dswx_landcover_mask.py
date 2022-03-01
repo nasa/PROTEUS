@@ -3,17 +3,14 @@
 #
 # Reference:
 # [1] J. W. Jones, "Efficient wetland surface water detection and
-# monitoring via Landsat: Comparison with in situ data from the Everglades 
+# monitoring via Landsat: Comparison with in situ data from the Everglades
 # Depth Estimation Network", Remote Sensing, 7(9), 12503-12538.
 # http://dx.doi.org/10.3390/rs70912503, 2015
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-import os
 import argparse
 import logging
-from osgeo import gdal
-import numpy as np
 from proteus.dswx_hls import create_landcover_mask, create_logger
 
 logger = logging.getLogger('dswx_hls_landcover_mask')
@@ -79,7 +76,7 @@ def main():
     create_logger(args.log_file)
 
     create_landcover_mask(args.input_file, args.copernicus_landcover_file,
-                          args.worldcover_file, args.output_file, 
+                          args.worldcover_file, args.output_file,
                           args.scratch_dir)
 
 
