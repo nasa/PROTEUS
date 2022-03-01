@@ -125,37 +125,26 @@ class HlsThresholds:
 
     Attributes
     ----------
-
     wigt : float
         Modified Normalized Difference Wetness Index (MNDWI) Threshold
-
     awgt : float
         Automated Water Extent Shadow Threshold
-
     pswt_1_mndwi : float
         Partial Surface Water Test-1 MNDWI Threshold
-
     pswt_1_nir : float
         Partial Surface Water Test-1 NIR Threshold
-
     pswt_1_swir1 : float
         Partial Surface Water Test-1 SWIR1 Threshold
-
     pswt_1_ndvi : float
         Partial Surface Water Test-1 NDVI Threshold
-
     pswt_2_mndwi : float
         Partial Surface Water Test-2 MNDWI Threshold
-
     pswt_2_blue : float
         Partial Surface Water Test-2 Blue Threshold
-
     pswt_2_nir : float
         Partial Surface Water Test-2 NIR Threshold
-
     pswt_2_swir1 : float
         Partial Surface Water Test-2 SWIR1 Threshold
-
     pswt_2_swir2 : float
         Partial Surface Water Test-2 SWIR2 Threshold
     """
@@ -191,8 +180,7 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
        output_file : str
             Output landcover mask (LAND layer)
        scratch_dir : str
-              Temporary directory
-    """
+              Temporary directory"""
     if not os.path.isfile(input_file):
         logger.error(f'ERROR file not found: {input_file}')
         return
