@@ -122,7 +122,6 @@ METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSOR_PRODUCT_ID',
 class HlsThresholds:
     """
     Placeholder for HLS reflectance thresholds for generating DSWx-HLS products
-    ...
 
     Attributes
     ----------
@@ -159,9 +158,7 @@ class HlsThresholds:
 
     pswt_2_swir2 : float
         Partial Surface Water Test-2 SWIR2 Threshold
-
     """
-
     def __init__(self):
 
         self.wigt = None
@@ -175,6 +172,7 @@ class HlsThresholds:
         self.pswt_2_nir = None
         self.pswt_2_swir1 = None
         self.pswt_2_swir2 = None
+
 
 def create_landcover_mask(input_file, copernicus_landcover_file,
                           worldcover_file, output_file, scratch_dir):
@@ -215,7 +213,6 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
         (copernicus_landcover_evergreen_classes +
          copernicus_landcover_buit_up_classses)
     '''
-
     logger.info('')
     logger.info(f'Input file: {input_file}')
     logger.info(f'Copernicus landcover 100 m file: {copernicus_landcover_file}')
@@ -277,7 +274,6 @@ def _get_mask_ctable():
             GDAL color table for HLS Q/A mask.
      
     """
-
     # create color table
     mask_ctable = gdal.ColorTable()
 
@@ -514,7 +510,7 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
 
 
 def _compute_mask_and_filter_interpreted_layer(
-    unmasked_interpreted_water_layer, qa_band):
+        unmasked_interpreted_water_layer, qa_band):
     """Compute cloud/cloud-shadow mask and filter interpreted water layer
 
        Parameters
@@ -1387,7 +1383,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
     # update args with runconfig parameters listed below
     variables_to_update_dict = {
-        'dem_file': dem_file, 
+        'dem_file': dem_file,
         'landcover_file': landcover_file,
         'built_up_cover_fraction_file': built_up_cover_fraction_file,
         'scratch_dir': scratch_dir,
