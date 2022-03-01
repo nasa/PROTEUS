@@ -30,14 +30,6 @@ def _get_parser():
                         nargs=2,
                         help='Input images')
 
-    # Outputs
-    parser.add_argument('-o',
-                        '--output-file',
-                        dest='output_file',
-                        type=str,
-                        default='output_file',
-                        help='Output file')
-
     return parser
 
 def _get_prefix_str(flag_same):
