@@ -1372,11 +1372,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         built_up_cover_fraction_file = ancillary_ds_group[
             'built_up_cover_fraction_file']
 
-    if 'scratch_dir' not in product_path_group:
-        scratch_dir = None
-    else:
-        scratch_dir = product_path_group['scratch_path']
-
+    scratch_dir = product_path_group['scratch_path']
     output_directory = product_path_group['output_dir']
     product_id = product_path_group['product_id']
 
@@ -1389,26 +1385,22 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         input_list = input_file_path
         args.input_list = input_list
 
-    '''
-    if args.output_file is not None and output_file is not None:
-        logger.warning(f'command line output file "{args.output_file}"'
-              f' has precedence over runconfig output file "{output_file}"')
-    elif args.output_file is None:
-        args.output_file = output_file
-    '''
-
     # update args with runconfig parameters listed below
-    list_of_variables_to_update = ['dem_file', 'landcover_file',
-        'built_up_cover_fraction_file', 'scratch_dir', 'product_id']
+    variables_to_update_dict = {
+        'dem_file': dem_file, 
+        'landcover_file': landcover_file,
+        'built_up_cover_fraction_file': built_up_cover_fraction_file,
+        'scratch_dir': scratch_dir,
+        'product_id': product_id}
 
-    for var in list_of_variables_to_update:
-        user_var = getattr(args, var)
-        runconfig_var = locals()[var]
-        if user_var is not None and runconfig_var is not None:
-            logger.warning(f'command line {var} "{user_var}"'
-                f' has precedence over runconfig {var} "{runconfig_var}".')
-        elif user_var is None:
-            setattr(args, var, runconfig_var)
+    for var_name, runconfig_file in variables_to_update_dict.items():
+        user_file = getattr(args, var_name)
+        if user_file is not None and runconfig_file is not None:
+            logger.warning(f'command line {var_name} "{user_file}"'
+                f' has precedence over runconfig {var_name}'
+                f' "{runconfig_file}".')
+        elif user_file is None:
+            setattr(args, var_name, runconfig_file)
  
     # If user runconfig was not provided, return
     if user_runconfig_file is None:
