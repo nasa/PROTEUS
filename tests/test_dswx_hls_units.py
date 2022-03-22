@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import pytest
 import numpy as np
 from proteus.dswx_hls import interpreted_dswx_band_dict,\
                              generate_interpreted_layer

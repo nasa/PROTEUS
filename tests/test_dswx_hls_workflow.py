@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
-import pytest
 import os
 import glob
-import logging
 from proteus.dswx_hls import (
     get_dswx_hls_cli_parser,
     generate_dswx_layers,
@@ -61,6 +59,5 @@ def test_workflow():
         output_file = os.path.join(output_dir, ref_basename)
 
         assert compare_dswx_hls_products(ref_file, output_file)
-    
 
     assert True
