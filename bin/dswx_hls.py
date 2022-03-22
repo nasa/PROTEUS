@@ -13,9 +13,9 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 import logging
-import argparse
 import mimetypes
 from proteus.dswx_hls import (
+    get_dswx_hls_cli_parser,
     generate_dswx_layers,
     create_logger,
     parse_runconfig_file
@@ -23,149 +23,8 @@ from proteus.dswx_hls import (
 
 logger = logging.getLogger('dswx_hls')
 
-
-def _get_parser():
-    parser = argparse.ArgumentParser(
-        description='Generate a DSWx-HLS product from an HLS product',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
-    # Inputs
-    parser.add_argument('input_list',
-                        type=str,
-                        nargs='+',
-                        help='Input YAML run configuration file or HLS product file(s)')
-
-    parser.add_argument('--dem',
-                        dest='dem_file',
-                        type=str,
-                        help='Input digital elevation model (DEM)')
-
-    parser.add_argument('--landcover',
-                        dest='landcover_file',
-                        type=str,
-                        help='Input Land Cover Discrete-Classification-map')
-
-    parser.add_argument('--built-up-cover-fraction',
-                        '--builtup-cover-fraction',
-                        dest='built_up_cover_fraction_file',
-                        type=str,
-                        help='Input built-up cover fraction layer')
-
-    # Outputs
-    parser.add_argument('-o',
-                        '--output-file',
-                        dest='output_file',
-                        type=str,
-                        help='Output DSWx-HLS product (GeoTIFF)')
-
-    parser.add_argument('--wtr',
-                        '--interpreted-band',
-                        dest='output_interpreted_band',
-                        type=str,
-                        help='Output interpreted DSWx layer (GeoTIFF)')
-
-    parser.add_argument('--output-rgb',
-                        '--output-rgb-file',
-                        dest='output_rgb_file',
-                        type=str,
-                        help='Output RGB reflectance file (GeoTIFF)'
-                        ' copied from input HLS product.')
-
-    parser.add_argument('--output-infrared-rgb',
-                        '--output-infrared-rgb-file',
-                        dest='output_infrared_rgb_file',
-                        type=str,
-                        help='Output infrared SWIR-1, NIR, and Red RGB'
-                        '-color-composition GeoTIFF file')
-
-    parser.add_argument('--bwtr'
-                        '--output-binary-water',
-                        dest='output_binary_water',
-                        type=str,
-                        help='Output binary water mask (GeoTIFF)')
-
-    parser.add_argument('--conf'
-                        '--output-confidence-layer',
-                        dest='output_confidence_layer',
-                        type=str,
-                        help='Output confidence layer (GeoTIFF)')
-
-    parser.add_argument('--diag',
-                        '--output-diagnostic-layer',
-                        dest='output_diagnostic_layer',
-                        type=str,
-                        help='Output diagnostic test layer file (GeoTIFF)')
-
-    parser.add_argument('--wtr-1',
-                        '--output-non-masked-dswx',
-                        dest='output_non_masked_dswx',
-                        type=str,
-                        help='Output non-masked DSWx layer file (GeoTIFF)')
-
-    parser.add_argument('--wtr-2',
-                        '--output-shadow-masked-dswx',
-                        dest='output_shadow_masked_dswx',
-                        type=str,
-                        help='Output GeoTIFF file with interpreted layer'
-                        ' refined using land cover and terrain shadow testing')
-
-    parser.add_argument('--shad',
-                        '--output-shadow-layer',
-                        dest='output_shadow_layer',
-                        type=str,
-                        help='Output terrain shadow layer file (GeoTIFF)')
-
-    parser.add_argument('--cloud'
-                        '--output-cloud-mask',
-                        dest='output_cloud_mask',
-                        type=str,
-                        help='Output cloud/cloud-shadow classification file'
-                        ' (GeoTIFF)')
-
-    parser.add_argument('--out-dem'
-                        '--output-digital-elevation-model',
-                        '--output-elevation-layer',
-                        dest='output_dem_layer',
-                        type=str,
-                        help='Output elevation layer file (GeoTIFF)')
-
-    # Parameters
-    parser.add_argument('--offset-and-scale-inputs',
-                        dest='flag_offset_and_scale_inputs',
-                        action='store_true',
-                        default=False,
-                        help='Offset and scale HLS inputs before processing')
-
-    parser.add_argument('--scratch-dir',
-                        '--temp-dir',
-                        '--temporary-dir',
-                        dest='scratch_dir',
-                        type=str,
-                        help='Scratch (temporary) directory')
-
-    parser.add_argument('--pid',
-                        '--product-id',
-                        dest='product_id',
-                        type=str,
-                        help='Product ID that will be saved in the output'
-                        "product's metadata")
-
-    parser.add_argument('--debug',
-                        dest='flag_debug',
-                        action='store_true',
-                        default=False,
-                        help='Activate debug mode')
-
-    parser.add_argument('--log',
-                        '--log-file',
-                        dest='log_file',
-                        type=str,
-                        help='Log file')
-
-    return parser
-
 def main():
-    parser = _get_parser()
+    parser = get_dswx_hls_cli_parser()
 
     args = parser.parse_args()
 
@@ -200,6 +59,7 @@ def main():
         output_diagnostic_layer=args.output_diagnostic_layer,
         output_non_masked_dswx=args.output_non_masked_dswx,
         output_shadow_masked_dswx=args.output_shadow_masked_dswx,
+        output_landcover=args.output_landcover,
         output_shadow_layer=args.output_shadow_layer,
         output_cloud_mask=args.output_cloud_mask,
         output_dem_layer=args.output_dem_layer,
