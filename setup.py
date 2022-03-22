@@ -26,7 +26,7 @@ setup(
     # py_modules=['src/proteus/core.py'],
     scripts=['bin/dswx_hls.py'],
     install_requires=['argparse', 'numpy', 'yamale', 'ruamel',
-                      'osgeo', 'scipy'],
+                      'osgeo', 'scipy', 'pytest'],
     url='https://github.com/opera-adt/PROTEUS',
     author='Gustavo H. X. Shiroma',
     author_email=('gustavo.h.shiroma@jpl.nasa.gov'),
