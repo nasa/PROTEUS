@@ -3,6 +3,7 @@ import tempfile
 import os
 import glob
 import numpy as np
+import argparse
 import yamale
 from datetime import datetime
 from collections import OrderedDict
@@ -10,6 +11,8 @@ from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32
 from osgeo import gdal, osr
 from proteus.core import save_as_cog
+
+PRODUCT_VERSION = '0.1'
 
 logger = logging.getLogger('dswx_hls')
 
@@ -98,6 +101,7 @@ layer_names_to_args_dict = {
     'DIAG': 'output_diagnostic_layer',
     'WTR-1': 'output_non_masked_dswx',
     'WTR-2': 'output_shadow_masked_dswx',
+    'LAND': 'output_landcover',
     'SHAD': 'output_shadow_layer',
     'CLOUD': 'output_cloud_mask',
     'DEM': 'output_dem_layer',
@@ -161,6 +165,273 @@ class HlsThresholds:
         self.pswt_2_nir = None
         self.pswt_2_swir1 = None
         self.pswt_2_swir2 = None
+
+
+def get_dswx_hls_cli_parser():
+    parser = argparse.ArgumentParser(
+        description='Generate a DSWx-HLS product from an HLS product',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    # Inputs
+    parser.add_argument('input_list',
+                        type=str,
+                        nargs='+',
+                        help='Input YAML run configuration file or HLS product file(s)')
+
+    parser.add_argument('--dem',
+                        dest='dem_file',
+                        type=str,
+                        help='Input digital elevation model (DEM)')
+
+    parser.add_argument('--landcover',
+                        dest='landcover_file',
+                        type=str,
+                        help='Input Land Cover Discrete-Classification-map')
+
+    parser.add_argument('--built-up-cover-fraction',
+                        '--builtup-cover-fraction',
+                        dest='built_up_cover_fraction_file',
+                        type=str,
+                        help='Input built-up cover fraction layer')
+
+    # Outputs
+    parser.add_argument('-o',
+                        '--output-file',
+                        dest='output_file',
+                        type=str,
+                        help='Output DSWx-HLS product (GeoTIFF)')
+
+    parser.add_argument('--wtr',
+                        '--interpreted-band',
+                        dest='output_interpreted_band',
+                        type=str,
+                        help='Output interpreted DSWx layer (GeoTIFF)')
+
+    parser.add_argument('--output-rgb',
+                        '--output-rgb-file',
+                        dest='output_rgb_file',
+                        type=str,
+                        help='Output RGB reflectance file (GeoTIFF)'
+                        ' copied from input HLS product.')
+
+    parser.add_argument('--output-infrared-rgb',
+                        '--output-infrared-rgb-file',
+                        dest='output_infrared_rgb_file',
+                        type=str,
+                        help='Output infrared SWIR-1, NIR, and Red RGB'
+                        '-color-composition GeoTIFF file')
+
+    parser.add_argument('--bwtr'
+                        '--output-binary-water',
+                        dest='output_binary_water',
+                        type=str,
+                        help='Output binary water mask (GeoTIFF)')
+
+    parser.add_argument('--conf'
+                        '--output-confidence-layer',
+                        dest='output_confidence_layer',
+                        type=str,
+                        help='Output confidence layer (GeoTIFF)')
+
+    parser.add_argument('--diag',
+                        '--output-diagnostic-layer',
+                        dest='output_diagnostic_layer',
+                        type=str,
+                        help='Output diagnostic test layer file (GeoTIFF)')
+
+    parser.add_argument('--wtr-1',
+                        '--output-non-masked-dswx',
+                        dest='output_non_masked_dswx',
+                        type=str,
+                        help='Output non-masked DSWx layer file (GeoTIFF)')
+
+    parser.add_argument('--wtr-2',
+                        '--output-shadow-masked-dswx',
+                        dest='output_shadow_masked_dswx',
+                        type=str,
+                        help='Output GeoTIFF file with interpreted layer'
+                        ' refined using land cover and terrain shadow testing')
+
+    parser.add_argument('--land',
+                        '--output-land',
+                        dest='output_landcover',
+                        type=str,
+                        help='Output landcover classification file (GeoTIFF)')
+
+    parser.add_argument('--shad',
+                        '--output-shadow-layer',
+                        dest='output_shadow_layer',
+                        type=str,
+                        help='Output terrain shadow layer file (GeoTIFF)')
+
+    parser.add_argument('--cloud'
+                        '--output-cloud-mask',
+                        dest='output_cloud_mask',
+                        type=str,
+                        help='Output cloud/cloud-shadow classification file'
+                        ' (GeoTIFF)')
+
+    parser.add_argument('--out-dem'
+                        '--output-digital-elevation-model',
+                        '--output-elevation-layer',
+                        dest='output_dem_layer',
+                        type=str,
+                        help='Output elevation layer file (GeoTIFF)')
+
+    # Parameters
+    parser.add_argument('--offset-and-scale-inputs',
+                        dest='flag_offset_and_scale_inputs',
+                        action='store_true',
+                        default=False,
+                        help='Offset and scale HLS inputs before processing')
+
+    parser.add_argument('--scratch-dir',
+                        '--temp-dir',
+                        '--temporary-dir',
+                        dest='scratch_dir',
+                        type=str,
+                        help='Scratch (temporary) directory')
+
+    parser.add_argument('--pid',
+                        '--product-id',
+                        dest='product_id',
+                        type=str,
+                        help='Product ID that will be saved in the output'
+                        "product's metadata")
+
+    parser.add_argument('--debug',
+                        dest='flag_debug',
+                        action='store_true',
+                        default=False,
+                        help='Activate debug mode')
+
+    parser.add_argument('--log',
+                        '--log-file',
+                        dest='log_file',
+                        type=str,
+                        help='Log file')
+
+    return parser
+
+
+def _get_prefix_str(flag_same, flag_all_ok):
+    flag_all_ok[0] = flag_all_ok[0] and flag_same
+    return '[OK]   ' if flag_same else '[FAIL] '
+
+
+def compare_dswx_hls_products(file_1, file_2):
+    if not os.path.isfile(file_1):
+        print(f'ERROR file not found: {file_1}')
+        return False
+
+    if not os.path.isfile(file_2):
+        print(f'ERROR file not found: {file_2}')
+        return False
+
+    flag_all_ok = [True]
+
+    # TODO: compare projections ds.GetProjection()
+    layer_gdal_dataset_1 = gdal.Open(file_1, gdal.GA_ReadOnly)
+    geotransform_1 = layer_gdal_dataset_1.GetGeoTransform()
+    metadata_1 = layer_gdal_dataset_1.GetMetadata()
+    nbands_1 = layer_gdal_dataset_1.RasterCount
+
+    layer_gdal_dataset_2 = gdal.Open(file_2, gdal.GA_ReadOnly)
+    geotransform_2 = layer_gdal_dataset_2.GetGeoTransform()
+    metadata_2 = layer_gdal_dataset_2.GetMetadata()
+    nbands_2 = layer_gdal_dataset_2.RasterCount
+
+    flag_same_nbands =  nbands_1 == nbands_2
+    flag_same_nbands_str = _get_prefix_str(flag_same_nbands, flag_all_ok)
+    prefix = ' ' * 7
+    print(f'{flag_same_nbands_str}Comparing number of bands')
+    if not flag_same_nbands:
+        print(prefix + f'Input 1 has {nbands_1} bands and input 2'
+              f' has {nbands_2} bands')
+        return False
+
+    print('Comparing DSWx bands...')
+    band_keys = list(band_description_dict.keys())
+    band_names = list(band_description_dict.values())
+    for b in range(1, nbands_1 + 1):
+        gdal_band_1 = layer_gdal_dataset_1.GetRasterBand(b)
+        gdal_band_2 = layer_gdal_dataset_2.GetRasterBand(b)
+        image_1 = gdal_band_1.ReadAsArray()
+        image_2 = gdal_band_2.ReadAsArray()
+        flag_bands_are_equal = np.array_equal(image_1, image_2)
+        flag_bands_are_equal_str = _get_prefix_str(flag_bands_are_equal,
+                                                   flag_all_ok)
+        print(f'{flag_bands_are_equal_str}     Band {b} -'
+              f' {band_keys[b-1]}: "{band_names[b-1]}"')
+        if not flag_bands_are_equal:
+            flag_error_found = False
+            for i in range(image_1.shape[0]):
+                for j in range(image_1.shape[1]):
+                    if image_1[i, j] == image_2[i, j]:
+                        continue
+                    print(prefix + f'     * input 1 has value'
+                          f' "{image_1[i, j]}" in position'
+                          f' (x: {j}, y: {i})'
+                          f' whereas input 2 has value "{image_2[i, j]}"'
+                          ' in the same position.')
+                    flag_error_found = True
+                    break
+                if flag_error_found:
+                    break
+
+    flag_same_geotransforms = np.array_equal(geotransform_1, geotransform_2)
+    flag_same_geotransforms_str = _get_prefix_str(flag_same_geotransforms,
+                                                  flag_all_ok)
+    print(f'{flag_same_geotransforms_str}Comparing geotransform')
+    if not flag_same_geotransforms:
+        print(prefix + f'* input 1 geotransform with content "{geotransform_1}"'
+              f' differs from input 2 geotransform with content'
+              f' "{geotransform_2}".')
+
+    metadata_error_message = None
+    flag_same_metadata = len(metadata_1.keys()) == len(metadata_2.keys())
+    if not flag_same_metadata:
+        metadata_error_message = (
+            f'* input 1 metadata has {len(metadata_1.keys())} entries'
+            f' whereas input 2 metadata has {len(metadata_2.keys())} entries.')
+
+        set_1_m_2 = set(metadata_1.keys()) - set(metadata_2.keys())
+        if len(set_1_m_2) > 0:
+            metadata_error_message += (' Input 1 metadata has extra entries'
+                                       ' with keys:'
+                                       f' {", ".join(set_1_m_2)}.')
+        set_2_m_1 = set(metadata_2.keys()) - set(metadata_1.keys())
+        if len(set_2_m_1) > 0:
+            metadata_error_message += (' Input 2 metadata has the extra'
+                                       ' entries with keys:'
+                                       f' {", ".join(set_2_m_1)}.')
+    else:
+        for k1, v1, in metadata_1.items():
+            if k1 not in metadata_2.keys():
+                 flag_same_metadata = False
+                 metadata_error_message = (
+                     f'* the metadata key {k1} is present in'
+                     ' but it is not present in input 2')
+                 break
+            if k1 == 'PROCESSING_DATETIME':
+                # Processing datetimes are expected to be different from
+                # input 1 and 2
+                continue
+            if metadata_2[k1] != v1:
+                 flag_same_metadata = False
+                 metadata_error_message = (
+                     f'* contents of metadata key {k1} from'
+                     f' input 1 has value "{v1}" whereas the same key in'
+                     f' input 2 metadata has value "{metadata_2[k1]}"')
+                 break
+
+    flag_same_metadata_str = _get_prefix_str(flag_same_metadata,
+                                             flag_all_ok)
+    print(f'{flag_same_metadata_str}Comparing metadata')
+    if not flag_same_metadata:
+        print(prefix + metadata_error_message)
+
+    return flag_all_ok[0]
 
 
 def create_landcover_mask(input_file, copernicus_landcover_file,
@@ -341,7 +612,7 @@ def _compute_otsu_threshold(image, is_normalized = True):
     return image < threshold
 
 
-def _generate_interpreted_layer(diagnostic_layer):
+def generate_interpreted_layer(diagnostic_layer):
     """Generate interpreted layer from diagnostic test band
 
        Parameters
@@ -544,6 +815,11 @@ def _compute_mask_and_filter_interpreted_layer(
             if np.bitwise_and(2**3, qa_band[i, j]):
                 mask[i, j] += 1
 
+            # Check QA adjacent to cloud/cloud shadow bit (2) => bit 0
+            # Note: this line differs from original USGS DSWE ADD
+            elif np.bitwise_and(2**2, qa_band[i, j]):
+                mask[i, j] += 1
+
             # Check QA snow bit (4) => bit 1
             if np.bitwise_and(2**4, qa_band[i, j]):
                 mask[i, j] += 2
@@ -683,9 +959,9 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             layer_gdal_dataset.GetProjection()
         band = layer_gdal_dataset.GetRasterBand(1)
         image_dict['fill_data'] = band.GetNoDataValue()
-        image_dict['length'] = layer_gdal_dataset.RasterYSize
-        image_dict['width'] = layer_gdal_dataset.RasterXSize
-    
+        image_dict['length'] = image_dict[key].shape[0]
+        image_dict['width'] = image_dict[key].shape[1]
+
     return True
 
 
@@ -731,7 +1007,7 @@ def _load_hls_product_v1(filename, image_dict, offset_dict,
 
         # Sensor is undertermined (first band) or LANDSAT
         if ('SPACECRAFT_NAME' not in dswx_metadata_dict.keys() or
-                'LANDSAT' in dswx_metadata_dict['SPACECRAFT_NAME']):
+                'LANDSAT' in dswx_metadata_dict['SPACECRAFT_NAME'].upper()):
             band_name = l30_v1_band_dict[key]
         else:
             band_name = s30_v1_band_dict[key]
@@ -784,13 +1060,13 @@ def _load_hls_product_v2(file_list, image_dict, offset_dict,
 
         # Sensor is undertermined (first band) or LANDSAT
         if ('SPACECRAFT_NAME' not in dswx_metadata_dict.keys() or
-                'LANDSAT' in dswx_metadata_dict['SPACECRAFT_NAME']):
+                'LANDSAT' in dswx_metadata_dict['SPACECRAFT_NAME'].upper()):
             band_name = l30_v2_band_dict[key]
         else:
             band_name = s30_v2_band_dict[key]
 
         for filename in file_list:
-            if band_name in filename:
+            if band_name + '.tif' in filename:
                 break
         else:
             logger.info(f'ERROR band {key} not found within input file(s)')
@@ -859,12 +1135,24 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
     driver = gdal.GetDriverByName("GTiff")
 
     dswx_processed_bands['wtr'] = wtr
-    dswx_processed_bands_keys = dswx_processed_bands.keys()
+
+    # translate dswx_processed_bands_keys to band_description_dict keys
+    # example: wtr_1 to WTR-1
+    dswx_processed_bands_keys = list(dswx_processed_bands.keys())
+    dswx_processed_band_names_list = []
+    for dswx_processed_bands_key in dswx_processed_bands_keys:
+        dswx_processed_band_names_list.append(
+            dswx_processed_bands_key.upper().replace('_', '-'))
 
     # check input arrays different than None
-    n_valid_bands = int(np.sum([int(dswx_processed_bands[band_key.lower()] is not None)
-                               for band_key in band_description_dict.keys()
-                               if band_key.lower() in dswx_processed_bands_keys]))
+    n_valid_bands = 0
+    band_description_dict_keys = list(band_description_dict.keys())
+    for i, band_name in enumerate(dswx_processed_band_names_list):
+        if band_name not in band_description_dict_keys:
+            continue
+        if dswx_processed_bands[dswx_processed_bands_keys[i]] is None:
+            continue
+        n_valid_bands += 1
 
     if n_valid_bands == 1:
         # save interpreted layer (single band)
@@ -872,18 +1160,23 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
     else:
         # save DSWx product
         nbands = len(band_description_dict.keys())
+
     gdal_ds = driver.Create(output_file, shape[1], shape[0], nbands, gdal.GDT_Byte)
     gdal_ds.SetMetadata(dswx_metadata_dict)
     gdal_ds.SetGeoTransform(geotransform)
     gdal_ds.SetProjection(projection)
 
-    for band_index, (band_key, description_from_dict) in enumerate(
+    for band_index, (band_name, description_from_dict) in enumerate(
             band_description_dict.items()):
         
         # check if band is in the list of processed bands
-        if band_key.lower() in dswx_processed_bands:
-            band_array = dswx_processed_bands[band_key.lower()]
+        if band_name in dswx_processed_band_names_list:
+
+            # index using processed key from band name (e.g., WTR-1 to wtr_1)
+            band_array = dswx_processed_bands[
+                band_name.replace('-', '_').lower()]
         else:
+            logger.warning(f'layer not found "{band_name}".')
             band_array = None
         
         # if band is not in the list of processed bands or it's None
@@ -1393,7 +1686,9 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     # Save layers
     if product_id is None:
         product_id = 'dswx_hls'
-    for layer_name, args_name in layer_names_to_args_dict.items():
+    for i, (layer_name, args_name) in \
+            enumerate(layer_names_to_args_dict.items()):
+        layer_number = i + 1
         layer_var_name = layer_name.lower().replace('-', '_')
         runconfig_field = f'save_{layer_var_name}'
 
@@ -1404,7 +1699,8 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         user_layer_file = getattr(args, arg_name)
 
         # runconfig layer filename
-        product_basename = f'{product_id}_{layer_var_name}.tif'
+        product_basename = (f'{product_id}_v{PRODUCT_VERSION}_B{layer_number:02}'
+                            f'_{layer_name}.tif')
         runconfig_layer_file = os.path.join(output_directory,
                                             product_basename)
 
@@ -1440,7 +1736,7 @@ def _get_dswx_metadata_dict(product_id):
 
 
     dswx_metadata_dict['PRODUCT_ID'] = product_id
-    dswx_metadata_dict['PRODUCT_VERSION'] = '0.1'
+    dswx_metadata_dict['PRODUCT_VERSION'] = PRODUCT_VERSION
     dswx_metadata_dict['PROJECT'] = 'OPERA'
     dswx_metadata_dict['LEVEL'] = '3'
     dswx_metadata_dict['PRODUCT_TYPE'] = 'DSWx'
@@ -1571,13 +1867,14 @@ def _apply_shadow_layer(interpreted_layer, shadow_layer):
 
        Returns
        -------
-       interpreted_layer : numpy.ndarray
+       shadow_masked_interpreted_layer : numpy.ndarray
               Shadow-masked interpreted layer
     """
     # shadows are set to 0 (not water)
+    shadow_masked_interpreted_layer = interpreted_layer.copy()
     ind = np.where(shadow_layer == 1)
-    interpreted_layer[ind] = 0
-    return interpreted_layer
+    shadow_masked_interpreted_layer[ind] = 0
+    return shadow_masked_interpreted_layer
 
 
 def generate_dswx_layers(input_list, output_file,
@@ -1591,6 +1888,7 @@ def generate_dswx_layers(input_list, output_file,
                          output_diagnostic_layer=None,
                          output_non_masked_dswx=None,
                          output_shadow_masked_dswx=None,
+                         output_landcover=None,
                          output_shadow_layer=None,
                          output_cloud_mask=None,
                          output_dem_layer=None,
@@ -1628,6 +1926,8 @@ def generate_dswx_layers(input_list, output_file,
               Output (non-masked) interpreted layer filename
        output_shadow_masked_dswx: str (optional)
               Output shadow-masked filename
+       output_landcover: str (optional)
+              Output landcover classification file
        output_shadow_layer: str (optional)
               Output shadow layer filename
        output_cloud_mask: str (optional)
@@ -1668,6 +1968,8 @@ def generate_dswx_layers(input_list, output_file,
     logger.info(f'    output_file: {output_file}')
     logger.info(f'    DEM file: {dem_file}')
     logger.info(f'    scratch directory: {scratch_dir}')
+
+    os.makedirs(scratch_dir, exist_ok=True)
 
     image_dict = {}
     offset_dict = {}
@@ -1750,6 +2052,8 @@ def generate_dswx_layers(input_list, output_file,
         if output_dem_layer is None:
             dem_cropped_file = tempfile.NamedTemporaryFile(
                     dir=scratch_dir, suffix='.tif').name
+        else:
+            dem_cropped_file = output_dem_layer
 
         dem = _relocate(dem_file, geotransform, projection,
                         length, width, scratch_dir,
@@ -1771,10 +2075,18 @@ def generate_dswx_layers(input_list, output_file,
                         output_files_list=build_vrt_list)
 
     if landcover_file is not None:
+
+        if output_landcover is None:
+            relocated_landcover_file = tempfile.NamedTemporaryFile(
+                    dir=scratch_dir, suffix='.tif').name
+        else:
+            relocated_landcover_file = output_landcover
+
         # Land Cover
+        # TODO output_landcover will be the output of create_landcover_mask()
         landcover = _relocate(landcover_file, geotransform, projection,
                               length, width, scratch_dir,
-                              relocated_file='temp_landcover.tif')
+                              relocated_file=relocated_landcover_file)
 
     if built_up_cover_fraction_file is not None:
         # Build-up cover fraction
@@ -1816,8 +2128,7 @@ def generate_dswx_layers(input_list, output_file,
                     description=band_description_dict['DIAG'],
                     output_files_list=build_vrt_list)
 
-    interpreted_dswx_band = _generate_interpreted_layer(
-        diagnostic_layer)
+    interpreted_dswx_band = generate_interpreted_layer(diagnostic_layer)
 
     if invalid_ind is not None:
         interpreted_dswx_band[invalid_ind] = 255
