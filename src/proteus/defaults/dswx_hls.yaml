@@ -16,9 +16,6 @@ runconfig:
             # Land cover map
             landcover_file:
 
-            # Built up land map
-            built_up_cover_fraction_file:
-
         primary_executable:
             product_type: DSWX_HLS
 

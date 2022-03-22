@@ -11,13 +11,10 @@ runconfig:
        
         dynamic_ancillary_file_group:
             # Digital elevation model
-            dem_file: include(str(), required=False)
+            dem_file: str()
 
             # Land cover map
-            landcover_file: include(str(), required=False)
-
-            # Built up land map
-            built_up_cover_fraction_file: include(str(), required=False)
+            landcover_file: str(required=False)
 
         primary_executable:
             product_type: enum('DSWX_HLS')
