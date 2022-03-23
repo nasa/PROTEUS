@@ -7,11 +7,11 @@ runconfig:
 
         input_file_group:
             # REQUIRED - Single HLS dataset (directory or files)
-            input_file_path: [data/s30_louisiana_mississippi/input_dir]
+            input_file_path: [input_dir]
 
         dynamic_ancillary_file_group:
             # Digital elevation model
-            dem_file: data/s30_louisiana_mississippi/input_dir/dem.tif
+            dem_file: input_dir/dem.tif
             # landcover_file:
             landcover_file:
 
@@ -25,7 +25,7 @@ runconfig:
             # Intermediate file name.  SAS writes output product to the following file.
             # After the SAS completes, the PGE wrapper renames the product file
             # according to proper file naming conventions.
-            output_dir: data/s30_louisiana_mississippi/output_dir/
+            output_dir: output_dir/
             product_id: dswx_hls
        
         primary_executable:
