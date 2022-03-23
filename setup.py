@@ -20,6 +20,7 @@ setup(
                 ' from optical (HLS) and SAR data',
     package_dir={'dswx_hls': '.'},
     packages=['dswx_hls',
+              'dswx_hls.src.proteus',
               'dswx_hls.src.proteus.extern'],
     package_data=package_data_dict,
     classifiers=['Programming Language :: Python', ],
