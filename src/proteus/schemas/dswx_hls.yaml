@@ -11,7 +11,7 @@ runconfig:
        
         dynamic_ancillary_file_group:
             # Digital elevation model
-            dem_file: str()
+            dem_file: str(required=False)
 
             # Land cover map
             landcover_file: str(required=False)
