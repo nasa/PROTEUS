@@ -511,13 +511,21 @@ def _get_interpreted_dswx_ctable():
     # Blue - Water (high confidence)
     dswx_ctable.SetColorEntry(1, (0, 0, 255))
     # Light blue - Water (moderate conf.)
-    dswx_ctable.SetColorEntry(2, (64, 64, 255))
-    # Green - Potential wetland
-    dswx_ctable.SetColorEntry(3, (0, 255, 0))
-    # Cyan - Low confidence  water or wetland
-    dswx_ctable.SetColorEntry(4, (0, 255, 255))
+    dswx_ctable.SetColorEntry(2, (0, 127, 255))
+    # Dark green - Potential wetland
+    dswx_ctable.SetColorEntry(3, (0, 127, 0))
+    # Green - Low confidence water or wetland
+    dswx_ctable.SetColorEntry(4, (0, 255, 0))
+    # Cyan - Reserved
+    dswx_ctable.SetColorEntry(5, (0, 255, 255))
+    # Light green - Reserved
+    dswx_ctable.SetColorEntry(6, (127, 255, 0))
+    # Yellow - Reserved
+    dswx_ctable.SetColorEntry(7, (255, 255, 0))
+    # Orange - Reserved
+    dswx_ctable.SetColorEntry(8, (255, 127, 0))
     # Gray - QA masked
-    dswx_ctable.SetColorEntry(9, (128, 128, 128))
+    dswx_ctable.SetColorEntry(9, (127, 127, 127))
     # Black/transparent - Fill value
     dswx_ctable.SetColorEntry(255, (0, 0, 0, 0))
 
@@ -552,11 +560,11 @@ def _get_mask_ctable():
     # Light gray - Cloud
     mask_ctable.SetColorEntry(4, (192, 192, 192))
     # Gray - Cloud and cloud shadow
-    mask_ctable.SetColorEntry(5, (128, 128, 128))
+    mask_ctable.SetColorEntry(5, (127, 127, 127))
     # Magenta - Cloud and snow/ice
     mask_ctable.SetColorEntry(6, (255, 0, 255))
     # Light blue - Cloud, cloud shadow, and snow/ice
-    mask_ctable.SetColorEntry(7, (128, 128, 255))
+    mask_ctable.SetColorEntry(7, (127, 127, 255))
     # Black/transparent - Fill value
     mask_ctable.SetColorEntry(255, (0, 0, 0, 0))
     return mask_ctable
@@ -1097,7 +1105,7 @@ def _get_binary_water_ctable():
     # Water
     binary_water_ctable.SetColorEntry(1, (0, 0, 255))
     # Gray - QA masked
-    binary_water_ctable.SetColorEntry(2, (128, 128, 128))
+    binary_water_ctable.SetColorEntry(2, (127, 127, 127))
     # Black - Fill value
     binary_water_ctable.SetColorEntry(255, (0, 0, 0, 255))
     return binary_water_ctable
