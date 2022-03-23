@@ -1625,8 +1625,9 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
     if user_runconfig_file is not None:
         if not os.path.isfile(user_runconfig_file):
-            logger.info(f'ERROR invalid file {user_runconfig_file}')
-            return
+            error_msg = f'ERROR invalid file {user_runconfig_file}'
+            logger.info(error_msg)
+            raise Exception(error_msg)
 
         runconfig_dir = os.path.dirname(user_runconfig_file)
 
