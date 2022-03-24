@@ -28,7 +28,7 @@ def main():
 
     args = parser.parse_args()
 
-    create_logger(args.log_file)
+    create_logger(args.log_file, args.full_log_formatting)
 
     mimetypes.add_type("text/yaml", ".yaml", strict=True)
     flag_first_file_is_text = 'text' in mimetypes.guess_type(

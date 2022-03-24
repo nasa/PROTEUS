@@ -107,7 +107,7 @@ layer_names_to_args_dict = {
     'DEM': 'output_dem_layer',
     'RGB': 'output_rgb_file',
     'INFRARED_RGB': 'output_infrared_rgb_file'}
- 
+
 
 METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSOR_PRODUCT_ID',
                                          'SENSING_TIME',
@@ -311,6 +311,12 @@ def get_dswx_hls_cli_parser():
                         type=str,
                         help='Log file')
 
+    parser.add_argument('--full-log-format',
+                        dest='full_log_formatting',
+                        action='store_true',
+                        default=False,
+                        help='Enable full formatting of log messages')
+
     return parser
 
 
@@ -459,7 +465,7 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
     if not os.path.isfile(copernicus_landcover_file):
         logger.error(f'ERROR file not found: {copernicus_landcover_file}')
         return
-    
+
     if not os.path.isfile(worldcover_file):
         logger.error(f'ERROR file not found: {worldcover_file}')
         return
@@ -539,7 +545,7 @@ def _get_mask_ctable():
        -------
        dswx_ctable : GDAL ColorTable object
             GDAL color table for HLS Q/A mask.
-     
+
     """
     # create color table
     mask_ctable = gdal.ColorTable()
@@ -585,7 +591,7 @@ def _compute_otsu_threshold(image, is_normalized = True):
        -------
        binary_array : numpy.ndarray
             Binary array after thresholding input image with Otsu's threshold
-     
+
     """
     # Set total number of bins in the histogram
     bins_num = 256
@@ -632,7 +638,7 @@ def generate_interpreted_layer(diagnostic_layer):
        -------
        interpreted_layer : numpy.ndarray
             Interpreted layer
-     
+
     """
 
     logger.info('step 2 - get interpreted DSWX band')
@@ -662,7 +668,7 @@ def _get_binary_water_layer(interpreted_water_layer):
        -------
        binary_water_layer : numpy.ndarray
             Binary water layer
-     
+
     """
     # fill value: 255
     binary_water_layer = np.full_like(interpreted_water_layer, 255)
@@ -710,7 +716,7 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
        -------
        diagnostic_layer : numpy.ndarray
             Diagnostic test band
-     
+
     """
 
     # Temporarily supress RuntimeWarnings:
@@ -838,7 +844,7 @@ def _compute_mask_and_filter_interpreted_layer(
 
             if mask[i, j] == 0:
                 continue
-            
+
             masked_interpreted_water_layer[i, j] = 9
 
     return mask, masked_interpreted_water_layer
@@ -959,7 +965,7 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
     # save offset and scale factor into corresponding dictionaries
     offset_dict[key] = offset
     scale_dict[key] = scale_factor
-            
+
     if 'geotransform' not in image_dict.keys():
         image_dict['geotransform'] = \
             layer_gdal_dataset.GetGeoTransform()
@@ -1029,7 +1035,7 @@ def _load_hls_product_v1(filename, image_dict, offset_dict,
             return False
 
     return True
-        
+
 
 def _load_hls_product_v2(file_list, image_dict, offset_dict,
                          scale_dict, dswx_metadata_dict,
@@ -1177,7 +1183,7 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
 
     for band_index, (band_name, description_from_dict) in enumerate(
             band_description_dict.items()):
-        
+
         # check if band is in the list of processed bands
         if band_name in dswx_processed_band_names_list:
 
@@ -1187,7 +1193,7 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
         else:
             logger.warning(f'layer not found "{band_name}".')
             band_array = None
-        
+
         # if band is not in the list of processed bands or it's None
         if band_array is None:
             band_array = np.zeros_like(wtr)
@@ -1553,7 +1559,7 @@ def _deep_update(main_dict, update_dict):
               Input dictionary
        update_dict: dict
               Update dictionary
-       
+
        Returns
        -------
        updated_dict : dict
@@ -1572,7 +1578,7 @@ def expand_path_and_append_dir(input_path, input_dir):
     """
     Expand path (user and environment variables) and append
     directory, if applicable, and return absolute path.
-    
+
        Parameters
        ----------
        input_path: str
@@ -1598,7 +1604,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     """
     Parse run configuration file updating an argument
     (argparse.Namespace) and an HlsThresholds object
-    
+
        Parameters
        ----------
        user_runconfig_file: str (optional)
@@ -1687,7 +1693,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     else:
         landcover_file = expand_path_and_append_dir(
             ancillary_ds_group['landcover_file'], runconfig_dir)
-    
+
     if 'built_up_cover_fraction_file' not in ancillary_ds_group:
         built_up_cover_fraction_file = None
     else:
@@ -1726,7 +1732,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
                 f' "{runconfig_file}".')
         elif user_file is None:
             setattr(args, var_name, runconfig_file)
- 
+
     # If user runconfig was not provided, return
     if user_runconfig_file is None:
         return hls_thresholds
@@ -1825,13 +1831,15 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset,
                                      else '(not provided)'
 
 
-def create_logger(log_file):
+def create_logger(log_file, full_log_formatting):
     """Create logger object for a log file
 
        Parameters
        ----------
        log_file: str
               Log file
+       full_log_formatting : bool
+              Flag to enable full formatting of logged messages
 
        Returns
        -------
@@ -1849,6 +1857,13 @@ def create_logger(log_file):
     # create formatter
     formatter = logging.Formatter('%(message)s')
 
+    # configure full log format, if enabled
+    if full_log_formatting:
+        msgfmt = ('%(asctime)s.%(msecs)03d, %(levelname)s, DSWx-HLS, '
+                  '%(module)s, 999999, %(pathname)s:%(lineno)d, "%(message)s"')
+
+        formatter = logging.Formatter(msgfmt, "%Y-%m-%d %H:%M:%S")
+
     # add formatter to ch
     ch.setFormatter(formatter)
 
@@ -1858,12 +1873,7 @@ def create_logger(log_file):
     if log_file:
         file_handler = logging.FileHandler(log_file)
 
-        # Log file format
-        msgfmt = ('%(asctime)s.%(msecs)03d, %(levelname)s, DSWx-HLS, '
-                  '%(module)s, 999999, %(pathname)s:%(lineno)d, "%(message)s"')
-
-        log_file_formatter = logging.Formatter(msgfmt, "%Y-%m-%d %H:%M:%S")
-        file_handler.setFormatter(log_file_formatter)
+        file_handler.setFormatter(formatter)
 
         # add file handler to logger
         logger.addHandler(file_handler)
@@ -2008,7 +2018,7 @@ def generate_dswx_layers(input_list, output_file,
 
     if scratch_dir is None:
         scratch_dir = '.'
- 
+
     logger.info('input parameters:')
     logger.info('    file(s):')
     for input_file in input_list:
@@ -2157,7 +2167,7 @@ def generate_dswx_layers(input_list, output_file,
                               geotransform, projection,
                               invalid_ind=invalid_ind,
                               output_files_list=output_files_list)
-    
+
     if output_infrared_rgb_file:
         _save_output_rgb_file(swir1, nir, red, output_infrared_rgb_file,
                               offset_dict, scale_dict,
@@ -2251,7 +2261,7 @@ def generate_dswx_layers(input_list, output_file,
         save_dswx_product(masked_dswx_band,
                           output_file,
                           dswx_metadata_dict,
-                          geotransform, 
+                          geotransform,
                           projection,
                           bwtr=binary_water_layer,
                           diag=diagnostic_layer,
@@ -2273,6 +2283,6 @@ def generate_dswx_layers(input_list, output_file,
     logger.info('list of output files:')
     for filename in build_vrt_list + output_files_list:
         logger.info(filename)
-    
+
     return True
 
