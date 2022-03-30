@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import os
+import requests
 import glob
+import tarfile
 from proteus.dswx_hls import (
     get_dswx_hls_cli_parser,
     generate_dswx_layers,
@@ -14,9 +16,36 @@ def test_workflow():
 
     parser = get_dswx_hls_cli_parser()
 
-    user_runconfig_file = 'data/s30_louisiana_mississippi/dswx_hls.yaml'
-    ref_dir = 'data/s30_louisiana_mississippi/ref_dir'
-    output_dir = 'data/s30_louisiana_mississippi/output_dir'
+    test_data_directory = 'data'
+
+    if not os.path.isdir(test_data_directory):
+        os.makedirs(test_data_directory, exist_ok=True)
+
+    dataset_name = 's30_louisiana_mississippi'
+    dataset_url = ('https://zenodo.org/record/6400000/files/'
+                   's30_louisiana_mississippi.tar.gz')
+    dataset_dir = os.path.join(test_data_directory, dataset_name)
+    user_runconfig_file = os.path.join(dataset_dir, 'dswx_hls.yaml')
+
+    if (not os.path.isdir(dataset_dir) or
+            not os.path.isfile(user_runconfig_file)):
+
+        print(f'Test dataset {dataset_name} not found. Downloading'
+              f' file {dataset_url}.')
+        response = requests.get(dataset_url)
+        response.raise_for_status()
+
+        compressed_filename = os.path.join(test_data_directory,
+                                           os.path.basename(dataset_url))
+
+        open(compressed_filename, 'wb').write(response.content)
+
+        print(f'Extracting downloaded file {compressed_filename}')
+        with tarfile.open(compressed_filename) as compressed_file:
+            compressed_file.extractall(test_data_directory)
+
+    ref_dir = os.path.join(dataset_dir, 'ref_dir')
+    output_dir = os.path.join(dataset_dir, 'output_dir')
     # args.input_list = user_runconfig_file
     args = parser.parse_args([user_runconfig_file])
 
