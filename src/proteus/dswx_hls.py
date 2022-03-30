@@ -1574,31 +1574,6 @@ def _deep_update(main_dict, update_dict):
     # return updated main_dict
     return main_dict
 
-def expand_path_and_append_dir(input_path, input_dir):
-    """
-    Expand path (user and environment variables) and append
-    directory, if applicable, and return absolute path.
-
-       Parameters
-       ----------
-       input_path: str
-              Input path
-       input_dir: str
-              Input directory
-
-       Returns
-       -------
-       abs_path: str
-              Absolute path
-    """
-    if not input_path:
-        return input_path
-    expanded_path = os.path.expanduser(os.path.expandvars(input_path))
-    if os.path.isabs(expanded_path):
-        return expanded_path
-    abs_path = os.path.abspath(os.path.join(input_dir, input_path))
-    return abs_path
-
 
 def parse_runconfig_file(user_runconfig_file = None, args = None):
     """
@@ -1635,8 +1610,6 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
             logger.info(error_msg)
             raise Exception(error_msg)
 
-        runconfig_dir = os.path.dirname(user_runconfig_file)
-
         logger.info(f'Input runconfig file: {user_runconfig_file}')
 
         data = yamale.make_data(user_runconfig_file, parser='ruamel')
@@ -1653,7 +1626,6 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
     else:
         runconfig = default_runconfig
-        runconfig_dir = '.'
 
     hls_thresholds = HlsThresholds()
     hls_thresholds_user = runconfig['runconfig']['groups']['hls_thresholds']
@@ -1668,13 +1640,8 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     if args is None:
         return hls_thresholds
 
-    input_file_path_orig = runconfig['runconfig']['groups'][
-        'input_file_group']['input_file_path']
-    if not input_file_path_orig:
-        input_file_path = None
-    else:
-        input_file_path = [expand_path_and_append_dir(f, runconfig_dir)
-                           for f in input_file_path_orig]
+    input_file_path = runconfig['runconfig']['groups']['input_file_group'][
+        'input_file_path']
 
     ancillary_ds_group = runconfig['runconfig']['groups'][
         'dynamic_ancillary_file_group']
@@ -1685,26 +1652,21 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     if 'dem_file' not in ancillary_ds_group:
         dem_file = None
     else:
-        dem_file = expand_path_and_append_dir(
-            ancillary_ds_group['dem_file'], runconfig_dir)
+        dem_file = ancillary_ds_group['dem_file']
 
     if 'landcover_file' not in ancillary_ds_group:
         landcover_file = None
     else:
-        landcover_file = expand_path_and_append_dir(
-            ancillary_ds_group['landcover_file'], runconfig_dir)
+        landcover_file = ancillary_ds_group['landcover_file']
 
     if 'built_up_cover_fraction_file' not in ancillary_ds_group:
         built_up_cover_fraction_file = None
     else:
-        built_up_cover_fraction_file = expand_path_and_append_dir(
-            ancillary_ds_group['built_up_cover_fraction_file'],
-            runconfig_dir)
+        built_up_cover_fraction_file = ancillary_ds_group[
+            'built_up_cover_fraction_file']
 
-    scratch_dir = expand_path_and_append_dir(
-        product_path_group['scratch_path'], runconfig_dir)
-    output_directory = expand_path_and_append_dir(
-        product_path_group['output_dir'], runconfig_dir)
+    scratch_dir = product_path_group['scratch_path']
+    output_directory = product_path_group['output_dir']
     product_id = product_path_group['product_id']
 
     if (input_file_path is not None and len(input_file_path) == 1 and
