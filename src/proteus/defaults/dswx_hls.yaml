@@ -1,6 +1,6 @@
 runconfig:
     name: dswx_hls_workflow_default
-  
+
     groups:
         pge_name_group:
             pge_name: DSWX_HLS_PGE
