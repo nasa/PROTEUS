@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker load -i docker/dockerimg_dswx_hls_beta.tar
+docker load -i docker/dockerimg_proteus_beta.tar
