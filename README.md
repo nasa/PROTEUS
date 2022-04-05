@@ -48,7 +48,7 @@ pip install .
 Or via environment path setup:
 
 ```bash
-export PROTEUS_HOME='~/tools/PROTEUS'
+export PROTEUS_HOME=<PATH_TO_CLONED_REPOSITORY>
 export PYTHONPATH=${PYTHONPATH}:${PROTEUS_HOME}/src
 export PATH=${PATH}:${PROTEUS_HOME}/bin
 ```
