@@ -399,7 +399,7 @@ def compare_dswx_hls_products(file_1, file_2):
 
 
 def _compare_dswx_hls_metadata(metadata_1, metadata_2):
-    """ Compare DSWx-HLS products' metadata
+    """Compare DSWx-HLS products' metadata
 
        Parameters
        ----------
@@ -448,7 +448,8 @@ def _compare_dswx_hls_metadata(metadata_1, metadata_2):
 
 
 def _print_first_value_diff(image_1, image_2, prefix):
-    """Print first value difference between two images.
+    """
+    Print first value difference between two images.
 
        Parameters
        ----------
@@ -477,8 +478,9 @@ def _print_first_value_diff(image_1, image_2, prefix):
 
 def create_landcover_mask(input_file, copernicus_landcover_file,
                           worldcover_file, output_file, scratch_dir):
-    """Create landcover mask LAND combining Copernicus Global Land Service
-       (CGLS) Land Cover Layers collection 3 at 100m and ESA WorldCover 10m.
+    """
+    Create landcover mask LAND combining Copernicus Global Land Service
+    (CGLS) Land Cover Layers collection 3 at 100m and ESA WorldCover 10m.
 
        Parameters
        ----------
@@ -492,7 +494,8 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
        output_file : str
             Output landcover mask (LAND layer)
        scratch_dir : str
-              Temporary directory"""
+              Temporary directory
+    """
     if not os.path.isfile(input_file):
         logger.error(f'ERROR file not found: {input_file}')
         return
@@ -505,14 +508,6 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
         logger.error(f'ERROR file not found: {worldcover_file}')
         return
 
-    '''
-    TODO review following classes and update code:
-    copernicus_landcover_evergreen_classes = [111, 112, 121, 122]
-    copernicus_landcover_buit_up_classses = [50]
-    copernicus_landcover_mask_classses = \
-        (copernicus_landcover_evergreen_classes +
-         copernicus_landcover_buit_up_classses)
-    '''
     logger.info('')
     logger.info(f'Input file: {input_file}')
     logger.info(f'Copernicus landcover 100 m file: {copernicus_landcover_file}')
