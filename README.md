@@ -32,16 +32,16 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Installation
 
-Download the source code
+Download the source code and move working directory to clone repository:
 
 ```bash
 git clone https://github.com/opera-adt/PROTEUS.git
+cd PROTEUS
 ```
 
-Install it from clone repository via conda/setup.py (recommended):
+Install PROTEUS via conda/setup.py (recommended):
 
 ```bash
-cd PROTEUS
 conda install --file docker/requirements.txt
 conda install -c conda-forge --file docker/requirements.txt.forge
 python setup.py install
@@ -50,14 +50,12 @@ python setup.py install
 Or via pip:
 
 ```bash
-cd PROTEUS
 pip install .
 ```
 
 Or via environment path setup:
 
 ```bash
-cd PROTEUS
 export PROTEUS_HOME=$PWD
 export PYTHONPATH=${PYTHONPATH}:${PROTEUS_HOME}/src
 export PATH=${PATH}:${PROTEUS_HOME}/bin
