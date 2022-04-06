@@ -38,7 +38,16 @@ Download the source code
 git clone https://github.com/opera-adt/PROTEUS.git
 ```
 
-Install into virtual environment from clone directory via pip:
+Install it from clone repository via conda/setup.py (recommended):
+
+```bash
+cd PROTEUS
+conda install --file docker/requirements.txt
+conda install -c conda-forge --file docker/requirements.txt.forge
+python setup.py install
+```
+
+Or via pip:
 
 ```bash
 cd PROTEUS
@@ -48,7 +57,15 @@ pip install .
 Or via environment path setup:
 
 ```bash
-export PROTEUS_HOME=<PATH_TO_CLONED_REPOSITORY>
+cd PROTEUS
+export PROTEUS_HOME=$PWD
 export PYTHONPATH=${PYTHONPATH}:${PROTEUS_HOME}/src
 export PATH=${PATH}:${PROTEUS_HOME}/bin
+```
+
+Run workflow and unit tests:
+
+```bash
+cd tests
+pytest -rpP
 ```
