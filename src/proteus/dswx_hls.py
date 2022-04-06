@@ -399,7 +399,8 @@ def compare_dswx_hls_products(file_1, file_2):
 
 
 def _compare_dswx_hls_metadata(metadata_1, metadata_2):
-    """Compare DSWx-HLS products' metadata
+    """
+    Compare DSWx-HLS products' metadata
 
        Parameters
        ----------
