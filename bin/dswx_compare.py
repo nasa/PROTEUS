@@ -12,10 +12,7 @@
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-import os
 import argparse
-from osgeo import gdal
-import numpy as np
 from proteus.dswx_hls import compare_dswx_hls_products
 
 

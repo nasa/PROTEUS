@@ -347,6 +347,7 @@ def compare_dswx_hls_products(file_1, file_2):
     metadata_2 = layer_gdal_dataset_2.GetMetadata()
     nbands_2 = layer_gdal_dataset_2.RasterCount
 
+    # compare number of bands
     flag_same_nbands =  nbands_1 == nbands_2
     flag_same_nbands_str = _get_prefix_str(flag_same_nbands, flag_all_ok)
     prefix = ' ' * 7
@@ -356,6 +357,7 @@ def compare_dswx_hls_products(file_1, file_2):
               f' has {nbands_2} bands')
         return False
 
+    # compare array values
     print('Comparing DSWx bands...')
     band_keys = list(band_description_dict.keys())
     band_names = list(band_description_dict.values())
@@ -370,21 +372,9 @@ def compare_dswx_hls_products(file_1, file_2):
         print(f'{flag_bands_are_equal_str}     Band {b} -'
               f' {band_keys[b-1]}: "{band_names[b-1]}"')
         if not flag_bands_are_equal:
-            flag_error_found = False
-            for i in range(image_1.shape[0]):
-                for j in range(image_1.shape[1]):
-                    if image_1[i, j] == image_2[i, j]:
-                        continue
-                    print(prefix + f'     * input 1 has value'
-                          f' "{image_1[i, j]}" in position'
-                          f' (x: {j}, y: {i})'
-                          f' whereas input 2 has value "{image_2[i, j]}"'
-                          ' in the same position.')
-                    flag_error_found = True
-                    break
-                if flag_error_found:
-                    break
+            _print_first_value_diff(image_1, image_2, prefix)
 
+    # compare geotransforms
     flag_same_geotransforms = np.array_equal(geotransform_1, geotransform_2)
     flag_same_geotransforms_str = _get_prefix_str(flag_same_geotransforms,
                                                   flag_all_ok)
@@ -394,6 +384,30 @@ def compare_dswx_hls_products(file_1, file_2):
               f' differs from input 2 geotransform with content'
               f' "{geotransform_2}".')
 
+    # compare metadata
+    metadata_error_message, flag_same_metadata = \
+        _compare_dswx_hls_metadata(metadata_1, metadata_2)
+
+    flag_same_metadata_str = _get_prefix_str(flag_same_metadata,
+                                             flag_all_ok)
+    print(f'{flag_same_metadata_str}Comparing metadata')
+
+    if not flag_same_metadata:
+        print(prefix + metadata_error_message)
+
+    return flag_all_ok[0]
+
+
+def _compare_dswx_hls_metadata(metadata_1, metadata_2):
+    """ Compare DSWx-HLS products' metadata
+
+       Parameters
+       ----------
+       metadata_1 : dict
+            Metadata of the first DSWx-HLS product
+       metadata_2: dict
+            Metadata of the second
+    """
     metadata_error_message = None
     flag_same_metadata = len(metadata_1.keys()) == len(metadata_2.keys())
     if not flag_same_metadata:
@@ -430,14 +444,35 @@ def compare_dswx_hls_products(file_1, file_2):
                      f' input 1 has value "{v1}" whereas the same key in'
                      f' input 2 metadata has value "{metadata_2[k1]}"')
                  break
+    return metadata_error_message, flag_same_metadata
 
-    flag_same_metadata_str = _get_prefix_str(flag_same_metadata,
-                                             flag_all_ok)
-    print(f'{flag_same_metadata_str}Comparing metadata')
-    if not flag_same_metadata:
-        print(prefix + metadata_error_message)
 
-    return flag_all_ok[0]
+def _print_first_value_diff(image_1, image_2, prefix):
+    """Print first value difference between two images.
+
+       Parameters
+       ----------
+       image_1 : numpy.ndarray
+            First input image
+       image_2: numpy.ndarray
+            Second input image
+       prefix: str
+            Prefix to the message printed to the user
+    """
+    flag_error_found = False
+    for i in range(image_1.shape[0]):
+        for j in range(image_1.shape[1]):
+            if image_1[i, j] == image_2[i, j]:
+                continue
+            print(prefix + f'     * input 1 has value'
+                  f' "{image_1[i, j]}" in position'
+                  f' (x: {j}, y: {i})'
+                  f' whereas input 2 has value "{image_2[i, j]}"'
+                  ' in the same position.')
+            flag_error_found = True
+            break
+        if flag_error_found:
+            break
 
 
 def create_landcover_mask(input_file, copernicus_landcover_file,
@@ -505,7 +540,6 @@ def _get_interpreted_dswx_ctable():
        -------
        dswx_ctable : GDAL ColorTable object
             GDAL color table for DSWx-HLS surface water interpreted layers
-
     """
     # create color table
     dswx_ctable = gdal.ColorTable()
@@ -545,7 +579,6 @@ def _get_mask_ctable():
        -------
        dswx_ctable : GDAL ColorTable object
             GDAL color table for HLS Q/A mask.
-
     """
     # create color table
     mask_ctable = gdal.ColorTable()
@@ -591,7 +624,6 @@ def _compute_otsu_threshold(image, is_normalized = True):
        -------
        binary_array : numpy.ndarray
             Binary array after thresholding input image with Otsu's threshold
-
     """
     # Set total number of bins in the histogram
     bins_num = 256
@@ -638,9 +670,7 @@ def generate_interpreted_layer(diagnostic_layer):
        -------
        interpreted_layer : numpy.ndarray
             Interpreted layer
-
     """
-
     logger.info('step 2 - get interpreted DSWX band')
     shape = diagnostic_layer.shape
     interpreted_layer = np.zeros(shape, dtype = np.uint8)
@@ -668,7 +698,6 @@ def _get_binary_water_layer(interpreted_water_layer):
        -------
        binary_water_layer : numpy.ndarray
             Binary water layer
-
     """
     # fill value: 255
     binary_water_layer = np.full_like(interpreted_water_layer, 255)
@@ -716,9 +745,7 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
        -------
        diagnostic_layer : numpy.ndarray
             Diagnostic test band
-
     """
-
     # Temporarily supress RuntimeWarnings:
     # - divide by zero encountered in true_divide
     # - invalid value encountered in true_divide
@@ -797,9 +824,7 @@ def _compute_mask_and_filter_interpreted_layer(
        -------
        masked_interpreted_water_layer : numpy.ndarray
               Cloud-masked interpreted water layer
-
     """
-
     shape = unmasked_interpreted_water_layer.shape
     masked_interpreted_water_layer = unmasked_interpreted_water_layer.copy()
     mask = np.zeros(shape, dtype = np.uint8)
@@ -883,9 +908,7 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
        -------
        flag_success : bool
               Flag indicating if band was successfuly loaded into memory
-
     """
-
     layer_gdal_dataset = gdal.Open(filename, gdal.GA_ReadOnly)
     if layer_gdal_dataset is None:
         return None
@@ -1008,9 +1031,7 @@ def _load_hls_product_v1(filename, image_dict, offset_dict,
        -------
        flag_success : bool
               Flag indicating if band was successfuly loaded into memory
-
     """
-
     if isinstance(filename, list):
         filename = filename[0]
 
@@ -1065,7 +1086,6 @@ def _load_hls_product_v2(file_list, image_dict, offset_dict,
        -------
        flag_success : bool
               Flag indicating if band was successfuly loaded into memory
-
     """
     logger.info('loading HLS v.2.0 layers:')
     for key in l30_v2_band_dict.keys():
@@ -1104,7 +1124,6 @@ def _get_binary_water_ctable():
        binary_water_ctable : gdal.ColorTable
               Binary water RGB color table
     """
-
     # create color table
     binary_water_ctable = gdal.ColorTable()
     # No water
@@ -1144,7 +1163,6 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
        **dswx_processed_bands: dict
               Remaining bands to be included into the DSWx-HLS product
     """
-
     _makedirs(output_file)
     shape = wtr.shape
     driver = gdal.GetDriverByName("GTiff")
@@ -1247,7 +1265,6 @@ def save_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
        output_files_list: list (optional)
               Mutable list of output files
     """
-
     _makedirs(output_file)
     shape = mask.shape
     driver = gdal.GetDriverByName("GTiff")
@@ -1347,7 +1364,6 @@ def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
        output_files_list: list (optional)
               Mutable list of output files
     """
-
     _makedirs(output_file)
     shape = input_array.shape
     driver = gdal.GetDriverByName("GTiff")
@@ -1587,7 +1603,6 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
        args: argparse.Namespace (optional)
               Argument object
     """
-
     bin_dirname = os.path.dirname(__file__)
     source_dirname = os.path.split(bin_dirname)[0]
     default_runconfig_file = f'{source_dirname}/proteus/defaults/dswx_hls.yaml'
@@ -1808,7 +1823,6 @@ def create_logger(log_file, full_log_formatting=None):
        logger : logging.Logger
               Logger object
     """
-
     # create logger
     logger.setLevel(logging.DEBUG)
 
@@ -1974,7 +1988,6 @@ def generate_dswx_layers(input_list, output_file,
        success : bool
               Flag success indicating if execution was successful
     """
-
     if hls_thresholds is None:
         hls_thresholds = parse_runconfig_file()
 
