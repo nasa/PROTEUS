@@ -10,7 +10,7 @@ jobs:
       - run:
           name: "Build PROTEUS docker image"
           command: |
-            apk add python3
+            apk add python3 py3-setuptools
             sh build_docker_image.sh
 
 workflows:
