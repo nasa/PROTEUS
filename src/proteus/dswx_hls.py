@@ -14,6 +14,8 @@ from proteus.core import save_as_cog
 
 PRODUCT_VERSION = '0.1'
 
+COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE = 1e-6
+
 logger = logging.getLogger('dswx_hls')
 
 l30_v1_band_dict = {'blue': 'band02',
@@ -361,7 +363,8 @@ def compare_dswx_hls_products(file_1, file_2):
         gdal_band_2 = layer_gdal_dataset_2.GetRasterBand(b)
         image_1 = gdal_band_1.ReadAsArray()
         image_2 = gdal_band_2.ReadAsArray()
-        flag_bands_are_equal = np.array_equal(image_1, image_2)
+        flag_bands_are_equal = np.allclose(
+            image_1, image_2, atol=COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE)
         flag_bands_are_equal_str = _get_prefix_str(flag_bands_are_equal,
                                                    flag_all_ok)
         print(f'{flag_bands_are_equal_str}     Band {b} -'
