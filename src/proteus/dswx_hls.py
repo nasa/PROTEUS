@@ -109,18 +109,15 @@ layer_names_to_args_dict = {
     'INFRARED_RGB': 'output_infrared_rgb_file'}
 
 
-METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSOR_PRODUCT_ID',
-                                         'SENSING_TIME',
+METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSING_TIME',
                                          'SPATIAL_COVERAGE',
                                          'CLOUD_COVERAGE',
-                                         'SPATIAL_RESAMPLING_ALG',
                                          'MEAN_SUN_AZIMUTH_ANGLE',
                                          'MEAN_SUN_ZENITH_ANGLE',
                                          'MEAN_VIEW_AZIMUTH_ANGLE',
                                          'MEAN_VIEW_ZENITH_ANGLE',
                                          'NBAR_SOLAR_ZENITH',
-                                         'ACCODE',
-                                         'IDENTIFIER_PRODUCT_DOI']
+                                         'ACCODE']
 
 
 class HlsThresholds:
@@ -359,8 +356,6 @@ def compare_dswx_hls_products(file_1, file_2):
 
     # compare array values
     print('Comparing DSWx bands...')
-    band_keys = list(band_description_dict.keys())
-    band_names = list(band_description_dict.values())
     for b in range(1, nbands_1 + 1):
         gdal_band_1 = layer_gdal_dataset_1.GetRasterBand(b)
         gdal_band_2 = layer_gdal_dataset_2.GetRasterBand(b)
@@ -370,7 +365,7 @@ def compare_dswx_hls_products(file_1, file_2):
         flag_bands_are_equal_str = _get_prefix_str(flag_bands_are_equal,
                                                    flag_all_ok)
         print(f'{flag_bands_are_equal_str}     Band {b} -'
-              f' {band_keys[b-1]}: "{band_names[b-1]}"')
+              f' {gdal_band_1.GetDescription()}"')
         if not flag_bands_are_equal:
             _print_first_value_diff(image_1, image_2, prefix)
 
@@ -423,8 +418,8 @@ def _compare_dswx_hls_metadata(metadata_1, metadata_2):
                                        f' {", ".join(set_1_m_2)}.')
         set_2_m_1 = set(metadata_2.keys()) - set(metadata_1.keys())
         if len(set_2_m_1) > 0:
-            metadata_error_message += (' Input 2 metadata has the extra'
-                                       ' entries with keys:'
+            metadata_error_message += (' Input 2 metadata has extra entries'
+                                       ' with keys:'
                                        f' {", ".join(set_2_m_1)}.')
     else:
         for k1, v1, in metadata_1.items():
@@ -775,26 +770,26 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
 
             # Surface water tests (see [1, 2])
 
-            # Test 1
+            # Test 1 (open water test, more conservative)
             if (mndwi[i, j] > hls_thresholds.wigt):
                 diagnostic_layer[i, j] += 1
 
-            # Test 2
+            # Test 2 (open water test)
             if (mbsrv[i, j] > mbsrn[i, j]):
                 diagnostic_layer[i, j] += 2
 
-            # Test 3
+            # Test 3 (open water test)
             if (awesh[i, j] > hls_thresholds.awgt):
                 diagnostic_layer[i, j] += 4
 
-            # Test 4
+            # Test 4 (partial surface water test)
             if (mndwi[i, j] > hls_thresholds.pswt_1_mndwi and
                     swir1[i, j] < hls_thresholds.pswt_1_swir1 and
                     nir[i, j] < hls_thresholds.pswt_1_nir and
                     ndvi[i, j] < hls_thresholds.pswt_1_ndvi):
                 diagnostic_layer[i, j] += 8
 
-            # Test 5
+            # Test 5 (partial surface water test)
             if (mndwi[i, j] > hls_thresholds.pswt_2_mndwi and
                     blue[i, j] < hls_thresholds.pswt_2_blue and
                     swir1[i, j] < hls_thresholds.pswt_2_swir1 and
@@ -922,9 +917,11 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
 
     if 'SPACECRAFT_NAME' not in dswx_metadata_dict.keys():
         for k, v in metadata.items():
-            if k.upper() not in METADATA_FIELDS_TO_COPY_FROM_HLS_LIST:
-                continue
-            dswx_metadata_dict[k.upper()] = v
+            if k.upper() in METADATA_FIELDS_TO_COPY_FROM_HLS_LIST:
+                dswx_metadata_dict[k.upper()] = v
+            elif (k.upper() == 'LANDSAT_PRODUCT_ID' or
+                    k.upper() == 'PRODUCT_URI'):
+                dswx_metadata_dict['SENSOR_PRODUCT_ID'] = v
 
         sensor = None
 
