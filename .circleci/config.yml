@@ -1,0 +1,19 @@
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: docker:stable-git
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: "Build PROTEUS docker image"
+          command: |
+            apk add python3 py3-setuptools
+            sh build_docker_image.sh
+
+workflows:
+  build-workflow:
+    jobs:
+      - build
