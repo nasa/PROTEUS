@@ -121,6 +121,9 @@ METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSING_TIME',
                                          'NBAR_SOLAR_ZENITH',
                                          'ACCODE']
 
+landcover_threshold_dict = {"standard": [6, 3, 7, 3],
+                            "water heavy": [6, 3, 7, 1]}
+
 
 class HlsThresholds:
     """
@@ -462,7 +465,8 @@ def _print_first_value_diff(image_1, image_2, prefix):
     flag_error_found = False
     for i in range(image_1.shape[0]):
         for j in range(image_1.shape[1]):
-            if image_1[i, j] == image_2[i, j]:
+            if (abs(image_1[i, j] - image_2[i, j]) >
+                    COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE):
                 continue
             print(prefix + f'     * input 1 has value'
                   f' "{image_1[i, j]}" in position'
@@ -475,8 +479,50 @@ def _print_first_value_diff(image_1, image_2, prefix):
             break
 
 
+def decimate_by_summation(image, size_y, size_x):
+    """Decimate an array by summation using a window of size 
+       `size_y` by `size_x`.
+
+       Parameters
+       ----------
+       image: numpy.ndarray
+              Input image
+       size_y: int
+              Number of looks in the Y-direction (row)
+       size_y: int
+              Number of looks in the X-direction (column)
+
+       Returns
+       -------
+       out_image : numpy.ndarray
+              Output image
+
+    """
+    for i in range(size_y):
+        for j in range(size_x):
+            image_slice = image[i::size_y, j::size_x]
+            if i == 0 and j == 0:
+                current_image = np.copy(image_slice)
+                out_image = np.zeros_like(current_image)
+            else:
+                current_image[0:image_slice.shape[0],
+                              0:image_slice.shape[1]] = \
+                                image_slice
+            out_image += current_image
+    return out_image
+
+def write_array(conglomerate_array, agg_sum, threshold, classification_val):
+    flat_agg = agg_sum.reshape(-1)
+    for position, value in enumerate(flat_agg):
+        if value > threshold:
+            conglomerate_array[position] = classification_val
+    return
+
+
 def create_landcover_mask(input_file, copernicus_landcover_file,
-                          worldcover_file, output_file, scratch_dir):
+                          worldcover_file, output_file, scratch_dir,
+                          mask_type, dswx_metadata_dict = {},
+                          output_files_list = None, description = None):
     """
     Create landcover mask LAND combining Copernicus Global Land Service
     (CGLS) Land Cover Layers collection 3 at 100m and ESA WorldCover 10m.
@@ -494,6 +540,14 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
             Output landcover mask (LAND layer)
        scratch_dir : str
               Temporary directory
+       mask_type : str
+              Mask type. Options: "Standard" and "Water Heavy"
+       dswx_metadata_dict: dict (optional)
+              Metadata dictionary that will store band metadata
+       output_files_list: list (optional)
+              Mutable list of output files
+       description: str (optional)
+              Band description
     """
     if not os.path.isfile(input_file):
         logger.error(f'ERROR file not found: {input_file}')
@@ -516,14 +570,87 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
     layer_gdal_dataset = gdal.Open(input_file, gdal.GA_ReadOnly)
     if layer_gdal_dataset is None:
         logger.error(f'ERROR invalid file: {input_file}')
-    geotransform = layer_gdal_dataset.GetGeoTransform()
-    projection = layer_gdal_dataset.GetProjection()
+    geotransform_hls = layer_gdal_dataset.GetGeoTransform()
+    projection_hls = layer_gdal_dataset.GetProjection()
     length = layer_gdal_dataset.RasterYSize
     width = layer_gdal_dataset.RasterXSize
 
-    _relocate(copernicus_landcover_file, geotransform, projection,
-              length, width, scratch_dir, resample_algorithm='nearest',
-              relocated_file=output_file)
+    # Reproject Copernicus land cover
+    copernicus_landcover_reprojected_file = os.path.join(
+        scratch_dir, 'copernicus_reprojected.tif')
+    copernicus_landcover_array = _relocate(copernicus_landcover_file,
+        geotransform_hls, projection_hls,
+        length, width, scratch_dir, resample_algorithm='nearest',
+        relocated_file=copernicus_landcover_reprojected_file)
+
+    # Reproject ESA Worldcover 10m
+    geotransform_hls_up_3 = list(geotransform_hls)
+    geotransform_hls_up_3[1] = geotransform_hls[1] / 3  # dx / 3
+    geotransform_hls_up_3[5] = geotransform_hls[5] / 3  # dy / 3
+    length_up_3 = 3 * length
+    width_up_3 = 3 * width
+    worldcover_reprojected_up_3_file = os.path.join(
+        scratch_dir, 'worldcover_reprojected_up_3.tif')
+    worldcover_array_up_3 = _relocate(worldcover_file, geotransform_hls_up_3,
+        projection_hls, length_up_3, width_up_3, scratch_dir,
+        resample_algorithm='nearest',
+        relocated_file=worldcover_reprojected_up_3_file)
+
+    # Set multilooking parameters
+    size_y = 3
+    size_x = 3
+
+    # Create water mask
+    water_binary_mask = np.where((worldcover_array_up_3 == 80) |
+                                 (worldcover_array_up_3 == 90), 1, 0)
+    h20_aggregate_sum = decimate_by_summation(water_binary_mask,
+                                              size_y, size_x)
+    del water_binary_mask
+
+    # Create urban mask
+    urban_binary_mask = np.where((worldcover_array_up_3 == 50) , 1, 0)
+    urban_aggregate_sum = decimate_by_summation(urban_binary_mask,
+                                                size_y, size_x)
+    del urban_binary_mask
+
+    # Create tree mask
+    tree_binary_mask  = np.where((worldcover_array_up_3 == 10) , 1, 0)
+    del worldcover_array_up_3
+    tree_aggregate_sum = decimate_by_summation(tree_binary_mask,
+                                               size_y, size_x)
+    del tree_binary_mask
+
+
+
+
+    tree_aggregate_sum = np.where(copernicus_landcover_array == 111,
+                                  tree_aggregate_sum, 0)
+
+    # create array filled with 30000
+    hierarchy_combined = np.full(h20_aggregate_sum.reshape(-1).shape, 30000)
+    
+    # load threshold list according to `mask_type`
+    threshold_list = landcover_threshold_dict[mask_type.lower()]
+
+    # aggregate sum value of 7/9 or higher is called tree
+    write_array(hierarchy_combined, tree_aggregate_sum, threshold_list[0], 42)
+
+    # majority of pixels are urban 
+    write_array(hierarchy_combined, urban_aggregate_sum, threshold_list[1], 2019)
+
+    # high density urban at 7/9 or higher
+    write_array(hierarchy_combined, urban_aggregate_sum, threshold_list[2], 20191)
+
+    # water where 1/3 or more pixels
+    write_array(hierarchy_combined, h20_aggregate_sum, threshold_list[3], 25000)
+    
+    hierarchy_combined = hierarchy_combined.reshape(h20_aggregate_sum.shape)
+
+    _save_array(hierarchy_combined, output_file,
+                dswx_metadata_dict, geotransform_hls,
+                projection_hls, description = description, 
+                output_files_list = output_files_list,
+                output_dtype=gdal.GDT_UInt16)
 
 
 def _get_interpreted_dswx_ctable():
@@ -1340,7 +1467,8 @@ def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
 
 
 def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
-                projection, description = None, output_files_list = None):
+                projection, description = None, output_files_list = None,
+                output_dtype = gdal.GDT_Byte):
     """Save a generic DSWx-HLS layer (e.g., diagnostic layer, shadow layer, etc.)
 
        Parameters
@@ -1359,11 +1487,13 @@ def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
               Band description
        output_files_list: list (optional)
               Mutable list of output files
+       output_dtype: gdal.DataType
+              GDAL data type
     """
     _makedirs(output_file)
     shape = input_array.shape
     driver = gdal.GetDriverByName("GTiff")
-    gdal_ds = driver.Create(output_file, shape[1], shape[0], 1, gdal.GDT_Byte)
+    gdal_ds = driver.Create(output_file, shape[1], shape[0], 1, output_dtype)
     gdal_ds.SetMetadata(dswx_metadata_dict)
     gdal_ds.SetGeoTransform(geotransform)
     gdal_ds.SetProjection(projection)

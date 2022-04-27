@@ -52,6 +52,12 @@ def _get_parser():
                              ' product grid')
 
     # Parameters
+    parser.add_argument('--mask-type',
+                        dest='mask_type',
+                        type=str,
+                        default='standard',
+                        help='Options: "Standard" and "Water Heavy"')
+
     parser.add_argument('--log',
                         '--log-file',
                         dest='log_file',
@@ -77,7 +83,7 @@ def main():
 
     create_landcover_mask(args.input_file, args.copernicus_landcover_file,
                           args.worldcover_file, args.output_file,
-                          args.scratch_dir)
+                          args.scratch_dir, args.mask_type)
 
 
 if __name__ == '__main__':
