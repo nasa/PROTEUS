@@ -13,8 +13,11 @@ runconfig:
             # Digital elevation model
             dem_file:
 
-            # Land cover map
+            # Copernicus Global Land Service (CGLS) Land Cover Layer file
             landcover_file:
+
+            # ESA WorldCover map file
+            worldcover_file:
 
         primary_executable:
             product_type: DSWX_HLS

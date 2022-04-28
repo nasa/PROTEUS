@@ -11,6 +11,8 @@
 
 import argparse
 import logging
+import os
+from osgeo import gdal
 from proteus.dswx_hls import create_landcover_mask, create_logger
 
 logger = logging.getLogger('dswx_hls_landcover_mask')
@@ -28,14 +30,14 @@ def _get_parser():
                         help='Input HLS product')
 
     parser.add_argument('-c',
-                        '--copernicus-landcover-100m',
+                        '--landcover', '--land-cover',
                         dest='copernicus_landcover_file',
                         required=True,
                         type=str,
                         help='World cover')
 
     parser.add_argument('-w',
-                        '--world-cover-10m',
+                        '--worldcover', '--world-cover',
                         required=True,
                         dest='worldcover_file',
                         type=str,
@@ -81,9 +83,22 @@ def main():
 
     create_logger(args.log_file)
 
-    create_landcover_mask(args.input_file, args.copernicus_landcover_file,
+    logger.info(f'Input file: {args.input_file}')
+    if not os.path.isfile(args.input_file):
+        logger.error(f'ERROR file not found: {args.input_file}')
+        return
+    layer_gdal_dataset = gdal.Open(args.input_file, gdal.GA_ReadOnly)
+    if layer_gdal_dataset is None:
+        logger.error(f'ERROR invalid input HLS file: {args.input_file}')
+    geotransform = layer_gdal_dataset.GetGeoTransform()
+    projection = layer_gdal_dataset.GetProjection()
+    length = layer_gdal_dataset.RasterYSize
+    width = layer_gdal_dataset.RasterXSize
+
+    create_landcover_mask(args.copernicus_landcover_file,
                           args.worldcover_file, args.output_file,
-                          args.scratch_dir, args.mask_type)
+                          args.scratch_dir, args.mask_type,
+                          geotransform, projection, length, width)
 
 
 if __name__ == '__main__':

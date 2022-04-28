@@ -14,6 +14,8 @@ from proteus.core import save_as_cog
 
 PRODUCT_VERSION = '0.1'
 
+landcover_mask_type = 'standard'
+
 COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE = 1e-6
 
 logger = logging.getLogger('dswx_hls')
@@ -185,14 +187,13 @@ def get_dswx_hls_cli_parser():
                         type=str,
                         help='Input digital elevation model (DEM)')
 
-    parser.add_argument('--landcover',
+    parser.add_argument('--landcover', '--land-cover',
                         dest='landcover_file',
                         type=str,
                         help='Input Land Cover Discrete-Classification-map')
 
-    parser.add_argument('--built-up-cover-fraction',
-                        '--builtup-cover-fraction',
-                        dest='built_up_cover_fraction_file',
+    parser.add_argument('--worldcover', '--world-cover',
+                        dest='worldcover_file',
                         type=str,
                         help='Input built-up cover fraction layer')
 
@@ -519,40 +520,43 @@ def write_array(conglomerate_array, agg_sum, threshold, classification_val):
     return
 
 
-def create_landcover_mask(input_file, copernicus_landcover_file,
+def create_landcover_mask(copernicus_landcover_file,
                           worldcover_file, output_file, scratch_dir,
-                          mask_type, dswx_metadata_dict = {},
-                          output_files_list = None, description = None):
+                          mask_type, geotransform, projection, length, width,
+                          dswx_metadata_dict = {}, output_files_list = None,
+                          description = None):
     """
     Create landcover mask LAND combining Copernicus Global Land Service
     (CGLS) Land Cover Layers collection 3 at 100m and ESA WorldCover 10m.
 
        Parameters
        ----------
-       input_file : str
-            HLS tile to be used as reference for the map (geographic) grid
        copernicus_landcover_file : str
-            Copernicus Global Land Service (CGLS) Land Cover Layers
+            Copernicus Global Land Service (CGLS) Land Cover Layer file
             collection 3 at 100m
        worldcover_file : str
-            ESA WorldCover 10m
+            ESA WorldCover map file
        output_file : str
             Output landcover mask (LAND layer)
        scratch_dir : str
               Temporary directory
        mask_type : str
               Mask type. Options: "Standard" and "Water Heavy"
+       geotransform: numpy.ndarray
+              Geotransform describing the DSWx-HLS product geolocation
+       projection: str
+              DSWx-HLS product's projection
+       length: int
+              DSWx-HLS product's length (number of lines)
+       width: int
+              DSWx-HLS product's width (number of columns)
        dswx_metadata_dict: dict (optional)
-              Metadata dictionary that will store band metadata
-       output_files_list: list (optional)
+              Metadata dictionary that will store band metadata 
+       output_files_list: list
               Mutable list of output files
        description: str (optional)
               Band description
     """
-    if not os.path.isfile(input_file):
-        logger.error(f'ERROR file not found: {input_file}')
-        return
-
     if not os.path.isfile(copernicus_landcover_file):
         logger.error(f'ERROR file not found: {copernicus_landcover_file}')
         return
@@ -561,38 +565,27 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
         logger.error(f'ERROR file not found: {worldcover_file}')
         return
 
-    logger.info('')
-    logger.info(f'Input file: {input_file}')
     logger.info(f'Copernicus landcover 100 m file: {copernicus_landcover_file}')
     logger.info(f'World cover 10 m file: {worldcover_file}')
-    logger.info('')
-
-    layer_gdal_dataset = gdal.Open(input_file, gdal.GA_ReadOnly)
-    if layer_gdal_dataset is None:
-        logger.error(f'ERROR invalid file: {input_file}')
-    geotransform_hls = layer_gdal_dataset.GetGeoTransform()
-    projection_hls = layer_gdal_dataset.GetProjection()
-    length = layer_gdal_dataset.RasterYSize
-    width = layer_gdal_dataset.RasterXSize
 
     # Reproject Copernicus land cover
     copernicus_landcover_reprojected_file = os.path.join(
         scratch_dir, 'copernicus_reprojected.tif')
     copernicus_landcover_array = _relocate(copernicus_landcover_file,
-        geotransform_hls, projection_hls,
+        geotransform, projection,
         length, width, scratch_dir, resample_algorithm='nearest',
         relocated_file=copernicus_landcover_reprojected_file)
 
     # Reproject ESA Worldcover 10m
-    geotransform_hls_up_3 = list(geotransform_hls)
-    geotransform_hls_up_3[1] = geotransform_hls[1] / 3  # dx / 3
-    geotransform_hls_up_3[5] = geotransform_hls[5] / 3  # dy / 3
+    geotransform_up_3 = list(geotransform)
+    geotransform_up_3[1] = geotransform[1] / 3  # dx / 3
+    geotransform_up_3[5] = geotransform[5] / 3  # dy / 3
     length_up_3 = 3 * length
     width_up_3 = 3 * width
     worldcover_reprojected_up_3_file = os.path.join(
         scratch_dir, 'worldcover_reprojected_up_3.tif')
-    worldcover_array_up_3 = _relocate(worldcover_file, geotransform_hls_up_3,
-        projection_hls, length_up_3, width_up_3, scratch_dir,
+    worldcover_array_up_3 = _relocate(worldcover_file, geotransform_up_3,
+        projection, length_up_3, width_up_3, scratch_dir,
         resample_algorithm='nearest',
         relocated_file=worldcover_reprojected_up_3_file)
 
@@ -601,28 +594,29 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
     size_x = 3
 
     # Create water mask
+    logger.info(f'Creating water mask')
     water_binary_mask = np.where((worldcover_array_up_3 == 80) |
                                  (worldcover_array_up_3 == 90), 1, 0)
     h20_aggregate_sum = decimate_by_summation(water_binary_mask,
                                               size_y, size_x)
     del water_binary_mask
 
-    # Create urban mask
+    # Create urban-areas mask
+    logger.info(f'Creating urban-areas mask')
     urban_binary_mask = np.where((worldcover_array_up_3 == 50) , 1, 0)
     urban_aggregate_sum = decimate_by_summation(urban_binary_mask,
                                                 size_y, size_x)
     del urban_binary_mask
 
-    # Create tree mask
+    # Create vegetation mask
+    logger.info(f'Creating vegetation mask')
     tree_binary_mask  = np.where((worldcover_array_up_3 == 10) , 1, 0)
     del worldcover_array_up_3
     tree_aggregate_sum = decimate_by_summation(tree_binary_mask,
                                                size_y, size_x)
     del tree_binary_mask
 
-
-
-
+    logger.info(f'Combining masks')
     tree_aggregate_sum = np.where(copernicus_landcover_array == 111,
                                   tree_aggregate_sum, 0)
 
@@ -647,8 +641,8 @@ def create_landcover_mask(input_file, copernicus_landcover_file,
     hierarchy_combined = hierarchy_combined.reshape(h20_aggregate_sum.shape)
 
     _save_array(hierarchy_combined, output_file,
-                dswx_metadata_dict, geotransform_hls,
-                projection_hls, description = description, 
+                dswx_metadata_dict, geotransform,
+                projection, description = description, 
                 output_files_list = output_files_list,
                 output_dtype=gdal.GDT_UInt16)
 
@@ -1800,11 +1794,11 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     else:
         landcover_file = ancillary_ds_group['landcover_file']
 
-    if 'built_up_cover_fraction_file' not in ancillary_ds_group:
-        built_up_cover_fraction_file = None
+    if 'worldcover_file' not in ancillary_ds_group:
+        worldcover_file = None
     else:
-        built_up_cover_fraction_file = ancillary_ds_group[
-            'built_up_cover_fraction_file']
+        worldcover_file = ancillary_ds_group[
+            'worldcover_file']
 
     scratch_dir = product_path_group['scratch_path']
     output_directory = product_path_group['output_dir']
@@ -1823,7 +1817,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     variables_to_update_dict = {
         'dem_file': dem_file,
         'landcover_file': landcover_file,
-        'built_up_cover_fraction_file': built_up_cover_fraction_file,
+        'worldcover_file': worldcover_file,
         'scratch_dir': scratch_dir,
         'product_id': product_id}
 
@@ -1907,7 +1901,7 @@ def _get_dswx_metadata_dict(product_id):
 
 def _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset,
                                      dem_file=None, landcover_file=None,
-                                     built_up_cover_fraction_file=None):
+                                     worldcover_file=None):
     """Populate metadata dictionary with input files
 
        Parameters
@@ -1920,7 +1914,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset,
               DEM filename
        landcover_file: str
               Landcover filename
-       built_up_cover_fraction_file: str
+       worldcover_file: str
               Built-up cover fraction filename
     """
 
@@ -1929,8 +1923,8 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset,
     dswx_metadata_dict['DEM_FILE'] = dem_file if dem_file else '(not provided)'
     dswx_metadata_dict['LANDCOVER_FILE'] = \
         landcover_file if landcover_file else '(not provided)'
-    dswx_metadata_dict['BUILT_UP_COVER_FRACTION_FILE'] = \
-        built_up_cover_fraction_file if built_up_cover_fraction_file \
+    dswx_metadata_dict['WORLDCOVER_FILE'] = \
+        worldcover_file if worldcover_file \
                                      else '(not provided)'
 
 
@@ -2053,7 +2047,7 @@ def generate_dswx_layers(input_list, output_file,
                          output_cloud_mask=None,
                          output_dem_layer=None,
                          landcover_file=None,
-                         built_up_cover_fraction_file=None,
+                         worldcover_file=None,
                          flag_offset_and_scale_inputs=False,
                          scratch_dir='.',
                          product_id=None,
@@ -2095,9 +2089,9 @@ def generate_dswx_layers(input_list, output_file,
        output_dem_layer: str (optional)
               Output elevation layer filename
        landcover_file: str (optional)
-              Output landcover filename
-       built_up_cover_fraction_file: str (optional)
-              Output built-up cover fraction filename
+              Copernicus Global Land Service (CGLS) Land Cover Layer file
+       worldcover_file: str (optional)
+              ESA WorldCover map filename
        flag_offset_and_scale_inputs: bool (optional)
               Flag indicating if DSWx-HLS should be offsetted and scaled
        scratch_dir: str (optional)
@@ -2169,7 +2163,7 @@ def generate_dswx_layers(input_list, output_file,
 
     hls_dataset_name = image_dict['hls_dataset_name']
     _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset_name,
-        dem_file=None, landcover_file=None, built_up_cover_fraction_file=None)
+        dem_file=None, landcover_file=None, worldcover_file=None)
 
     spacecraft_name = dswx_metadata_dict['SPACECRAFT_NAME']
     logger.info(f'processing HLS {spacecraft_name[0]}30 dataset v.{version}')
@@ -2233,27 +2227,21 @@ def generate_dswx_layers(input_list, output_file,
                         description=band_description_dict['SHAD'],
                         output_files_list=build_vrt_list)
 
-    if landcover_file is not None:
-
+    if landcover_file is not None and worldcover_file is not None:
+        # land cover
         if output_landcover is None:
-            relocated_landcover_file = tempfile.NamedTemporaryFile(
+            joint_landcover_file = tempfile.NamedTemporaryFile(
                     dir=scratch_dir, suffix='.tif').name
         else:
-            relocated_landcover_file = output_landcover
+            joint_landcover_file = output_landcover
 
-        # Land Cover
-        # TODO output_landcover will be the output of create_landcover_mask()
-        landcover = _relocate(landcover_file, geotransform, projection,
-                              length, width, scratch_dir,
-                              relocated_file=relocated_landcover_file)
-
-    if built_up_cover_fraction_file is not None:
-        # Build-up cover fraction
-        built_up_cover_fraction = _relocate(built_up_cover_fraction_file,
-                                            geotransform, projection,
-                                            length, width, scratch_dir,
-                                            relocated_file =
-                                            'temp_built_up_cover_fraction.tif')
+        create_landcover_mask(landcover_file,
+                              worldcover_file, joint_landcover_file,
+                              scratch_dir, landcover_mask_type, 
+                              geotransform, projection, length, width,
+                              dswx_metadata_dict = dswx_metadata_dict,
+                              description=band_description_dict['DIAG'],
+                              output_files_list=build_vrt_list)
 
     # Set invalid pixels to fill value (255)
     if not flag_offset_and_scale_inputs:
