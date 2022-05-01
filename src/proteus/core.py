@@ -92,7 +92,7 @@ def get_geographic_boundaries_from_mgrs_tile(mgrs_tile_name, verbose=False):
 
             x = x_min + offset_x_multiplier * 109.8 * 1000
             y = y_min + offset_y_multiplier * 109.8 * 1000
-            lon, lat, z = transformation.TransformPoint(x, y, elevation)
+            lat, lon, z = transformation.TransformPoint(x, y, elevation)
 
             if verbose:
                 print('')
