@@ -6,12 +6,15 @@ jobs:
       image: ubuntu-2004:current
     resource_class: medium
     steps:
+      - run:
+          name: "Install build system dependencies"
+          command: |
+            sudo apt-get update
+            sudo apt-get install python3 python3-setuptools
       - checkout
       - run:
           name: "Build PROTEUS docker image"
           command: |
-            sudo apt-get update
-            sudo apt-get install python3 python3-setuptools
             sh build_docker_image.sh
 
 workflows:
