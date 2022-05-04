@@ -4,7 +4,8 @@ import tempfile
 import logging
 from osgeo import gdal, osr
 
-def save_as_cog(filename, scratch_dir = '.', logger = None):
+def save_as_cog(filename, scratch_dir = '.', logger = None,
+                flag_compress=True, resamp_algorithm=None):
     """Save (overwrite) a GeoTIFF file as a cloud-optimized GeoTIFF.
 
        Parameters
@@ -13,6 +14,14 @@ def save_as_cog(filename, scratch_dir = '.', logger = None):
               GeoTIFF to be saved as a cloud-optimized GeoTIFF
        scratch_dir: str (optional)
               Temporary Directory
+       flag_compress: bool (optional)
+              Flag to indicate whether images should be
+              compressed
+       resamp_algorithm: str (optional)
+              Resampling algorithm. Options: "AVERAGE",
+              "AVERAGE_MAGPHASE", "RMS", "BILINEAR",
+              "CUBIC", "CUBICSPLINE", "GAUSS", "LANCZOS",
+              "MODE", "NEAREST", or "NONE" 
 
     """
     if logger is None:
@@ -20,7 +29,20 @@ def save_as_cog(filename, scratch_dir = '.', logger = None):
 
     logger.info('COG step 1: add overviews')
     gdal_ds = gdal.Open(filename, 1)
-    gdal_ds.BuildOverviews('NEAREST', [2, 4, 8, 16, 32, 64, 128], gdal.TermProgress_nocb)
+    gdal_dtype = gdal_ds.GetRasterBand(1).DataType
+    dtype_name = gdal.GetDataTypeName(gdal_dtype).lower()
+    is_integer = 'byte' in dtype_name  or 'int' in dtype_name
+
+    overviews_list = [4, 16, 64, 128]
+
+    if is_integer:
+        resamp_algorithm = 'NEAREST'
+    else:
+        resamp_algorithm = 'CUBICSPLINE'
+
+    gdal_ds.BuildOverviews('CUBICSPLINE', overviews_list,
+                           gdal.TermProgress_nocb)
+
     del gdal_ds  # close the dataset (Python object and pointers)
     external_overview_file = filename + '.ovr'
     if os.path.isfile(external_overview_file):
@@ -33,9 +55,16 @@ def save_as_cog(filename, scratch_dir = '.', logger = None):
     gdal_translate_options = ['TILED=YES',
                               'BLOCKXSIZE=1024',
                               'BLOCKYSIZE=1024',
-                              'COMPRESS=DEFLATE',
-                              'PREDICTOR=2',
-                              'COPY_SRC_OVERVIEWS=YES']
+                              'COPY_SRC_OVERVIEWS=YES'] 
+
+    if flag_compress:
+        gdal_translate_options += ['COMPRESS=DEFLATE']
+
+    if is_integer:
+        gdal_translate_options += ['PREDICTOR=2']
+    else:
+        gdal_translate_options = ['PREDICTOR=3']
+
     gdal.Translate(temp_file, filename,
                    creationOptions=gdal_translate_options)
 

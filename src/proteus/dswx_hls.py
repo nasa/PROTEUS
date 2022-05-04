@@ -642,7 +642,8 @@ def create_landcover_mask(copernicus_landcover_file,
 
     _save_array(hierarchy_combined, output_file,
                 dswx_metadata_dict, geotransform,
-                projection, description = description, 
+                projection, description = description,
+                scratch_dir=scratch_dir,
                 output_files_list = output_files_list,
                 output_dtype=gdal.GDT_UInt16)
 
@@ -886,7 +887,7 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
 
     # Diagnostic test band
     shape = blue.shape
-    diagnostic_layer = np.zeros(shape, dtype = np.uint8)
+    diagnostic_layer = np.zeros(shape, dtype = np.uint16)
 
     logger.info('step 1 - compute diagnostic tests')
     for i in range(shape[0]):
@@ -1362,7 +1363,7 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
 
 
 def save_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
-              description = None, output_files_list = None):
+              description = None, scratch_dir = '.', output_files_list = None):
     """Save DSWx-HLS cloud/cloud-mask layer
 
        Parameters
@@ -1379,6 +1380,8 @@ def save_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
               Output file's projection
        description: str (optional)
               Band description
+       scratch_dir: str (optional)
+              Temporary directory
        output_files_list: list (optional)
               Mutable list of output files
     """
@@ -1405,6 +1408,8 @@ def save_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
     gdal_ds.FlushCache()
     gdal_ds = None
 
+    save_as_cog(output_file, scratch_dir, logger)
+
     if output_files_list is not None:
         output_files_list.append(output_file)
     logger.info(f'file saved: {output_file}')
@@ -1412,7 +1417,7 @@ def save_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
 
 def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
                        geotransform, projection, description = None,
-                       output_files_list = None):
+                       scratch_dir = '.', output_files_list = None):
     """Save DSWx-HLS binary water layer
 
        Parameters
@@ -1429,6 +1434,8 @@ def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
               Output file's projection
        description: str (optional)
               Band description
+       scratch_dir: str (optional)
+              Temporary directory
        output_files_list: list (optional)
               Mutable list of output files
     """
@@ -1455,13 +1462,16 @@ def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
     gdal_ds.FlushCache()
     gdal_ds = None
 
+    save_as_cog(output_file, scratch_dir, logger)
+
     if output_files_list is not None:
         output_files_list.append(output_file)
     logger.info(f'file saved: {output_file}')
 
 
 def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
-                projection, description = None, output_files_list = None,
+                projection, description = None, scratch_dir = '.',
+                output_files_list = None,
                 output_dtype = gdal.GDT_Byte):
     """Save a generic DSWx-HLS layer (e.g., diagnostic layer, shadow layer, etc.)
 
@@ -1479,6 +1489,8 @@ def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
               Output file's projection
        description: str (optional)
               Band description
+       scratch_dir: str (optional)
+              Temporary directory
        output_files_list: list (optional)
               Mutable list of output files
        output_dtype: gdal.DataType
@@ -1501,6 +1513,8 @@ def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
     gdal_ds.FlushCache()
     gdal_ds = None
 
+    save_as_cog(output_file, scratch_dir, logger)
+
     if output_files_list is not None:
         output_files_list.append(output_file)
     logger.info(f'file saved: {output_file}')
@@ -1516,7 +1530,8 @@ def _save_output_rgb_file(red, green, blue, output_file,
                           offset_dict, scale_dict,
                           flag_offset_and_scale_inputs,
                           geotransform, projection,
-                          invalid_ind = None, output_files_list = None,
+                          invalid_ind = None, scratch_dir='.',
+                          output_files_list = None,
                           flag_infrared = False):
     """Save the a three-band reflectance-layer (RGB or infrared RGB) GeoTIFF
 
@@ -1544,6 +1559,8 @@ def _save_output_rgb_file(red, green, blue, output_file,
               List of invalid indices to be set to NaN
        output_files_list: list (optional)
               Mutable list of output files
+       scratch_dir: str (optional)
+              Temporary directory
        flag_infrared: bool
               Flag to indicate if layer represents infrared reflectance,
               i.e., Red, NIR, and SWIR-1
@@ -1593,6 +1610,8 @@ def _save_output_rgb_file(red, green, blue, output_file,
 
     gdal_ds.FlushCache()
     gdal_ds = None
+
+    save_as_cog(output_file, scratch_dir, logger)
 
     if output_files_list is not None:
         output_files_list.append(output_file)
@@ -2213,6 +2232,9 @@ def generate_dswx_layers(input_list, output_file,
                         resample_algorithm='cubic',
                         relocated_file=dem_cropped_file)
 
+        if output_dem_layer is not None:
+            save_as_cog(output_dem_layer, scratch_dir, logger)
+
         # TODO:
         #     1. crop DEM with a margin
         #     2. save metadata to DEM layer
@@ -2225,6 +2247,7 @@ def generate_dswx_layers(input_list, output_file,
             _save_array(shadow_layer, output_shadow_layer,
                         dswx_metadata_dict, geotransform, projection,
                         description=band_description_dict['SHAD'],
+                        scratch_dir=scratch_dir,
                         output_files_list=build_vrt_list)
 
     if landcover_file is not None and worldcover_file is not None:
@@ -2255,6 +2278,7 @@ def generate_dswx_layers(input_list, output_file,
                               flag_offset_and_scale_inputs,
                               geotransform, projection,
                               invalid_ind=invalid_ind,
+                              scratch_dir=scratch_dir,
                               output_files_list=output_files_list)
 
     if output_infrared_rgb_file:
@@ -2263,6 +2287,7 @@ def generate_dswx_layers(input_list, output_file,
                               flag_offset_and_scale_inputs,
                               geotransform, projection,
                               invalid_ind=invalid_ind,
+                              scratch_dir=scratch_dir,
                               output_files_list=output_files_list,
                               flag_infrared=True)
 
@@ -2273,7 +2298,9 @@ def generate_dswx_layers(input_list, output_file,
         _save_array(diagnostic_layer, output_diagnostic_layer,
                     dswx_metadata_dict, geotransform, projection,
                     description=band_description_dict['DIAG'],
-                    output_files_list=build_vrt_list)
+                    scratch_dir=scratch_dir,
+                    output_files_list=build_vrt_list,
+                    output_dtype=gdal.GDT_UInt16)
 
     interpreted_dswx_band = generate_interpreted_layer(diagnostic_layer)
 
@@ -2327,6 +2354,7 @@ def generate_dswx_layers(input_list, output_file,
         save_mask(cloud, output_cloud_mask, dswx_metadata_dict, geotransform,
                   projection,
                   description=band_description_dict['CLOUD'],
+                  scratch_dir=scratch_dir,
                   output_files_list=build_vrt_list)
 
     binary_water_layer = _get_binary_water_layer(masked_dswx_band)
@@ -2334,6 +2362,7 @@ def generate_dswx_layers(input_list, output_file,
         _save_binary_water(binary_water_layer, output_binary_water,
                            dswx_metadata_dict,
                            geotransform, projection,
+                           scratch_dir=scratch_dir,
                            description=band_description_dict['BWTR'],
                            output_files_list=build_vrt_list)
 
@@ -2342,6 +2371,7 @@ def generate_dswx_layers(input_list, output_file,
         _save_binary_water(binary_water_layer, output_confidence_layer,
                            dswx_metadata_dict,
                            geotransform, projection,
+                           scratch_dir=scratch_dir,
                            description=band_description_dict['CONF'],
                            output_files_list=build_vrt_list)
 
