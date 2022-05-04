@@ -52,10 +52,14 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
     temp_file = tempfile.NamedTemporaryFile(
                     dir=scratch_dir, suffix='.tif').name
 
-    gdal_translate_options = ['TILED=YES',
-                              'BLOCKXSIZE=1024',
-                              'BLOCKYSIZE=1024',
-                              'COPY_SRC_OVERVIEWS=YES'] 
+    tile_size = 256
+    ovr_tile_size = tile_size
+    gdal_translate_options = [
+        'TILED=YES',
+        f'BLOCKXSIZE={tile_size}',
+        f'BLOCKYSIZE={tile_size}',
+        f'GDAL_TIFF_OVR_BLOCKSIZE={ovr_tile_size}'
+        'COPY_SRC_OVERVIEWS=YES'] 
 
     if flag_compress:
         gdal_translate_options += ['COMPRESS=DEFLATE']

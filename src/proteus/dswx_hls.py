@@ -2137,7 +2137,8 @@ def generate_dswx_layers(input_list, output_file,
     logger.info('    file(s):')
     for input_file in input_list:
         logger.info(f'        {input_file}')
-    logger.info(f'    output_file: {output_file}')
+    if output_file:
+        logger.info(f'    output multi-band file: {output_file}')
     logger.info(f'    DEM file: {dem_file}')
     logger.info(f'    scratch directory: {scratch_dir}')
 
