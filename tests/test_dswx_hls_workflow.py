@@ -12,6 +12,8 @@ from proteus.dswx_hls import (
     compare_dswx_hls_products
 )
 
+FLAG_ALWAYS_DOWNLOAD = True
+
 def test_workflow():
 
     parser = get_dswx_hls_cli_parser()
@@ -22,12 +24,12 @@ def test_workflow():
         os.makedirs(test_data_directory, exist_ok=True)
 
     dataset_name = 's30_louisiana_mississippi'
-    dataset_url = ('https://zenodo.org/record/6400000/files/'
+    dataset_url = ('https://zenodo.org/record/6537876/files/'
                    's30_louisiana_mississippi.tar.gz')
     dataset_dir = os.path.join(test_data_directory, dataset_name)
     user_runconfig_file = os.path.join(dataset_dir, 'dswx_hls.yaml')
 
-    if (not os.path.isdir(dataset_dir) or
+    if (FLAG_ALWAYS_DOWNLOAD or not os.path.isdir(dataset_dir) or
             not os.path.isfile(user_runconfig_file)):
 
         print(f'Test dataset {dataset_name} not found. Downloading'
