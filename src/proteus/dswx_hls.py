@@ -5,7 +5,7 @@ import glob
 import numpy as np
 import argparse
 import yamale
-from datetime import datetime
+import datetime
 from collections import OrderedDict
 from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32
@@ -123,8 +123,25 @@ METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SENSING_TIME',
                                          'NBAR_SOLAR_ZENITH',
                                          'ACCODE']
 
+# landcover constants
+dswx_hls_landcover_classes_dict = {
+    # first year 2000, last 2099: classes 0-99
+    'low_intensity_developed_offset': 0,
+
+    # first year 2000, last 2099: classes 100-199
+    'high_intensity_developed_offset': 100,
+
+    # other classes
+    'water': 200,
+    'evergreen_forest': 201,
+
+    # fill value (not masked)
+    'fill_value': 255}
+
 landcover_threshold_dict = {"standard": [6, 3, 7, 3],
                             "water heavy": [6, 3, 7, 1]}
+
+landcover_nir_threshold = 1200
 
 
 class HlsThresholds:
@@ -512,7 +529,8 @@ def decimate_by_summation(image, size_y, size_x):
             out_image += current_image
     return out_image
 
-def write_array(conglomerate_array, agg_sum, threshold, classification_val):
+def _update_landcover_array(conglomerate_array, agg_sum, threshold,
+        classification_val):
     flat_agg = agg_sum.reshape(-1)
     for position, value in enumerate(flat_agg):
         if value > threshold:
@@ -523,8 +541,7 @@ def write_array(conglomerate_array, agg_sum, threshold, classification_val):
 def create_landcover_mask(copernicus_landcover_file,
                           worldcover_file, output_file, scratch_dir,
                           mask_type, geotransform, projection, length, width,
-                          dswx_metadata_dict = {}, output_files_list = None,
-                          description = None):
+                          dswx_metadata_dict = {}, output_files_list = None):
     """
     Create landcover mask LAND combining Copernicus Global Land Service
     (CGLS) Land Cover Layers collection 3 at 100m and ESA WorldCover 10m.
@@ -554,8 +571,6 @@ def create_landcover_mask(copernicus_landcover_file,
               Metadata dictionary that will store band metadata 
        output_files_list: list
               Mutable list of output files
-       description: str (optional)
-              Band description
     """
     if not os.path.isfile(copernicus_landcover_file):
         logger.error(f'ERROR file not found: {copernicus_landcover_file}')
@@ -621,31 +636,195 @@ def create_landcover_mask(copernicus_landcover_file,
                                   tree_aggregate_sum, 0)
 
     # create array filled with 30000
-    hierarchy_combined = np.full(h20_aggregate_sum.reshape(-1).shape, 30000)
-    
+    landcover_fill_value = \
+        dswx_hls_landcover_classes_dict['fill_value']
+    hierarchy_combined = np.full(h20_aggregate_sum.reshape(-1).shape,
+        landcover_fill_value, dtype=np.byte)
+
     # load threshold list according to `mask_type`
     threshold_list = landcover_threshold_dict[mask_type.lower()]
 
     # aggregate sum value of 7/9 or higher is called tree
-    write_array(hierarchy_combined, tree_aggregate_sum, threshold_list[0], 42)
+    evergreen_forest_class = \
+        dswx_hls_landcover_classes_dict['evergreen_forest']
+    _update_landcover_array(hierarchy_combined, tree_aggregate_sum,
+                            threshold_list[0], evergreen_forest_class)
 
-    # majority of pixels are urban 
-    write_array(hierarchy_combined, urban_aggregate_sum, threshold_list[1], 2019)
+    # majority of pixels are urban
+    year = datetime.date.today().year - 2000
+    low_intensity_developed_class = \
+        (dswx_hls_landcover_classes_dict['low_intensity_developed_offset'] +
+         year)
+    _update_landcover_array(hierarchy_combined, urban_aggregate_sum,
+                            threshold_list[1], low_intensity_developed_class)
 
     # high density urban at 7/9 or higher
-    write_array(hierarchy_combined, urban_aggregate_sum, threshold_list[2], 20191)
+    high_intensity_developed_class = \
+        (dswx_hls_landcover_classes_dict['high_intensity_developed_offset'] +
+         year)
+    _update_landcover_array(hierarchy_combined, urban_aggregate_sum,
+                            threshold_list[2], high_intensity_developed_class)
 
     # water where 1/3 or more pixels
-    write_array(hierarchy_combined, h20_aggregate_sum, threshold_list[3], 25000)
+    water_class = \
+        dswx_hls_landcover_classes_dict['water']
+    _update_landcover_array(hierarchy_combined, h20_aggregate_sum,
+                            threshold_list[3], water_class)
     
     hierarchy_combined = hierarchy_combined.reshape(h20_aggregate_sum.shape)
 
-    _save_array(hierarchy_combined, output_file,
-                dswx_metadata_dict, geotransform,
-                projection, description = description,
-                scratch_dir=scratch_dir,
-                output_files_list = output_files_list,
-                output_dtype=gdal.GDT_UInt16)
+    ctable = _get_landcover_mask_ctable()
+    
+    description = band_description_dict['LAND']
+
+    if output_file is not None:
+        _save_array(hierarchy_combined, output_file,
+                    dswx_metadata_dict, geotransform,
+                    projection, description = description,
+                    scratch_dir=scratch_dir,
+                    output_files_list = output_files_list,
+                    ctable=ctable)
+
+    return hierarchy_combined
+
+
+def _is_landcover_class_evergreen(landcover_mask):
+    """Return boolean mask identifying areas marked as evergreen.
+
+       Parameters
+       ----------
+       landcover_mask: numpy.ndarray
+              Landcover mask
+
+       Returns
+       -------
+       evergreen_mask : numpy.ndarray
+              Evergreen mask
+    """ 
+    evergreen_forest_class = \
+        dswx_hls_landcover_classes_dict['evergreen_forest']
+    return landcover_mask == evergreen_forest_class
+
+def _is_landcover_class_water_or_wetland(landcover_mask):
+    """Return boolean mask identifying areas marked as water or wetland.
+
+       Parameters
+       ----------
+       landcover_mask: numpy.ndarray
+              Landcover mask
+
+       Returns
+       -------
+       evergreen_mask : numpy.ndarray
+              Water or wetland mask
+    """ 
+    water_class = \
+        dswx_hls_landcover_classes_dict['water']
+    return landcover_mask == water_class
+
+def _is_landcover_class_low_intensity_developed(landcover_mask):
+    """Return boolean mask identifying areas marked as low-intensity
+    developed.
+
+       Parameters
+       ----------
+       landcover_mask: numpy.ndarray
+              Landcover mask
+
+       Returns
+       -------
+       low_intensity_developed_mask : numpy.ndarray
+              Low-intensity developed
+    """ 
+    low_intensity_developed_class_offset = \
+        dswx_hls_landcover_classes_dict['low_intensity_developed_offset']
+    low_intensity_developed_mask = (
+        (landcover_mask >= low_intensity_developed_class_offset) & 
+        (landcover_mask < low_intensity_developed_class_offset + 100))
+    return low_intensity_developed_mask
+
+def _is_landcover_class_high_intensity_developed(landcover_mask):
+    """Return boolean mask identifying areas marked as high-intensity
+    developed.
+
+       Parameters
+       ----------
+       landcover_mask: numpy.ndarray
+              Landcover mask
+
+       Returns
+       -------
+       high_intensity_developed_mask : numpy.ndarray
+              High-intensity developed
+    """ 
+    high_intensity_developed_class_offset = \
+        dswx_hls_landcover_classes_dict['high_intensity_developed_offset']
+    high_intensity_developed_mask = \
+        ((landcover_mask >= high_intensity_developed_class_offset) &
+         (landcover_mask < high_intensity_developed_class_offset + 100))
+    return high_intensity_developed_mask
+
+
+def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
+        landcover_mask, shadow_layer):
+    """Apply landcover and shadow masks onto interpreted layer
+
+       Parameters
+       ----------
+       interpreted_layer: numpy.ndarray
+              Interpreted layer
+       nir: numpy.ndarray
+              Near infrared (NIR) channel
+       landcover_mask: numpy.ndarray
+              Landcover mask
+       shadow_layer: numpy.ndarray
+              Shadow mask
+
+       Returns
+       -------
+       landcover_shadow_masked_dswx : numpy.ndarray
+              Shadow-masked interpreted layer
+    """
+
+    landcover_shadow_masked_dswx = interpreted_layer.copy()
+
+    # apply shadow mask - shadows are set to 0 (not water)
+    if shadow_layer is not None and landcover_mask is None:
+        logger.info('applying shadow mask:')
+        to_mask_ind = np.where(shadow_layer == 1 &
+            ((interpreted_layer == 1) | (interpreted_layer == 2)))
+        landcover_shadow_masked_dswx[to_mask_ind] = 0
+
+    elif shadow_layer is not None:
+        to_mask_ind = np.where((shadow_layer == 0) &
+            _is_landcover_class_water_or_wetland(landcover_mask) &
+            ((interpreted_layer == 1) | (interpreted_layer == 2)))
+        landcover_shadow_masked_dswx[to_mask_ind] = 0
+
+    if landcover_mask is None:
+        return landcover_shadow_masked_dswx
+
+    logger.info('applying landcover mask:')
+
+    # Check landcover (evergreen)
+    to_mask_ind = np.where(
+        _is_landcover_class_evergreen(landcover_mask) &
+        (nir > landcover_nir_threshold) & (interpreted_layer == 2))
+    landcover_shadow_masked_dswx[to_mask_ind] = 0
+
+    # Check landcover (low intensity developed)
+    to_mask_ind = np.where(
+        _is_landcover_class_low_intensity_developed(landcover_mask) &
+        (nir > landcover_nir_threshold) & (interpreted_layer == 2))
+    landcover_shadow_masked_dswx[to_mask_ind] = 0
+
+    # Check landcover (high intensity developed)
+    to_mask_ind = np.where(
+        _is_landcover_class_high_intensity_developed(landcover_mask) &
+        ((interpreted_layer == 1) | (interpreted_layer == 2)))
+    landcover_shadow_masked_dswx[to_mask_ind] = 0
+
+    return landcover_shadow_masked_dswx
 
 
 def _get_interpreted_dswx_ctable():
@@ -688,13 +867,13 @@ def _get_interpreted_dswx_ctable():
     return dswx_ctable
 
 
-def _get_mask_ctable():
-    """Create and return GDAL RGB color table for HLS Q/A mask.
+def _get_cloud_mask_ctable():
+    """Create and return GDAL RGB color table for DSWx-HLS cloud/cloud-shadow mask.
 
        Returns
        -------
        dswx_ctable : GDAL ColorTable object
-            GDAL color table for HLS Q/A mask.
+            GDAL color table for DSWx-HLS cloud/cloud-shadow mask.
     """
     # create color table
     mask_ctable = gdal.ColorTable()
@@ -724,6 +903,49 @@ def _get_mask_ctable():
     mask_ctable.SetColorEntry(255, (0, 0, 0, 0))
     return mask_ctable
 
+
+def _get_landcover_mask_ctable():
+    """Create and return GDAL RGB color table for DSWx-HLS landcover mask.
+
+       Returns
+       -------
+       dswx_ctable : GDAL ColorTable object
+            GDAL color table for DSWx-HLS landcover mask.
+    """
+    # create color table
+    mask_ctable = gdal.ColorTable()
+
+    fill_value = \
+        dswx_hls_landcover_classes_dict['fill_value']
+    evergreen_forest_class = \
+        dswx_hls_landcover_classes_dict['evergreen_forest']
+    water_class = \
+        dswx_hls_landcover_classes_dict['water']
+    low_intensity_developed_class_offset = \
+        dswx_hls_landcover_classes_dict['low_intensity_developed_offset']
+    high_intensity_developed_class_offset = \
+        dswx_hls_landcover_classes_dict['high_intensity_developed_offset']
+
+    # White - Not masked (fill_value)
+    mask_ctable.SetColorEntry(fill_value, (255, 255, 255))
+
+    # Green - Evergreen forest class
+    mask_ctable.SetColorEntry(evergreen_forest_class, (0, 255, 0))
+
+    # Blue - Water class
+    mask_ctable.SetColorEntry(water_class, (0, 0, 255))
+
+    # Magenta - Low intensity developed
+    for i in range(100):
+        mask_ctable.SetColorEntry(low_intensity_developed_class_offset + i,
+                                  (255, 0, 255))
+
+    # Red - High intensity developed
+    for i in range(100):
+        mask_ctable.SetColorEntry(high_intensity_developed_class_offset + i, 
+                                  (255, 0, 0))
+
+    return mask_ctable
 
 def _compute_otsu_threshold(image, is_normalized = True):
     """Compute Otsu threshold
@@ -771,7 +993,7 @@ def _compute_otsu_threshold(image, is_normalized = True):
     threshold = bin_mids[:-1][index_of_max_val]
     logger.info(f"Otsu's algorithm implementation thresholding result: {threshold}")
 
-    return image < threshold
+    return image > threshold
 
 
 def generate_interpreted_layer(diagnostic_layer):
@@ -1362,8 +1584,8 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
     logger.info(f'file saved: {output_file}')
 
 
-def save_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
-              description = None, scratch_dir = '.', output_files_list = None):
+def save_cloud_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
+                    description = None, scratch_dir = '.', output_files_list = None):
     """Save DSWx-HLS cloud/cloud-mask layer
 
        Parameters
@@ -1397,7 +1619,7 @@ def save_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
     mask_band.SetNoDataValue(255)
 
     # set color table and color interpretation
-    mask_ctable = _get_mask_ctable()
+    mask_ctable = _get_cloud_mask_ctable()
     mask_band.SetRasterColorTable(mask_ctable)
     mask_band.SetRasterColorInterpretation(
         gdal.GCI_PaletteIndex)
@@ -1471,8 +1693,8 @@ def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
 
 def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
                 projection, description = None, scratch_dir = '.',
-                output_files_list = None,
-                output_dtype = gdal.GDT_Byte):
+                output_files_list = None, output_dtype = gdal.GDT_Byte,
+                ctable = None):
     """Save a generic DSWx-HLS layer (e.g., diagnostic layer, shadow layer, etc.)
 
        Parameters
@@ -1495,6 +1717,8 @@ def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
               Mutable list of output files
        output_dtype: gdal.DataType
               GDAL data type
+       ctable: GDAL ColorTable object
+              GDAL ColorTable object
     """
     _makedirs(output_file)
     shape = input_array.shape
@@ -1503,12 +1727,16 @@ def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
     gdal_ds.SetMetadata(dswx_metadata_dict)
     gdal_ds.SetGeoTransform(geotransform)
     gdal_ds.SetProjection(projection)
-
     raster_band = gdal_ds.GetRasterBand(1)
     raster_band.WriteArray(input_array)
 
     if description is not None:
-        gdal_ds.SetDescription(description)
+        raster_band.SetDescription(description)
+
+    if ctable is not None:
+        raster_band.SetRasterColorTable(ctable)
+        raster_band.SetRasterColorInterpretation(
+                gdal.GCI_PaletteIndex)
 
     gdal_ds.FlushCache()
     gdal_ds = None
@@ -1914,7 +2142,7 @@ def _get_dswx_metadata_dict(product_id):
 
     # save datetime 'YYYY-MM-DD HH:MM:SS'
     dswx_metadata_dict['PROCESSING_DATETIME'] = \
-        datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
     return dswx_metadata_dict
 
@@ -2027,30 +2255,8 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
     del gdal_ds
     return hillshade
 
-
-def _apply_shadow_layer(interpreted_layer, shadow_layer):
-    """Apply shadow layer onto interpreted layer
-
-       Parameters
-       ----------
-       interpreted_layer: numpy.ndarray
-              Interpreted layer
-       shadow_layer: numpy.ndarray
-              Shadow layer
-
-       Returns
-       -------
-       shadow_masked_interpreted_layer : numpy.ndarray
-              Shadow-masked interpreted layer
-    """
-    # shadows are set to 0 (not water)
-    shadow_masked_interpreted_layer = interpreted_layer.copy()
-    ind = np.where(shadow_layer == 1)
-    shadow_masked_interpreted_layer[ind] = 0
-    return shadow_masked_interpreted_layer
-
-
-def generate_dswx_layers(input_list, output_file,
+def generate_dswx_layers(input_list,
+                         output_file = None,
                          hls_thresholds = None,
                          dem_file=None,
                          output_interpreted_band=None,
@@ -2071,7 +2277,7 @@ def generate_dswx_layers(input_list, output_file,
                          scratch_dir='.',
                          product_id=None,
                          flag_debug=False):
-    """Apply shadow layer onto interpreted layer
+    """Compute the DSWx-HLS product
 
        Parameters
        ----------
@@ -2251,21 +2457,14 @@ def generate_dswx_layers(input_list, output_file,
                         scratch_dir=scratch_dir,
                         output_files_list=build_vrt_list)
 
+    landcover_mask = None
     if landcover_file is not None and worldcover_file is not None:
         # land cover
-        if output_landcover is None:
-            joint_landcover_file = tempfile.NamedTemporaryFile(
-                    dir=scratch_dir, suffix='.tif').name
-        else:
-            joint_landcover_file = output_landcover
-
-        create_landcover_mask(landcover_file,
-                              worldcover_file, joint_landcover_file,
-                              scratch_dir, landcover_mask_type, 
-                              geotransform, projection, length, width,
-                              dswx_metadata_dict = dswx_metadata_dict,
-                              description=band_description_dict['DIAG'],
-                              output_files_list=build_vrt_list)
+        landcover_mask = create_landcover_mask(
+            landcover_file, worldcover_file, output_landcover,
+            scratch_dir, landcover_mask_type, geotransform, projection,
+            length, width, dswx_metadata_dict = dswx_metadata_dict,
+            output_files_list=build_vrt_list)
 
     # Set invalid pixels to fill value (255)
     if not flag_offset_and_scale_inputs:
@@ -2318,14 +2517,11 @@ def generate_dswx_layers(input_list, output_file,
                           scratch_dir=scratch_dir,
                           output_files_list=build_vrt_list)
 
-    if shadow_layer is not None:
-        shadow_masked_dswx = _apply_shadow_layer(
-            interpreted_dswx_band, shadow_layer)
-    else:
-        shadow_masked_dswx = interpreted_dswx_band
+    landcover_shadow_masked_dswx = _apply_landcover_and_shadow_masks(
+        interpreted_dswx_band, nir, landcover_mask, shadow_layer)
 
     if output_shadow_masked_dswx is not None:
-        save_dswx_product(shadow_masked_dswx, output_shadow_masked_dswx,
+        save_dswx_product(landcover_shadow_masked_dswx, output_shadow_masked_dswx,
                           dswx_metadata_dict,
                           geotransform,
                           projection,
@@ -2334,7 +2530,7 @@ def generate_dswx_layers(input_list, output_file,
                           output_files_list=build_vrt_list)
 
     cloud, masked_dswx_band = _compute_mask_and_filter_interpreted_layer(
-        shadow_masked_dswx, qa)
+        landcover_shadow_masked_dswx, qa)
 
     if invalid_ind is not None:
         # Set invalid pixels to mask fill value (255)
@@ -2352,11 +2548,11 @@ def generate_dswx_layers(input_list, output_file,
                           output_files_list=build_vrt_list)
 
     if output_cloud_mask:
-        save_mask(cloud, output_cloud_mask, dswx_metadata_dict, geotransform,
-                  projection,
-                  description=band_description_dict['CLOUD'],
-                  scratch_dir=scratch_dir,
-                  output_files_list=build_vrt_list)
+        save_cloud_mask(cloud, output_cloud_mask, dswx_metadata_dict, geotransform,
+                        projection,
+                        description=band_description_dict['CLOUD'],
+                        scratch_dir=scratch_dir,
+                        output_files_list=build_vrt_list)
 
     binary_water_layer = _get_binary_water_layer(masked_dswx_band)
     if output_binary_water:
@@ -2386,7 +2582,8 @@ def generate_dswx_layers(input_list, output_file,
                           bwtr=binary_water_layer,
                           diag=diagnostic_layer,
                           wtr_1=interpreted_dswx_band,
-                          wtr_2=shadow_masked_dswx,
+                          wtr_2=landcover_shadow_masked_dswx,
+                          land=landcover_mask,
                           shad=shadow_layer,
                           cloud=cloud,
                           dem=dem,
