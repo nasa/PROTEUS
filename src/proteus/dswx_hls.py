@@ -204,15 +204,19 @@ def get_dswx_hls_cli_parser():
                         type=str,
                         help='Input digital elevation model (DEM)')
 
-    parser.add_argument('--landcover', '--land-cover',
+    parser.add_argument('-c',
+                        '--copernicus-landcover-100m',
+                        '--landcover', '--land-cover',
                         dest='landcover_file',
                         type=str,
-                        help='Input Land Cover Discrete-Classification-map')
+                        help='Input Copernicus Land Cover'
+                        ' Discrete-Classification-map 100m')
 
-    parser.add_argument('--worldcover', '--world-cover',
+    parser.add_argument('-w',
+                        '--world-cover-10m', '--worldcover', '--world-cover',
                         dest='worldcover_file',
                         type=str,
-                        help='Input built-up cover fraction layer')
+                        help='Input ESA WorldCover 10m')
 
     # Outputs
     parser.add_argument('-o',

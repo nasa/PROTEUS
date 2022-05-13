@@ -30,18 +30,20 @@ def _get_parser():
                         help='Input HLS product')
 
     parser.add_argument('-c',
+                        '--copernicus-landcover-100m',
                         '--landcover', '--land-cover',
-                        dest='copernicus_landcover_file',
+                        dest='landcover_file',
                         required=True,
                         type=str,
-                        help='World cover')
+                        help='Input Copernicus Land Cover'
+                        ' Discrete-Classification-map 100m')
 
     parser.add_argument('-w',
-                        '--worldcover', '--world-cover',
-                        required=True,
+                        '--world-cover-10m', '--worldcover', '--world-cover',
                         dest='worldcover_file',
+                        required=True,
                         type=str,
-                        help='World cover')
+                        help='Input ESA WorldCover 10m')
 
     # Outputs
     parser.add_argument('-o',
