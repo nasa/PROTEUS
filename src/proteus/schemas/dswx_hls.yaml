@@ -13,8 +13,11 @@ runconfig:
             # Digital elevation model
             dem_file: str(required=False)
 
-            # Land cover map
+            # Copernicus Global Land Service (CGLS) Land Cover Layer file
             landcover_file: str(required=False)
+
+            # ESA WorldCover map file
+            worldcover_file: str(required=False)
 
         primary_executable:
             product_type: enum('DSWX_HLS')
@@ -29,7 +32,9 @@ runconfig:
             # SAS writes DSWx-HLS products as a set of GeoTIFF layers
             # All files are saved within the output_directory following
             # the scheme:
-            # {output_dir}/{product_id}_{layer_name}.tif
+            # {output_dir}/{product_id}_v{version}_B{layer_number}_{layer_name}.tif
+            # where version is automatically assigned by the SAS according to
+            # the product version that it generates.
             # If the field product_id is left empty, the prefix "dswx_hls"
             # will be used instead
 

@@ -41,11 +41,6 @@ WORKDIR /home/conda/proteus-0.1
 RUN python3 setup.py install
 WORKDIR /home/conda
 
-RUN mkdir -p runconfig && chown conda:conda runconfig
-RUN mkdir -p input_dir && chown conda:conda input_dir
-RUN mkdir -p output_dir && chown conda:conda output_dir
-RUN mkdir -p scratch_dir && chown conda:conda scratch_dir && chmod 777 scratch_dir
-
 USER conda
 
 ENV PROJ_LIB /opt/conda/share/proj/
