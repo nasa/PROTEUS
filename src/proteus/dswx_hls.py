@@ -2393,7 +2393,8 @@ def generate_dswx_layers(input_list,
 
     hls_dataset_name = image_dict['hls_dataset_name']
     _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset_name,
-        dem_file=None, landcover_file=None, worldcover_file=None)
+        dem_file=dem_file, landcover_file=landcover_file,
+        worldcover_file=worldcover_file)
 
     spacecraft_name = dswx_metadata_dict['SPACECRAFT_NAME']
     logger.info(f'processing HLS {spacecraft_name[0]}30 dataset v.{version}')
