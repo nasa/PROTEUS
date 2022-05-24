@@ -18,7 +18,7 @@ landcover_mask_type = 'standard'
 
 COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE = 1e-6
 
-DEM_MARGIN_IN_PIXELS = 5
+DEM_MARGIN_IN_PIXELS = 10
 
 logger = logging.getLogger('dswx_hls')
 
