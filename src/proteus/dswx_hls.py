@@ -1761,6 +1761,7 @@ def _makedirs(input_file):
 def _save_output_rgb_file(red, green, blue, output_file,
                           offset_dict, scale_dict,
                           flag_offset_and_scale_inputs,
+                          dswx_metadata_dict,
                           geotransform, projection,
                           invalid_ind = None, scratch_dir='.',
                           output_files_list = None,
@@ -1783,6 +1784,8 @@ def _save_output_rgb_file(red, green, blue, output_file,
               Scale dictionary that stores bands scaling factor
        flag_offset_and_scale_inputs: bool
               Flag to indicate if the band has been already offseted and scaled
+       dswx_metadata_dict: dict
+              Metadata dictionary to be written into the output file
        geotransform: numpy.ndarray
               Geotransform describing the output file geolocation
        projection: str
@@ -1802,6 +1805,7 @@ def _save_output_rgb_file(red, green, blue, output_file,
     driver = gdal.GetDriverByName("GTiff")
     gdal_dtype = GDT_Float32
     gdal_ds = driver.Create(output_file, shape[1], shape[0], 3, gdal_dtype)
+    gdal_ds.SetMetadata(dswx_metadata_dict)
     gdal_ds.SetGeoTransform(geotransform)
     gdal_ds.SetProjection(projection)
 
@@ -2481,6 +2485,7 @@ def generate_dswx_layers(input_list,
         _save_output_rgb_file(red, green, blue, output_rgb_file,
                               offset_dict, scale_dict,
                               flag_offset_and_scale_inputs,
+                              dswx_metadata_dict,
                               geotransform, projection,
                               invalid_ind=invalid_ind,
                               scratch_dir=scratch_dir,
@@ -2490,6 +2495,7 @@ def generate_dswx_layers(input_list,
         _save_output_rgb_file(swir1, nir, red, output_infrared_rgb_file,
                               offset_dict, scale_dict,
                               flag_offset_and_scale_inputs,
+                              dswx_metadata_dict,
                               geotransform, projection,
                               invalid_ind=invalid_ind,
                               scratch_dir=scratch_dir,
