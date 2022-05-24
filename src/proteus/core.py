@@ -40,7 +40,7 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
     else:
         resamp_algorithm = 'CUBICSPLINE'
 
-    gdal_ds.BuildOverviews('CUBICSPLINE', overviews_list,
+    gdal_ds.BuildOverviews(resamp_algorithm, overviews_list,
                            gdal.TermProgress_nocb)
 
     del gdal_ds  # close the dataset (Python object and pointers)
