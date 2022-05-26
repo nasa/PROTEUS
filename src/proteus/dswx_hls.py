@@ -1913,8 +1913,6 @@ def _relocate(input_file, geotransform, projection,
        relocated_array : numpy.ndarray
               Relocated array
     """
-    logger.info(f'relocating file: {input_file}')
-
     dy = geotransform[5]
     dx = geotransform[1]
     y0 = geotransform[3] - margin_in_pixels * dy
@@ -1928,9 +1926,11 @@ def _relocate(input_file, geotransform, projection,
     if relocated_file is None:
         relocated_file = tempfile.NamedTemporaryFile(
                     dir=scratch_dir, suffix='.tif').name
-        logger.info(f'temporary file: {relocated_file}')
+        logger.info(f'relocating file: {input_file} to'
+                    f' temporary file: {relocated_file}')
     else:
-        logger.info(f'relocated file: {relocated_file}')
+        logger.info(f'relocating file: {input_file} to'
+                    f' file: {relocated_file}')
 
     _makedirs(relocated_file)
 
