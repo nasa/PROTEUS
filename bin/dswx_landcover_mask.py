@@ -36,7 +36,7 @@ def _get_parser():
                         type=float,
                         nargs=4,
                         dest='bbox',
-                        metavar=('y_min', 'y_max', 'x_min', 'x_max'),
+                        metavar=('LAT_MIN', 'LAT_MAX', 'LON_MIN', 'LON_MAX'),
                         help='Defines the spatial region in '
                              'the format south north west east.')
 
