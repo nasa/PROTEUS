@@ -46,7 +46,7 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
     del gdal_ds  # close the dataset (Python object and pointers)
     external_overview_file = filename + '.ovr'
     if os.path.isfile(external_overview_file):
-        os.path.remove(external_overview_file)
+        os.remove(external_overview_file)
 
     logger.info('COG step 2: save as COG')
     temp_file = tempfile.NamedTemporaryFile(
@@ -101,7 +101,6 @@ def get_geographic_boundaries_from_mgrs_tile(mgrs_tile_name, verbose=False):
 
     # create UTM spatial reference
     utm_coordinate_system = osr.SpatialReference()
-    utm_coordinate_system.SetWellKnownGeogCS("WGS84")
     utm_coordinate_system.SetUTM(utm_zone, is_northern)
 
     # create geographic (lat/lon) spatial reference
