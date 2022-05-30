@@ -2189,7 +2189,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset,
                                      else '(not provided)'
 
 
-def create_logger(log_file, full_log_formatting=False):
+def create_logger(log_file, full_log_formatting=None):
     """Create logger object for a log file
 
        Parameters
