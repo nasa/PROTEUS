@@ -1057,7 +1057,7 @@ def _get_binary_water_layer(interpreted_water_layer):
 
     # Q/A masked: 9
     ind = np.where(interpreted_water_layer == 9)
-    binary_water_layer[ind] = 2
+    binary_water_layer[ind] = 9
 
     return binary_water_layer
 
