@@ -2463,6 +2463,7 @@ def generate_dswx_layers(input_list,
            _save_array(dem, output_dem_layer,
                        dswx_metadata_dict, geotransform, projection,
                        description=band_description_dict['DEM'],
+                       output_dtype = gdal.GDT_Float32,
                        scratch_dir=scratch_dir,
                        output_files_list=build_vrt_list)
         if not output_file:
