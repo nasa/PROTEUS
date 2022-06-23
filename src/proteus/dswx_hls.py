@@ -1478,7 +1478,7 @@ def _get_binary_water_ctable():
     # Water
     binary_water_ctable.SetColorEntry(1, (0, 0, 255))
     # Gray - QA masked
-    binary_water_ctable.SetColorEntry(2, (127, 127, 127))
+    binary_water_ctable.SetColorEntry(9, (127, 127, 127))
     # Black - Fill value
     binary_water_ctable.SetColorEntry(255, (0, 0, 0, 255))
     return binary_water_ctable
