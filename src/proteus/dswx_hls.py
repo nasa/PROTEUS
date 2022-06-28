@@ -56,6 +56,44 @@ s30_v2_band_dict = {'blue': 'B02',
                     'qa': 'Fmask'}
 
 interpreted_dswx_band_dict = {
+    0b00000 : 0,  # (not water)
+    0b00001 : 0,
+    0b00010 : 0,
+    0b00100 : 0,
+    0b01000 : 0,
+    0b01111 : 1,  # (open water)
+    0b10111 : 1,
+    0b11011 : 1,
+    0b11101 : 1,
+    0b11110 : 1,
+    0b11111 : 1,
+    0b00111 : 1,
+    0b01011 : 1,
+    0b01101 : 1,
+    0b01110 : 1,
+    0b10011 : 1,
+    0b10101 : 1,
+    0b10110 : 1,
+    0b11001 : 1,
+    0b11010 : 1,
+    0b11100 : 1,
+    0b11000 : 2,  # (partial surface water)
+    0b00011 : 2,
+    0b00101 : 2,
+    0b00110 : 2,
+    0b01001 : 2,
+    0b01010 : 2,
+    0b01100 : 2,
+    0b10000 : 2,
+    0b10001 : 2,
+    0b10010 : 2,
+    0b10100 : 2
+    }
+
+'''
+Original mapping (DSWe):
+
+interpreted_dswx_band_dict = {
     0b00000 : 0,  # (Not Water)
     0b00001 : 0,
     0b00010 : 0,
@@ -88,6 +126,7 @@ interpreted_dswx_band_dict = {
     0b10001 : 4,
     0b10010 : 4,
     0b10100 : 4}
+'''
 
 band_description_dict = {
     'WTR': 'Water classification (WTR)',
@@ -852,12 +891,24 @@ def _get_interpreted_dswx_ctable():
     dswx_ctable.SetColorEntry(0, (255, 255, 255))
     # Blue - Water (high confidence)
     dswx_ctable.SetColorEntry(1, (0, 0, 255))
+    # Green - Low confidence water or wetland
+    dswx_ctable.SetColorEntry(2, (0, 255, 0))
+    # Light blue - Reserved
+    dswx_ctable.SetColorEntry(3, (0, 127, 255))
+    # Dark green - Reserved
+    dswx_ctable.SetColorEntry(4, (0, 127, 0))
+
+    '''
+    # Blue - Water (high confidence)
+    dswx_ctable.SetColorEntry(1, (0, 0, 255))
     # Light blue - Water (moderate conf.)
     dswx_ctable.SetColorEntry(2, (0, 127, 255))
     # Dark green - Potential wetland
     dswx_ctable.SetColorEntry(3, (0, 127, 0))
     # Green - Low confidence water or wetland
     dswx_ctable.SetColorEntry(4, (0, 255, 0))
+    '''
+
     # Cyan - Reserved
     dswx_ctable.SetColorEntry(5, (0, 255, 255))
     # Light green - Reserved
