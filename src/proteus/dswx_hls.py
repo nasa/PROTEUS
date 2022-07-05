@@ -583,7 +583,8 @@ def _update_landcover_array(conglomerate_array, agg_sum, threshold,
 def create_landcover_mask(copernicus_landcover_file,
                           worldcover_file, output_file, scratch_dir,
                           mask_type, geotransform, projection, length, width,
-                          dswx_metadata_dict = {}, output_files_list = None):
+                          dswx_metadata_dict = {}, output_files_list = None,
+                          temp_files_list = None):
     """
     Create landcover mask LAND combining Copernicus Global Land Service
     (CGLS) Land Cover Layers collection 3 at 100m and ESA WorldCover 10m.
@@ -611,8 +612,10 @@ def create_landcover_mask(copernicus_landcover_file,
               DSWx-HLS product's width (number of columns)
        dswx_metadata_dict: dict (optional)
               Metadata dictionary that will store band metadata 
-       output_files_list: list
+       output_files_list: list (optional)
               Mutable list of output files
+       temp_files_list: list (optional)
+              Mutable list of temporary files
     """
     if not os.path.isfile(copernicus_landcover_file):
         logger.error(f'ERROR file not found: {copernicus_landcover_file}')
@@ -631,7 +634,8 @@ def create_landcover_mask(copernicus_landcover_file,
     copernicus_landcover_array = _relocate(copernicus_landcover_file,
         geotransform, projection,
         length, width, scratch_dir, resample_algorithm='nearest',
-        relocated_file=copernicus_landcover_reprojected_file)
+        relocated_file=copernicus_landcover_reprojected_file,
+        temp_files_list=temp_files_list)
 
     # Reproject ESA Worldcover 10m
     geotransform_up_3 = list(geotransform)
@@ -644,7 +648,8 @@ def create_landcover_mask(copernicus_landcover_file,
     worldcover_array_up_3 = _relocate(worldcover_file, geotransform_up_3,
         projection, length_up_3, width_up_3, scratch_dir,
         resample_algorithm='nearest',
-        relocated_file=worldcover_reprojected_up_3_file)
+        relocated_file=worldcover_reprojected_up_3_file,
+        temp_files_list=temp_files_list)
 
     # Set multilooking parameters
     size_y = 3
@@ -2060,7 +2065,8 @@ def get_projection_proj4(projection):
 def _relocate(input_file, geotransform, projection,
               length, width, scratch_dir = '.',
               resample_algorithm='nearest',
-              relocated_file=None, margin_in_pixels=0):
+              relocated_file=None, margin_in_pixels=0,
+              temp_files_list = None):
     """Relocate/reproject a file (e.g., landcover or DEM) based on geolocation
        defined by a geotransform, output dimensions (length and width)
        and projection
@@ -2087,6 +2093,8 @@ def _relocate(input_file, geotransform, projection,
               Relocated file (output file)
        margin_in_pixels: int
               Margin in pixels (default: 0)
+       temp_files_list: list (optional)
+              Mutable list of temporary files
 
        Returns
        -------
@@ -2108,6 +2116,8 @@ def _relocate(input_file, geotransform, projection,
                     dir=scratch_dir, suffix='.tif').name
         logger.info(f'relocating file: {input_file} to'
                     f' temporary file: {relocated_file}')
+        if temp_files_list is not None:
+            temp_files_list.append(relocated_file)
     else:
         logger.info(f'relocating file: {input_file} to'
                     f' file: {relocated_file}')
@@ -2459,7 +2469,7 @@ def create_logger(log_file, full_log_formatting=None):
     return logger
 
 def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
-                      sun_elevation_angle):
+                      sun_elevation_angle, temp_files_list = None):
     """Compute hillshade using GDAL's DEMProcessing() function
 
        Parameters
@@ -2472,6 +2482,8 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
               Sun azimuth angle
        sun_elevation_angle: float
               Sun elevation angle
+       temp_files_list: list (optional)
+              Mutable list of temporary files
 
        Returns
        -------
@@ -2480,6 +2492,8 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
     """
     shadow_layer_file = tempfile.NamedTemporaryFile(
         dir=scratch_dir, suffix='.tif').name
+    if temp_files_list is not None:
+        temp_files_list.append(shadow_layer_file)
 
     gdal.DEMProcessing(shadow_layer_file, dem_file, "hillshade",
                       azimuth=sun_azimuth_angle,
@@ -2615,6 +2629,7 @@ def generate_dswx_layers(input_list,
     image_dict = {}
     offset_dict = {}
     scale_dict = {}
+    temp_files_list = []
     output_files_list = []
     build_vrt_list = []
     dem = None
@@ -2693,14 +2708,18 @@ def generate_dswx_layers(input_list,
         # DEM
         dem_cropped_file = tempfile.NamedTemporaryFile(
             dir=scratch_dir, suffix='.tif').name
+        if temp_files_list is not None:
+            temp_files_list.append(dem_cropped_file)
         dem_with_margin = _relocate(dem_file, geotransform, projection,
                                     length, width, scratch_dir,
                                     resample_algorithm='cubic',
                                     relocated_file=dem_cropped_file,
-                                    margin_in_pixels=DEM_MARGIN_IN_PIXELS)
+                                    margin_in_pixels=DEM_MARGIN_IN_PIXELS,
+                                    temp_files_list=temp_files_list)
 
         hillshade = _compute_hillshade(dem_cropped_file, scratch_dir,
-                                       sun_azimuth_angle, sun_elevation_angle)
+                                       sun_azimuth_angle, sun_elevation_angle,
+                                       temp_files_list = temp_files_list)
         shadow_layer_with_margin = _compute_otsu_threshold(hillshade, is_normalized = True)
 
         # remove extra margin from DEM
@@ -2740,7 +2759,7 @@ def generate_dswx_layers(input_list,
             landcover_file, worldcover_file, output_landcover,
             scratch_dir, landcover_mask_type, geotransform, projection,
             length, width, dswx_metadata_dict = dswx_metadata_dict,
-            output_files_list=build_vrt_list)
+            output_files_list=build_vrt_list, temp_files_list=temp_files_list)
 
     # Set invalid pixels to fill value (255)
     if not flag_offset_and_scale_inputs:
@@ -2889,9 +2908,16 @@ def generate_dswx_layers(input_list,
         build_vrt_list.append(output_file)
         logger.info(f'file saved: {output_file}')
 
-    logger.info('list of output files:')
+    logger.info('removing temporary files:')
+    for filename in temp_files_list:
+        if not os.path.isfile(filename):
+            continue
+        os.remove(filename)
+        logger.info(f'    {filename}')
+
+    logger.info('output files:')
     for filename in build_vrt_list + output_files_list:
-        logger.info(filename)
+        logger.info(f'    {filename}')
 
     return True
 
