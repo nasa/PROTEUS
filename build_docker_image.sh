@@ -1,7 +1,7 @@
 #!/bin/bash
 
 IMAGE=opera/proteus
-t=beta
+t=cal_val
 echo "IMAGE is $IMAGE:$t"
 
 # fail on any non-zero exit codes
