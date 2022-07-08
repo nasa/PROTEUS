@@ -838,14 +838,15 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
     # apply shadow mask - shadows are set to 0 (not water)
     if shadow_layer is not None and landcover_mask is None:
         logger.info('applying shadow mask:')
-        to_mask_ind = np.where(shadow_layer == 0 &
-            ((interpreted_layer == 1) | (interpreted_layer == 2)))
+        to_mask_ind = np.where((shadow_layer == 0) &
+            ((interpreted_layer >= 1) | (interpreted_layer <= 4)))
         landcover_shadow_masked_dswx[to_mask_ind] = 0
 
     elif shadow_layer is not None:
+        logger.info('applying shadow mask (with landcover):')
         to_mask_ind = np.where((shadow_layer == 0) &
             (~_is_landcover_class_water_or_wetland(landcover_mask)) &
-            ((interpreted_layer == 1) | (interpreted_layer == 2)))
+            ((interpreted_layer >= 1) & (interpreted_layer <= 4)))
         landcover_shadow_masked_dswx[to_mask_ind] = 0
 
     if landcover_mask is None:
@@ -856,22 +857,25 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
     # Check landcover (evergreen)
     to_mask_ind = np.where(
         _is_landcover_class_evergreen(landcover_mask) &
-        (nir > landcover_nir_threshold) & (interpreted_layer == 2))
+        (nir > landcover_nir_threshold) & ((interpreted_layer == 3) |
+                                           (interpreted_layer == 4)))
     landcover_shadow_masked_dswx[to_mask_ind] = 0
 
     # Check landcover (low intensity developed)
     to_mask_ind = np.where(
         _is_landcover_class_low_intensity_developed(landcover_mask) &
-        (nir > landcover_nir_threshold) & (interpreted_layer == 2))
+        (nir > landcover_nir_threshold) & ((interpreted_layer == 3) |
+                                           (interpreted_layer == 4)))
     landcover_shadow_masked_dswx[to_mask_ind] = 0
 
     # Check landcover (high intensity developed)
     to_mask_ind = np.where(
         _is_landcover_class_high_intensity_developed(landcover_mask) &
-        ((interpreted_layer == 1) | (interpreted_layer == 2)))
+        ((interpreted_layer >= 1) & (interpreted_layer <= 4)))
     landcover_shadow_masked_dswx[to_mask_ind] = 0
 
     return landcover_shadow_masked_dswx
+
 
 
 def _get_interpreted_dswx_ctable(
