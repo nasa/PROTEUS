@@ -89,9 +89,6 @@ def _get_parser():
 
 
 def point2epsg(lon, lat):
-    """
-    Return EPSG code based on a point lat/lon coordinates
-    """
     if lon >= 180.0:
         lon = lon - 360.0
     if lat >= 60.0:
