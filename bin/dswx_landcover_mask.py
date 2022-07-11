@@ -90,8 +90,7 @@ def _get_parser():
 
 def point2epsg(lon, lat):
     """
-     Return EPSG code base on a point
-     latitude/longitude coordinates
+    Return EPSG code based on a point lat/lon coordinates
     """
     if lon >= 180.0:
         lon = lon - 360.0
@@ -114,7 +113,7 @@ def main():
     create_logger(args.log_file)
 
     if args.bbox is None and args.reference_file is None:
-        logger.error(f'ERROR please, provide either a '
+        logger.error('ERROR please, provide either a '
                      'reference file or a bounding box')
         return
 
@@ -185,7 +184,7 @@ def main():
         x_max = None
         for lat in [lat_max, lat_min]:
             for lon in [lon_min, lon_max]:
-                x, y, z = transformation.TransformPoint(lat, lon, 0)
+                x, y, _ = transformation.TransformPoint(lat, lon, 0)
                 if y_min is None or y_min > y:
                     y_min = y
                 if y_max is None or y_max < y:
@@ -206,7 +205,7 @@ def main():
         width = int(np.ceil((x_max - x_min) / dx))
         length = int(np.ceil((y_min - y_max) / dy))
         projection = utm_srs.ExportToProj4()
-        projection = projection.strip() 
+        projection = projection.strip()
 
         print(f'    width: {width}')
         print(f'    length: {length}')
