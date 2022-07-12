@@ -636,6 +636,7 @@ def create_landcover_mask(copernicus_landcover_file,
         length, width, scratch_dir, resample_algorithm='nearest',
         relocated_file=copernicus_landcover_reprojected_file,
         temp_files_list=temp_files_list)
+    temp_files_list.append(copernicus_landcover_reprojected_file)
 
     # Reproject ESA Worldcover 10m
     geotransform_up_3 = list(geotransform)
@@ -650,6 +651,7 @@ def create_landcover_mask(copernicus_landcover_file,
         resample_algorithm='nearest',
         relocated_file=worldcover_reprojected_up_3_file,
         temp_files_list=temp_files_list)
+    temp_files_list.append(worldcover_array_up_3)
 
     # Set multilooking parameters
     size_y = 3
@@ -1636,7 +1638,7 @@ def _get_confidence_layer_ctable():
                          255))
 
     # Gray - QA masked
-    confidence_layer_ctable.SetColorEntry(101, (127, 127, 127))
+    confidence_layer_ctable.SetColorEntry(254, (127, 127, 127))
 
     # Black - Fill value
     confidence_layer_ctable.SetColorEntry(255, (0, 0, 0, 255))
@@ -2926,7 +2928,7 @@ def generate_dswx_layers(input_list,
     for filename in temp_files_list:
         if not os.path.isfile(filename):
             continue
-        os.remove(filename)
+        # os.remove(filename)
         logger.info(f'    {filename}')
 
     logger.info('output files:')
