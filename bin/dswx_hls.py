@@ -64,7 +64,7 @@ def main():
         output_cloud_mask=args.output_cloud_mask,
         output_dem_layer=args.output_dem_layer,
         landcover_file=args.landcover_file,
-        built_up_cover_fraction_file=args.built_up_cover_fraction_file,
+        worldcover_file=args.worldcover_file,
         flag_offset_and_scale_inputs=args.flag_offset_and_scale_inputs,
         scratch_dir=args.scratch_dir,
         product_id=args.product_id,

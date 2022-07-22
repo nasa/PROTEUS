@@ -1,7 +1,7 @@
 #!/bin/bash
 
 IMAGE=opera/proteus
-t=beta
+t=cal_val
 echo "IMAGE is $IMAGE:$t"
 
 # fail on any non-zero exit codes
@@ -11,6 +11,9 @@ python3 setup.py sdist
 
 # build image
 docker build --rm --force-rm --network=host -t ${IMAGE}:$t -f docker/Dockerfile .
+
+ # run tests
+docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/mnt" -w /mnt -it --network host "${IMAGE}:$t" pytest /mnt/tests/
 
 # create image tar
 docker save opera/proteus > docker/dockerimg_proteus_$t.tar

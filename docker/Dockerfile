@@ -25,7 +25,7 @@ RUN set -ex \
  && conda update --all --yes \
  && conda install --yes --file /tmp/requirements.txt \
  && conda install --yes --channel conda-forge --file /tmp/requirements_forge.txt \
- && conda clean -tipsy \
+ && conda clean -tip \
  && rm -rf /opt/conda/pkgs \
  && rm /tmp/requirements.txt \
  && rm /tmp/requirements_forge.txt
@@ -40,11 +40,6 @@ RUN export PATH=/opt/conda/bin:$PATH
 WORKDIR /home/conda/proteus-0.1
 RUN python3 setup.py install
 WORKDIR /home/conda
-
-RUN mkdir -p runconfig && chown conda:conda runconfig
-RUN mkdir -p input_dir && chown conda:conda input_dir
-RUN mkdir -p output_dir && chown conda:conda output_dir
-RUN mkdir -p scratch_dir && chown conda:conda scratch_dir && chmod 777 scratch_dir
 
 USER conda
 
