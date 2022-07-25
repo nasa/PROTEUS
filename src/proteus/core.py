@@ -40,26 +40,25 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
     else:
         resamp_algorithm = 'CUBICSPLINE'
 
-    gdal_ds.BuildOverviews('CUBICSPLINE', overviews_list,
+    gdal_ds.BuildOverviews(resamp_algorithm, overviews_list,
                            gdal.TermProgress_nocb)
 
     del gdal_ds  # close the dataset (Python object and pointers)
     external_overview_file = filename + '.ovr'
     if os.path.isfile(external_overview_file):
-        os.path.remove(external_overview_file)
+        os.remove(external_overview_file)
 
     logger.info('COG step 2: save as COG')
     temp_file = tempfile.NamedTemporaryFile(
                     dir=scratch_dir, suffix='.tif').name
 
     tile_size = 256
-    ovr_tile_size = tile_size
-    gdal_translate_options = [
-        'TILED=YES',
-        f'BLOCKXSIZE={tile_size}',
-        f'BLOCKYSIZE={tile_size}',
-        f'GDAL_TIFF_OVR_BLOCKSIZE={ovr_tile_size}'
-        'COPY_SRC_OVERVIEWS=YES'] 
+    # ovr_tile_size = tile_size
+    gdal_translate_options = ['TILED=YES',
+                              f'BLOCKXSIZE={tile_size}',
+                              f'BLOCKYSIZE={tile_size}',
+                              # f'GDAL_TIFF_OVR_BLOCKSIZE={ovr_tile_size}'
+                              'COPY_SRC_OVERVIEWS=YES'] 
 
     if flag_compress:
         gdal_translate_options += ['COMPRESS=DEFLATE']
@@ -67,7 +66,7 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
     if is_integer:
         gdal_translate_options += ['PREDICTOR=2']
     else:
-        gdal_translate_options = ['PREDICTOR=3']
+        gdal_translate_options += ['PREDICTOR=3']
 
     gdal.Translate(temp_file, filename,
                    creationOptions=gdal_translate_options)
@@ -102,7 +101,6 @@ def get_geographic_boundaries_from_mgrs_tile(mgrs_tile_name, verbose=False):
 
     # create UTM spatial reference
     utm_coordinate_system = osr.SpatialReference()
-    utm_coordinate_system.SetWellKnownGeogCS("WGS84")
     utm_coordinate_system.SetUTM(utm_zone, is_northern)
 
     # create geographic (lat/lon) spatial reference

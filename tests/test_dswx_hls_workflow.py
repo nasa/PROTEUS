@@ -24,7 +24,7 @@ def test_workflow():
         os.makedirs(test_data_directory, exist_ok=True)
 
     dataset_name = 's30_louisiana_mississippi'
-    dataset_url = ('https://zenodo.org/record/6537876/files/'
+    dataset_url = ('https://zenodo.org/record/6819971/files/'
                    's30_louisiana_mississippi.tar.gz')
     dataset_dir = os.path.join(test_data_directory, dataset_name)
     user_runconfig_file = os.path.join(dataset_dir, 'dswx_hls.yaml')
