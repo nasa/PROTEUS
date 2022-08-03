@@ -242,19 +242,36 @@ def get_dswx_hls_cli_parser():
                         type=str,
                         help='Input digital elevation model (DEM)')
 
+    parser.add_argument('--dem-description',
+                        dest='dem_description',
+                        type=str,
+                        help='Description for the input digital elevation'
+                        ' model (DEM)')
+
     parser.add_argument('-c',
-                        '--copernicus-landcover-100m',
-                        '--landcover', '--land-cover',
+                        '--landcover',
                         dest='landcover_file',
                         type=str,
                         help='Input Copernicus Land Cover'
                         ' Discrete-Classification-map 100m')
 
+    parser.add_argument('--landcover-description',
+                        dest='landcover_description',
+                        type=str,
+                        help='Description for the input Copernicus Land Cover'
+                        ' Discrete-Classification-map 100m')
+
     parser.add_argument('-w',
-                        '--world-cover-10m', '--worldcover', '--world-cover',
+                        '--worldcover',
                         dest='worldcover_file',
                         type=str,
                         help='Input ESA WorldCover 10m')
+
+    parser.add_argument('--worldcover-description',
+                        dest='worldcover_description',
+                        type=str,
+                        help='Description for the input ESA WorldCover 10m')
+
 
     # Outputs
     parser.add_argument('-o',
@@ -2246,24 +2263,12 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     product_path_group = runconfig['runconfig']['groups'][
         'product_path_group']
 
-    if 'dem_file' not in ancillary_ds_group:
-        dem_file = None
-    else:
-        dem_file = os.path.basename(
-            ancillary_ds_group['dem_file'])
-
-    if 'landcover_file' not in ancillary_ds_group:
-        landcover_file = None
-    else:
-        landcover_file = os.path.basename(
-            ancillary_ds_group['landcover_file'])
-
-    if 'worldcover_file' not in ancillary_ds_group:
-        worldcover_file = None
-    else:
-        worldcover_file = os.path.basename(
-            ancillary_ds_group['worldcover_file'])
-
+    dem_file = ancillary_ds_group['dem_file']
+    dem_description = ancillary_ds_group['dem_description']
+    landcover_file = ancillary_ds_group['landcover_file']
+    landcover_description = ancillary_ds_group['landcover_description']
+    worldcover_file = ancillary_ds_group['worldcover_file']
+    worldcover_description = ancillary_ds_group['worldcover_description']
     scratch_dir = product_path_group['scratch_path']
     output_directory = product_path_group['output_dir']
     product_id = product_path_group['product_id']
@@ -2280,8 +2285,11 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     # update args with runconfig parameters listed below
     variables_to_update_dict = {
         'dem_file': dem_file,
+        'dem_description': dem_description,
         'landcover_file': landcover_file,
+        'landcover_description': landcover_description,
         'worldcover_file': worldcover_file,
+        'worldcover_description': worldcover_description,
         'scratch_dir': scratch_dir,
         'product_id': product_id}
 
@@ -2363,9 +2371,14 @@ def _get_dswx_metadata_dict(product_id):
 
     return dswx_metadata_dict
 
-def _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset,
-                                     dem_file=None, landcover_file=None,
-                                     worldcover_file=None):
+def _populate_dswx_metadata_datasets(dswx_metadata_dict,
+                                     hls_dataset,
+                                     dem_file=None,
+                                     dem_description=None,
+                                     landcover_file=None,
+                                     landcover_description=None,
+                                     worldcover_file=None,
+                                     worldcover_description=None):
     """Populate metadata dictionary with input files
 
        Parameters
@@ -2376,20 +2389,43 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset,
               HLS dataset name
        dem_file: str
               DEM filename
+       dem_description: str
+              DEM description
        landcover_file: str
               Landcover filename
-       worldcover_file: str
-              Built-up cover fraction filename
+       landcover_description: str
+              Landcover description
+        worldcover_file: str
+              Worldcover filename
+        worldcover_description: str
+              Worldcover description
     """
 
     # input datasets
     dswx_metadata_dict['HLS_DATASET'] = hls_dataset
-    dswx_metadata_dict['DEM_FILE'] = dem_file if dem_file else '(not provided)'
-    dswx_metadata_dict['LANDCOVER_FILE'] = \
-        landcover_file if landcover_file else '(not provided)'
-    dswx_metadata_dict['WORLDCOVER_FILE'] = \
-        worldcover_file if worldcover_file \
-                                     else '(not provided)'
+    if dem_description:
+        dswx_metadata_dict['DEM_SOURCE'] = dem_description
+    elif dem_file:
+        dswx_metadata_dict['DEM_SOURCE'] = \
+            os.path.basename(dem_file)
+    else:
+        dswx_metadata_dict['DEM_SOURCE'] = '(not provided)'
+
+    if landcover_description:
+        dswx_metadata_dict['LANDCOVER_SOURCE'] = landcover_description
+    elif landcover_file:
+        dswx_metadata_dict['LANDCOVER_SOURCE'] = \
+            os.path.basename(landcover_file)
+    else:
+        dswx_metadata_dict['LANDCOVER_SOURCE'] = '(not provided)'
+
+    if worldcover_description:
+        dswx_metadata_dict['WORLDCOVER_SOURCE'] = worldcover_description
+    elif worldcover_file:
+        dswx_metadata_dict['WORLDCOVER_SOURCE'] = \
+            os.path.basename(worldcover_file)
+    else:
+        dswx_metadata_dict['WORLDCOVER_SOURCE'] = '(not provided)'
 
 
 class Logger(object):
@@ -2553,6 +2589,7 @@ def generate_dswx_layers(input_list,
                          output_file = None,
                          hls_thresholds = None,
                          dem_file=None,
+                         dem_description=None,
                          output_interpreted_band=None,
                          output_rgb_file=None,
                          output_infrared_rgb_file=None,
@@ -2566,7 +2603,9 @@ def generate_dswx_layers(input_list,
                          output_cloud_mask=None,
                          output_dem_layer=None,
                          landcover_file=None,
+                         landcover_description=None,
                          worldcover_file=None,
+                         worldcover_description=None,
                          flag_offset_and_scale_inputs=False,
                          scratch_dir='.',
                          product_id=None,
@@ -2583,6 +2622,8 @@ def generate_dswx_layers(input_list,
               HLS reflectance thresholds for generating DSWx-HLS products
        dem_file: str (optional)
               DEM filename
+       dem_description: str (optional)
+              DEM description
        output_interpreted_band: str (optional)
               Output interpreted band filename
        output_rgb_file: str (optional)
@@ -2609,8 +2650,12 @@ def generate_dswx_layers(input_list,
               Output elevation layer filename
        landcover_file: str (optional)
               Copernicus Global Land Service (CGLS) Land Cover Layer file
+       landcover_description: str (optional)
+              Copernicus Global Land Service (CGLS) Land Cover Layer description
        worldcover_file: str (optional)
               ESA WorldCover map filename
+       worldcover_description: str (optional)
+              ESA WorldCover map description
        flag_offset_and_scale_inputs: bool (optional)
               Flag indicating if DSWx-HLS should be offsetted and scaled
        scratch_dir: str (optional)
@@ -2683,9 +2728,15 @@ def generate_dswx_layers(input_list,
         version = '2.0'
 
     hls_dataset_name = image_dict['hls_dataset_name']
-    _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset_name,
-        dem_file=dem_file, landcover_file=landcover_file,
-        worldcover_file=worldcover_file)
+    _populate_dswx_metadata_datasets(
+        dswx_metadata_dict,
+        hls_dataset_name,
+        dem_file=dem_file,
+        dem_description=dem_description,
+        landcover_file=landcover_file,
+        landcover_description=landcover_description,
+        worldcover_file=worldcover_file,
+        worldcover_description=worldcover_description)
 
     spacecraft_name = dswx_metadata_dict['SPACECRAFT_NAME']
     logger.info(f'processing HLS {spacecraft_name[0]}30 dataset v.{version}')

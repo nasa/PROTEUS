@@ -10,14 +10,23 @@ runconfig:
             input_file_path:
        
         dynamic_ancillary_file_group:
-            # Digital elevation model
+            # Digital elevation model file
             dem_file:
+
+            # Digital elevation model source description
+            dem_description:
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer file
             landcover_file:
 
+            # Copernicus Global Land Service (CGLS) Land Cover Layer description
+            landcover_description:
+
             # ESA WorldCover map file
             worldcover_file:
+
+            # ESA WorldCover map description
+            worldcover_description:
 
         primary_executable:
             product_type: DSWX_HLS

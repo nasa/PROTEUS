@@ -10,14 +10,23 @@ runconfig:
             input_file_path: list(str(), min=1)
        
         dynamic_ancillary_file_group:
-            # Digital elevation model
+            # Digital elevation model file
             dem_file: str(required=False)
+
+            # Digital elevation model description
+            dem_description: str(required=False)
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer file
             landcover_file: str(required=False)
 
+            # Copernicus Global Land Service (CGLS) Land Cover Layer description
+            landcover_description: str(required=False)
+
             # ESA WorldCover map file
             worldcover_file: str(required=False)
+
+            # ESA WorldCover map description
+            worldcover_description: str(required=False)
 
         primary_executable:
             product_type: enum('DSWX_HLS')
