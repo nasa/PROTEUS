@@ -705,7 +705,7 @@ def create_landcover_mask(copernicus_landcover_file,
     landcover_fill_value = \
         dswx_hls_landcover_classes_dict['fill_value']
     hierarchy_combined = np.full(h20_aggregate_sum.reshape(-1).shape,
-        landcover_fill_value, dtype=np.byte)
+        landcover_fill_value, dtype=np.uint8)
 
     # load threshold list according to `mask_type`
     threshold_list = landcover_threshold_dict[mask_type.lower()]
@@ -878,6 +878,32 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
         _is_landcover_class_evergreen(landcover_mask) &
         (nir > landcover_nir_threshold) & ((interpreted_layer == 3) |
                                            (interpreted_layer == 4)))
+    import plant
+
+    print('1:', landcover_mask[0:5, 0:5])
+    print('1:', landcover_mask.dtype)
+    print('2:', _is_landcover_class_evergreen(landcover_mask)[0:5, 0:5])
+    print('3:', landcover_mask[0:5, 0:5] == 201)
+    print('4:', (landcover_mask == 201)[0:5, 0:5])
+
+
+    '''
+
+    print( _is_landcover_class_evergreen(200))
+    print( _is_landcover_class_evergreen(201))
+    print( _is_landcover_class_evergreen(202))
+    plant.save_image(landcover_mask, output_file='cond_1_landcover_mask.tif', force=True)
+    print(_is_landcover_class_evergreen(landcover_mask))
+    print(np.nanmean(np.asarray(_is_landcover_class_evergreen(landcover_mask)), dtype=np.float32))
+
+    plant.save_image(np.asarray(_is_landcover_class_evergreen(landcover_mask), dtype=np.float32), output_file='cond_1_is_evergreen.tif', force=True)
+    plant.save_image(np.asarray(landcover_mask == 201, dtype=np.float32), output_file='cond_1_is_evergreen_2.tif', force=True)
+    plant.save_image(np.asarray(landcover_mask >= 201, dtype=np.float32), output_file='cond_1_is_evergreen_2_gt.tif', force=True)
+    plant.save_image(nir > landcover_nir_threshold, output_file='cond_2_nir.tif', force=True)
+    plant.save_image(interpreted_layer == 3, output_file='cond_3_intr_eq_3.tif', force=True)
+    plant.save_image(interpreted_layer == 4, output_file='cond_4_intr_eq_4.tif', force=True)
+    plant.save_image(interpreted_layer == 5, output_file='cond_5_intr.tif', force=True)
+    '''
     landcover_shadow_masked_dswx[to_mask_ind] = 0
 
     # Check landcover (low intensity developed)
