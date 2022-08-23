@@ -2981,7 +2981,7 @@ def generate_dswx_layers(input_list,
     for filename in temp_files_list:
         if not os.path.isfile(filename):
             continue
-        # os.remove(filename)
+        os.remove(filename)
         logger.info(f'    {filename}')
 
     logger.info('output files:')
