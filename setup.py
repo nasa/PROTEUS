@@ -1,6 +1,5 @@
 import os
 from setuptools import setup
-from setuptools import find_packages
 from setuptools import Command
 
 __version__ = version = VERSION = '0.1'
