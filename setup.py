@@ -36,7 +36,6 @@ setup(
     package_dir={'': 'src'},
     packages=['proteus',
               'proteus.extern'],
-    # include_package_data=True,
     package_data=package_data_dict,
     classifiers=['Programming Language :: Python',],
     scripts=['bin/dswx_hls.py',
