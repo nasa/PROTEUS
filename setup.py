@@ -31,8 +31,8 @@ setup(
     version=version,
     description='Compute Dynamic Surface Water Extent (DSWx)'
                 ' from optical (HLS) data',
-    # Gather all packages located in `src`.
-    # (A package is a directory containing an __init__.py file.)
+    # Gather all packages located under `src`.
+    # (A package is any directory containing an __init__.py file.)
     package_dir={'': 'src'},
     packages=['proteus',
               'proteus.extern'],
