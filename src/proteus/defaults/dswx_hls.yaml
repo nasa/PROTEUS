@@ -49,6 +49,16 @@ runconfig:
             output_dir:
             product_id:
 
+        processing:
+            # Use terrain-masking based on the Otsu method
+            flag_use_otsu_terrain_masking: False
+
+            # Minimum slope angle in degrees for terrain masking
+            min_slope_angle: -5
+
+            # Maximum Sun incidence angle in degrees for terrain masking
+            max_sun_inc_angle: 40
+
             save_wtr: True    # Layer 1 - WTR
             save_bwtr: True   # Layer 2 - BWTR
             save_conf: True   # Layer 3 - CONF
@@ -65,7 +75,6 @@ runconfig:
 
             # SWIR-1, NIR, and Red reflectance color composition
             save_infrared_rgb: False
-
 
         hls_thresholds:
 

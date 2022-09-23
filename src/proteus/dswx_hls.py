@@ -13,7 +13,7 @@ from osgeo.gdalconst import GDT_Float32
 from osgeo import gdal, osr
 from proteus.core import save_as_cog
 
-PRODUCT_VERSION = '0.1'
+PRODUCT_VERSION = '0.5'
 
 landcover_mask_type = 'standard'
 
@@ -180,6 +180,9 @@ landcover_threshold_dict = {"standard": [6, 3, 7, 3],
                             "water heavy": [6, 3, 7, 1]}
 
 landcover_nir_threshold = 1200
+
+MIN_SLOPE_ANGLE = -5
+MAX_SUN_INC_ANGLE = 40
 
 
 class HlsThresholds:
@@ -1295,18 +1298,17 @@ def _compute_mask_and_filter_interpreted_layer(
             elif np.bitwise_and(2**2, qa_band[i, j]):
                 mask[i, j] += 1
 
-            # Check QA snow bit (4) => bit 1
-            if np.bitwise_and(2**4, qa_band[i, j]):
-                mask[i, j] += 2
-
             # Check QA cloud bit (1) => bit 2
             if np.bitwise_and(2**1, qa_band[i, j]):
                 mask[i, j] += 4
 
-            if mask[i, j] == 0:
-                continue
+            if mask[i, j] != 0:
+                masked_interpreted_water_layer[i, j] = 9
 
-            masked_interpreted_water_layer[i, j] = 9
+            # Check QA snow bit (4) => bit 1
+            if np.bitwise_and(2**4, qa_band[i, j]):
+                mask[i, j] += 2
+                masked_interpreted_water_layer[i, j] = 0
 
     return mask, masked_interpreted_water_layer
 
@@ -2263,6 +2265,8 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     product_path_group = runconfig['runconfig']['groups'][
         'product_path_group']
 
+    processing_group = runconfig['runconfig']['groups']['processing']
+
     dem_file = ancillary_ds_group['dem_file']
     dem_description = ancillary_ds_group['dem_description']
     landcover_file = ancillary_ds_group['landcover_file']
@@ -2309,13 +2313,19 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     # Save layers
     if product_id is None:
         product_id = 'dswx_hls'
+
+    args.flag_use_otsu_terrain_masking = \
+        processing_group['flag_use_otsu_terrain_masking']
+    args.min_slope_angle = processing_group['min_slope_angle']
+    args.max_sun_inc_angle = processing_group['max_sun_inc_angle']
+
     for i, (layer_name, args_name) in \
             enumerate(layer_names_to_args_dict.items()):
         layer_number = i + 1
         layer_var_name = layer_name.lower().replace('-', '_')
         runconfig_field = f'save_{layer_var_name}'
 
-        flag_save_layer = product_path_group[runconfig_field]
+        flag_save_layer = processing_group[runconfig_field]
         arg_name = layer_names_to_args_dict[layer_name]
 
         # user (command-line interface) layer filename
@@ -2557,6 +2567,71 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
     return hillshade
 
 
+def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
+                                min_slope_angle = MIN_SLOPE_ANGLE,
+                                max_sun_inc_angle = MAX_SUN_INC_ANGLE,
+                                pixel_spacing_x = 30, pixel_spacing_y = 30):
+    """Compute hillshade using new OPERA shadow masking
+
+       Parameters
+       ----------
+       dem_file: str
+              DEM filename
+       sun_azimuth_angle: float
+              Sun azimuth angle
+       sun_elevation_angle: float
+              Sun elevation angle
+       slope_angle_threshold: float
+              Slope angle threshold
+       MIN_SLOPE_ANGLE: float (optional)
+              Maximum slope angle
+       max_sun_inc_angle: float (optional)
+              Maximum local-incidence angle
+       pixel_spacing_x: float (optional)
+              Pixel spacing in the X direction
+       pixel_spacing_y: float (optional)
+              Pixel spacing in the Y direction
+
+       Returns
+       -------
+       hillshade : numpy.ndarray
+              Hillshade
+    """
+    sun_azimuth = np.radians(sun_azimuth_angle)
+    sun_zenith_degrees = 90 - sun_elevation_angle
+    sun_zenith = np.radians(sun_zenith_degrees)
+
+    target_to_sun_unit_vector = [np.sin(sun_azimuth) * np.sin(sun_zenith),
+                                 np.cos(sun_azimuth) * np.sin(sun_zenith),
+                                 np.cos(sun_zenith)]
+    
+    gradient_h = np.gradient(dem)
+    terrain_normal_vector = [-gradient_h[1] / pixel_spacing_x,
+                             -gradient_h[0] / - abs(pixel_spacing_y),
+                             1]
+
+    normalization_factor = np.sqrt(terrain_normal_vector[0] ** 2 +
+                                   terrain_normal_vector[1] ** 2 + 1)
+
+    sun_inc_angle = np.arccos(
+        (terrain_normal_vector[0] * target_to_sun_unit_vector[0] +
+         terrain_normal_vector[1] * target_to_sun_unit_vector[1] +
+         terrain_normal_vector[2] * target_to_sun_unit_vector[2]) /
+         normalization_factor)
+
+    sun_inc_angle_degrees = np.degrees(sun_inc_angle)
+        
+    directional_slope_angle = np.degrees(np.arctan(
+        terrain_normal_vector[0] * np.sin(sun_azimuth) +
+        terrain_normal_vector[1] * np.cos(sun_azimuth)))
+
+    backslope_mask = directional_slope_angle <= MIN_SLOPE_ANGLE
+    low_sun_inc_angle_mask = sun_inc_angle_degrees <= max_sun_inc_angle
+    shadow_mask = (low_sun_inc_angle_mask | (~ backslope_mask))
+
+    return shadow_mask
+
+
 def _binary_repr(diagnostic_layer_decimal):
     """
     Return the binary representation of the diagnostic layer in decimal
@@ -2609,6 +2684,9 @@ def generate_dswx_layers(input_list,
                          flag_offset_and_scale_inputs=False,
                          scratch_dir='.',
                          product_id=None,
+                         flag_use_otsu_terrain_masking=True,
+                         min_slope_angle=MIN_SLOPE_ANGLE,
+                         max_sun_inc_angle=MAX_SUN_INC_ANGLE,
                          flag_debug=False):
     """Compute the DSWx-HLS product
 
@@ -2663,6 +2741,13 @@ def generate_dswx_layers(input_list,
        product_id: str (optional)
               Product ID that will be saved in the output' product's
               metadata
+       flag_use_otsu_terrain_masking: bool (optional)
+              Flag to indicate whether the terrain masking should be computed
+              with the Otsu threshold method
+       MIN_SLOPE_ANGLE: float (optional)
+              Maximum slope angle
+       max_sun_inc_angle: float (optional)
+              Maximum local-incidence angle
        flag_debug: bool (optional)
               Flag to indicate if execution is for debug purposes. If so,
               only a subset of the image will be loaded into memory
@@ -2786,10 +2871,25 @@ def generate_dswx_layers(input_list,
                                     margin_in_pixels=DEM_MARGIN_IN_PIXELS,
                                     temp_files_list=temp_files_list)
 
-        hillshade = _compute_hillshade(dem_cropped_file, scratch_dir,
-                                       sun_azimuth_angle, sun_elevation_angle,
-                                       temp_files_list = temp_files_list)
-        shadow_layer_with_margin = _compute_otsu_threshold(hillshade, is_normalized = True)
+        if flag_use_otsu_terrain_masking:
+            # shadow masking with Otsu threshold method
+            hillshade = _compute_hillshade(
+                dem_cropped_file, scratch_dir, sun_azimuth_angle,
+                sun_elevation_angle, temp_files_list = temp_files_list)
+            shadow_layer_with_margin = _compute_otsu_threshold(
+                hillshade, is_normalized = True)
+        else:
+            # new OPERA shadow masking
+            shadow_layer_with_margin = _compute_opera_shadow_layer(
+                dem_with_margin, sun_azimuth_angle, sun_elevation_angle,
+                min_slope_angle = min_slope_angle,
+                max_sun_inc_angle = max_sun_inc_angle)
+
+        # remove extra margin from shadow_layer
+        shadow_layer = shadow_layer_with_margin[
+            DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS,
+            DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS]
+        del shadow_layer_with_margin
 
         # remove extra margin from DEM
         dem = dem_with_margin[DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS,
@@ -2806,11 +2906,6 @@ def generate_dswx_layers(input_list,
         if not output_file:
             del dem
 
-        # remove extra margin from shadow_layer
-        shadow_layer = shadow_layer_with_margin[
-            DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS,
-            DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS]
-        del shadow_layer_with_margin
 
         if output_shadow_layer:
             binary_mask_ctable = _get_binary_mask_ctable()

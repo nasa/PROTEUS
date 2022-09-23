@@ -50,6 +50,16 @@ runconfig:
             output_dir: str()
             product_id: str()
 
+        processing:
+            # Use terrain-masking based on the Otsu method
+            flag_use_otsu_terrain_masking: bool(required=False)
+
+            # Minimum slope angle in degrees for terrain masking
+            min_slope_angle: num(min=-180, max=180, required=False)
+
+            # Maximum Sun incidence angle in degrees for terrain masking
+            max_sun_inc_angle: num(min=-180, max=180, required=False)
+
             # Layer 1 - WTR
             save_wtr: bool(required=False)
 
