@@ -5,7 +5,7 @@ import logging
 from osgeo import gdal, osr
 
 def save_as_cog(filename, scratch_dir = '.', logger = None,
-                flag_compress=True, resamp_algorithm=None):
+                flag_compress=True, ovr_resamp_algorithm=None):
     """Save (overwrite) a GeoTIFF file as a cloud-optimized GeoTIFF.
 
        Parameters
@@ -17,12 +17,11 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
        flag_compress: bool (optional)
               Flag to indicate whether images should be
               compressed
-       resamp_algorithm: str (optional)
-              Resampling algorithm. Options: "AVERAGE",
-              "AVERAGE_MAGPHASE", "RMS", "BILINEAR",
-              "CUBIC", "CUBICSPLINE", "GAUSS", "LANCZOS",
-              "MODE", "NEAREST", or "NONE" 
-
+       ovr_resamp_algorithm: str (optional)
+              Resampling algorithm for overviews.
+              Options: "AVERAGE", "AVERAGE_MAGPHASE", "RMS", "BILINEAR",
+              "CUBIC", "CUBICSPLINE", "GAUSS", "LANCZOS", "MODE",
+              "NEAREST", or "NONE" 
     """
     if logger is None:
         logger = logging.getLogger('proteus')
@@ -31,16 +30,13 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
     gdal_ds = gdal.Open(filename, 1)
     gdal_dtype = gdal_ds.GetRasterBand(1).DataType
     dtype_name = gdal.GetDataTypeName(gdal_dtype).lower()
-    is_integer = 'byte' in dtype_name  or 'int' in dtype_name
 
     overviews_list = [4, 16, 64, 128]
 
-    if is_integer:
-        resamp_algorithm = 'NEAREST'
-    else:
-        resamp_algorithm = 'CUBICSPLINE'
+    if ovr_resamp_algorithm is None:
+        ovr_resamp_algorithm = 'NEAREST'
 
-    gdal_ds.BuildOverviews(resamp_algorithm, overviews_list,
+    gdal_ds.BuildOverviews(ovr_resamp_algorithm, overviews_list,
                            gdal.TermProgress_nocb)
 
     del gdal_ds  # close the dataset (Python object and pointers)
@@ -52,17 +48,17 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
     temp_file = tempfile.NamedTemporaryFile(
                     dir=scratch_dir, suffix='.tif').name
 
-    tile_size = 256
-    # ovr_tile_size = tile_size
+    # Blocks of 512 x 512 => 256 KiB (UInt8) or 1MiB (Float32)
+    tile_size = 512
     gdal_translate_options = ['TILED=YES',
                               f'BLOCKXSIZE={tile_size}',
                               f'BLOCKYSIZE={tile_size}',
-                              # f'GDAL_TIFF_OVR_BLOCKSIZE={ovr_tile_size}'
                               'COPY_SRC_OVERVIEWS=YES'] 
 
     if flag_compress:
         gdal_translate_options += ['COMPRESS=DEFLATE']
 
+    is_integer = 'byte' in dtype_name  or 'int' in dtype_name
     if is_integer:
         gdal_translate_options += ['PREDICTOR=2']
     else:
