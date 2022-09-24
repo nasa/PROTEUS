@@ -90,5 +90,3 @@ def test_workflow():
         output_file = os.path.join(output_dir, ref_basename)
 
         assert compare_dswx_hls_products(ref_file, output_file)
-
-    assert True
