@@ -19,6 +19,8 @@ landcover_mask_type = 'standard'
 
 COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE = 1e-6
 
+UINT8_FILL_VALUE = 255
+
 DEM_MARGIN_IN_PIXELS = 10
 
 logger = logging.getLogger('dswx_hls')
@@ -117,7 +119,7 @@ collapse_wtr_classes_dict = {
     3: 2,
     4: 2,
     9: 9,
-    255: 255
+    UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
 '''
@@ -129,7 +131,7 @@ wtr_confidence_dict = {
     1: 85,
     2: 70,
     9: 254,
-    255: 255
+    UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
 '''
@@ -143,7 +145,7 @@ wtr_confidence_non_collapsed_dict = {
     3: 80,
     4: 60,
     9: 254,
-    255: 255
+    UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
 collapsable_layers_list = ['WTR', 'WTR-1', 'WTR-2']
@@ -197,7 +199,7 @@ dswx_hls_landcover_classes_dict = {
     'evergreen_forest': 201,
 
     # fill value (not masked)
-    'fill_value': 255}
+    'fill_value': UINT8_FILL_VALUE}
 
 landcover_threshold_dict = {"standard": [6, 3, 7, 3],
                             "water heavy": [6, 3, 7, 1]}
@@ -962,7 +964,7 @@ def _get_interpreted_dswx_ctable(
     dswx_ctable.SetColorEntry(9, (127, 127, 127))
 
     # Black - Fill value
-    dswx_ctable.SetColorEntry(255, (0, 0, 0, 255))
+    dswx_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
 
     return dswx_ctable
 
@@ -1000,7 +1002,7 @@ def _get_cloud_mask_ctable():
     # Light blue - Cloud, cloud shadow, and snow/ice
     mask_ctable.SetColorEntry(7, (127, 127, 255))
     # Black - Fill value
-    mask_ctable.SetColorEntry(255, (0, 0, 0, 255))
+    mask_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return mask_ctable
 
 
@@ -1133,8 +1135,9 @@ def _get_binary_water_layer(interpreted_water_layer):
        binary_water_layer : numpy.ndarray
             Binary water layer
     """
-    # fill value: 255
-    binary_water_layer = np.full_like(interpreted_water_layer, 255)
+    # fill value
+    binary_water_layer = np.full_like(interpreted_water_layer,
+                                      UINT8_FILL_VALUE)
 
     # water classes: 0
     ind = np.where(interpreted_water_layer == 0)
@@ -1176,7 +1179,7 @@ def _get_confidence_layer(interpreted_layer,
         confidence_layer_classes = wtr_confidence_dict
     else:
         confidence_layer_classes = wtr_confidence_non_collapsed_dict
-    confidence_layer = np.full_like(interpreted_layer, 255)
+    confidence_layer = np.full_like(interpreted_layer, UINT8_FILL_VALUE)
     for original_value, new_value in confidence_layer_classes.items():
         ind = np.where(interpreted_layer == original_value)
         confidence_layer[ind] = new_value
@@ -1634,7 +1637,7 @@ def _get_binary_mask_ctable():
     # Not masked
     binary_mask_ctable.SetColorEntry(1, (255, 255, 255))
     # Black - Fill value
-    binary_mask_ctable.SetColorEntry(255, (0, 0, 0, 255))
+    binary_mask_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return binary_mask_ctable
 
 
@@ -1655,7 +1658,7 @@ def _get_binary_water_ctable():
     # Gray - QA masked
     binary_water_ctable.SetColorEntry(9, (127, 127, 127))
     # Black - Fill value
-    binary_water_ctable.SetColorEntry(255, (0, 0, 0, 255))
+    binary_water_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return binary_water_ctable
 
 
@@ -1683,7 +1686,7 @@ def _get_confidence_layer_ctable():
     confidence_layer_ctable.SetColorEntry(254, (127, 127, 127))
 
     # Black - Fill value
-    confidence_layer_ctable.SetColorEntry(255, (0, 0, 0, 255))
+    confidence_layer_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return confidence_layer_ctable
 
 def _collapse_wtr_classes(interpreted_layer):
@@ -1701,8 +1704,8 @@ def _collapse_wtr_classes(interpreted_layer):
        collapsed_interpreted_layer: np.ndarray
               Interpreted layer with collapsed classes
     """
-    fill_value = 255
-    collapsed_interpreted_layer = np.full_like(interpreted_layer, fill_value)
+    collapsed_interpreted_layer = np.full_like(interpreted_layer,
+                                               UINT8_FILL_VALUE)
     for original_value, new_value in collapse_wtr_classes_dict.items():
         ind = np.where(interpreted_layer == original_value)
         collapsed_interpreted_layer[ind] = new_value
@@ -1799,7 +1802,7 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
             band_array = _collapse_wtr_classes(band_array)
 
         gdal_band.WriteArray(band_array)
-        gdal_band.SetNoDataValue(255)
+        gdal_band.SetNoDataValue(UINT8_FILL_VALUE)
         if n_valid_bands == 1:
             # set color table and color interpretation
             dswx_ctable = _get_interpreted_dswx_ctable()
@@ -1857,7 +1860,7 @@ def save_cloud_mask(mask, output_file, dswx_metadata_dict, geotransform, project
     gdal_ds.SetProjection(projection)
     mask_band = gdal_ds.GetRasterBand(1)
     mask_band.WriteArray(mask)
-    mask_band.SetNoDataValue(255)
+    mask_band.SetNoDataValue(UINT8_FILL_VALUE)
 
     # set color table and color interpretation
     mask_ctable = _get_cloud_mask_ctable()
@@ -1911,7 +1914,7 @@ def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
     gdal_ds.SetProjection(projection)
     binary_water_band = gdal_ds.GetRasterBand(1)
     binary_water_band.WriteArray(binary_water_layer)
-    binary_water_band.SetNoDataValue(255)
+    binary_water_band.SetNoDataValue(UINT8_FILL_VALUE)
 
     # set color table and color interpretation
     binary_water_ctable = _get_binary_water_ctable()
@@ -2980,7 +2983,7 @@ def generate_dswx_layers(input_list,
             length, width, dswx_metadata_dict = dswx_metadata_dict,
             output_files_list=build_vrt_list, temp_files_list=temp_files_list)
 
-    # Set invalid pixels to fill value (255)
+    # Set array of invalid pixels
     if not flag_offset_and_scale_inputs:
         invalid_ind = np.where(blue < -5000)
     else:
@@ -3029,7 +3032,7 @@ def generate_dswx_layers(input_list,
 
 
     if invalid_ind is not None:
-        interpreted_dswx_band[invalid_ind] = 255
+        interpreted_dswx_band[invalid_ind] = UINT8_FILL_VALUE
 
     if output_non_masked_dswx:
         save_dswx_product(interpreted_dswx_band,
@@ -3058,9 +3061,9 @@ def generate_dswx_layers(input_list,
         landcover_shadow_masked_dswx, qa)
 
     if invalid_ind is not None:
-        # Set invalid pixels to mask fill value (255)
-        cloud[invalid_ind] = 255
-        masked_dswx_band[invalid_ind] = 255
+        # Set invalid pixels to mask fill value
+        cloud[invalid_ind] = UINT8_FILL_VALUE
+        masked_dswx_band[invalid_ind] = UINT8_FILL_VALUE
 
     if output_interpreted_band:
         save_dswx_product(masked_dswx_band,
@@ -3100,7 +3103,7 @@ def generate_dswx_layers(input_list,
                     description=band_description_dict['CONF'],
                     output_files_list=build_vrt_list,
                     ctable=confidence_layer_ctable,
-                    no_data_value=255)
+                    no_data_value=UINT8_FILL_VALUE)
 
     # save output_file as GeoTIFF
     if output_file and not output_file.endswith('.vrt'):
