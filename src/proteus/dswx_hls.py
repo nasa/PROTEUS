@@ -603,7 +603,7 @@ def _update_landcover_array(conglomerate_array, agg_sum, threshold,
 def create_landcover_mask(copernicus_landcover_file,
                           worldcover_file, output_file, scratch_dir,
                           mask_type, geotransform, projection, length, width,
-                          dswx_metadata_dict = {}, output_files_list = None,
+                          dswx_metadata_dict = None, output_files_list = None,
                           temp_files_list = None):
     """
     Create landcover mask LAND combining Copernicus Global Land Service
@@ -1943,7 +1943,8 @@ def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
     shape = input_array.shape
     driver = gdal.GetDriverByName("GTiff")
     gdal_ds = driver.Create(output_file, shape[1], shape[0], 1, output_dtype)
-    gdal_ds.SetMetadata(dswx_metadata_dict)
+    if dswx_metadata_dict is not None:
+        gdal_ds.SetMetadata(dswx_metadata_dict)
     gdal_ds.SetGeoTransform(geotransform)
     gdal_ds.SetProjection(projection)
     raster_band = gdal_ds.GetRasterBand(1)
