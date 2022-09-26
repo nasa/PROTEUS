@@ -101,15 +101,37 @@ interpreted_dswx_band_dict = {
 
 FLAG_COLLAPSE_WTR_CLASSES = True
 
+# Not-water classes
+WTR_NOT_WATER = 0
+
+# Water classes
+BWTR_WATER = 1
+WTR_COLLAPSED_OPEN_WATER = 1
+WTR_COLLAPSED_PARTIAL_SURFACE_WATER = 2
+WTR_UNCOLLAPSED_HIGH_CONF_WATER = 1
+WTR_UNCOLLAPSED_MODERATE_CONF_WATER = 2
+WTR_UNCOLLAPSED_POTENTIAL_WETLAND = 3
+WTR_UNCOLLAPSED_LOW_CONF_WATER = 4
+
+FIRST_UNCOLLAPSED_WATER_CLASS = 1
+LAST_UNCOLLAPSED_WATER_CLASS = 4
+
+# Cloud/cloud-shadow masked classes
+WTR_CLOUD_MASKED = 9
+
+# Shadow mask
+SHAD_NOT_MASKED = 1
+SHAD_MASKED = 0
+
 
 '''
 Internally, DSWx-HLS has 4 water classes derived from
 USGS DSWe:
 
-1. high confidence-water;
-2. moderate-confidence water;
-3. potential wetland;
-4. low-confidence water or wetland.
+1. High-confidence water;
+2. Moderate-confidence water;
+3. Potential wetland;
+4. Low-confidence water or wetland.
 
 These classes are collapsed into 2 classes when DSWx-HLS
 WTR layers are saved:
@@ -117,12 +139,12 @@ WTR layers are saved:
 2. Partial surface water.
 '''
 collapse_wtr_classes_dict = {
-    0: 0,
-    1: 1,
-    2: 1,
-    3: 2,
-    4: 2,
-    9: 9,
+    WTR_NOT_WATER: WTR_NOT_WATER,
+    WTR_UNCOLLAPSED_HIGH_CONF_WATER: WTR_COLLAPSED_OPEN_WATER,
+    WTR_UNCOLLAPSED_MODERATE_CONF_WATER: WTR_COLLAPSED_OPEN_WATER,
+    WTR_UNCOLLAPSED_POTENTIAL_WETLAND: WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
+    WTR_UNCOLLAPSED_LOW_CONF_WATER: WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
+    WTR_CLOUD_MASKED: WTR_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
@@ -131,10 +153,10 @@ Dictionary containing the mapping from the output 2-water classes
 (after collapsing) to confidence values in percent
 '''
 wtr_confidence_dict = {
-    0: 0,
-    1: 85,
-    2: 70,
-    9: 254,
+    WTR_NOT_WATER: 0,
+    WTR_COLLAPSED_OPEN_WATER: 85,
+    WTR_COLLAPSED_PARTIAL_SURFACE_WATER: 70,
+    WTR_CLOUD_MASKED: 254,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
@@ -143,12 +165,12 @@ Dictionary containing the mapping from the original 4-water classes
 (before collapsing) to confidence values in percent
 '''
 wtr_confidence_non_collapsed_dict = {
-    0: 0,
-    1: 95,
-    2: 70,
-    3: 80,
-    4: 60,
-    9: 254,
+    WTR_NOT_WATER: 0,
+    WTR_UNCOLLAPSED_HIGH_CONF_WATER: 95,
+    WTR_UNCOLLAPSED_MODERATE_CONF_WATER: 70,
+    WTR_UNCOLLAPSED_POTENTIAL_WETLAND: 80,
+    WTR_UNCOLLAPSED_LOW_CONF_WATER: 60,
+    WTR_CLOUD_MASKED: 254,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
@@ -889,16 +911,18 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
     # apply shadow mask - shadows are set to 0 (not water)
     if shadow_layer is not None and landcover_mask is None:
         logger.info('applying shadow mask:')
-        to_mask_ind = np.where((shadow_layer == 0) &
-            ((interpreted_layer >= 1) | (interpreted_layer <= 4)))
-        landcover_shadow_masked_dswx[to_mask_ind] = 0
+        to_mask_ind = np.where((shadow_layer == SHAD_MASKED) &
+            ((interpreted_layer >= FIRST_UNCOLLAPSED_WATER_CLASS) |
+             (interpreted_layer <= LAST_UNCOLLAPSED_WATER_CLASS)))
+        landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     elif shadow_layer is not None:
         logger.info('applying shadow mask (with landcover):')
-        to_mask_ind = np.where((shadow_layer == 0) &
+        to_mask_ind = np.where((shadow_layer == SHAD_MASKED) &
             (~_is_landcover_class_water_or_wetland(landcover_mask)) &
-            ((interpreted_layer >= 1) & (interpreted_layer <= 4)))
-        landcover_shadow_masked_dswx[to_mask_ind] = 0
+            ((interpreted_layer >= FIRST_UNCOLLAPSED_WATER_CLASS) &
+             (interpreted_layer <= LAST_UNCOLLAPSED_WATER_CLASS)))
+        landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     if landcover_mask is None:
         return landcover_shadow_masked_dswx
@@ -908,22 +932,25 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
     # Check landcover (evergreen)
     to_mask_ind = np.where(
         _is_landcover_class_evergreen(landcover_mask) &
-        (nir > landcover_nir_threshold) & ((interpreted_layer == 3) |
-                                           (interpreted_layer == 4)))
-    landcover_shadow_masked_dswx[to_mask_ind] = 0
+        (nir > landcover_nir_threshold) &
+         ((interpreted_layer == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) |
+          (interpreted_layer == WTR_UNCOLLAPSED_LOW_CONF_WATER)))
+    landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     # Check landcover (low intensity developed)
     to_mask_ind = np.where(
         _is_landcover_class_low_intensity_developed(landcover_mask) &
-        (nir > landcover_nir_threshold) & ((interpreted_layer == 3) |
-                                           (interpreted_layer == 4)))
-    landcover_shadow_masked_dswx[to_mask_ind] = 0
+        (nir > landcover_nir_threshold) &
+         ((interpreted_layer == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) |
+          (interpreted_layer == WTR_UNCOLLAPSED_LOW_CONF_WATER)))
+    landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     # Check landcover (high intensity developed)
     to_mask_ind = np.where(
         _is_landcover_class_high_intensity_developed(landcover_mask) &
-        ((interpreted_layer >= 1) & (interpreted_layer <= 4)))
-    landcover_shadow_masked_dswx[to_mask_ind] = 0
+        ((interpreted_layer >= FIRST_UNCOLLAPSED_WATER_CLASS) &
+         (interpreted_layer <= LAST_UNCOLLAPSED_WATER_CLASS)))
+    landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     return landcover_shadow_masked_dswx
 
@@ -950,22 +977,31 @@ def _get_interpreted_dswx_ctable(
     # set color for each value
 
     # White - Not water
-    dswx_ctable.SetColorEntry(0, (255, 255, 255))
-    # Blue - Water (high confidence)
-    dswx_ctable.SetColorEntry(1, (0, 0, 255))
+    dswx_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 255))
+
     if flag_collapse_wtr_classes:
-        # Green - Low confidence water or wetland
-        dswx_ctable.SetColorEntry(2, (0, 255, 0))
+        # Blue - Open water
+        dswx_ctable.SetColorEntry(WTR_COLLAPSED_OPEN_WATER,
+                                  (0, 0, 255)) 
+        # Green - Partial surface water
+        dswx_ctable.SetColorEntry(WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
+                                  (0, 255, 0))
     else:
+        # Blue - Water (high confidence)
+        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_HIGH_CONF_WATER,
+                                  (0, 0, 255)) 
         # Light blue - Water (moderate conf.)
-        dswx_ctable.SetColorEntry(2, (0, 127, 255))
+        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_MODERATE_CONF_WATER,
+                                  (0, 127, 255))
         # Dark green - Potential wetland
-        dswx_ctable.SetColorEntry(3, (0, 127, 0))
+        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_POTENTIAL_WETLAND,
+                                  (0, 127, 0))
         # Green - Low confidence water or wetland
-        dswx_ctable.SetColorEntry(4, (0, 255, 0))
+        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_LOW_CONF_WATER,
+                                  (0, 255, 0))
 
     # Gray - QA masked
-    dswx_ctable.SetColorEntry(9, (127, 127, 127))
+    dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
 
     # Black - Fill value
     dswx_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
@@ -1143,18 +1179,17 @@ def _get_binary_water_layer(interpreted_water_layer):
     binary_water_layer = np.full_like(interpreted_water_layer,
                                       UINT8_FILL_VALUE)
 
-    # water classes: 0
-    ind = np.where(interpreted_water_layer == 0)
-    binary_water_layer[ind] = 0
+    # water classes
+    binary_water_layer[interpreted_water_layer == WTR_NOT_WATER] = \
+        WTR_NOT_WATER
 
     # water classes: 1 to 4
     for class_value in range(1, 5):
-        ind = np.where(interpreted_water_layer == class_value)
-        binary_water_layer[ind] = 1
+        binary_water_layer[interpreted_water_layer == class_value] = BWTR_WATER
 
-    # Q/A masked: 9
-    ind = np.where(interpreted_water_layer == 9)
-    binary_water_layer[ind] = 9
+    # Q/A masked
+    binary_water_layer[interpreted_water_layer == WTR_CLOUD_MASKED] = \
+        WTR_CLOUD_MASKED
 
     return binary_water_layer
 
@@ -1332,7 +1367,7 @@ def _compute_mask_and_filter_interpreted_layer(
                 mask[i, j] += 4
 
             if mask[i, j] != 0:
-                masked_interpreted_water_layer[i, j] = 9
+                masked_interpreted_water_layer[i, j] = WTR_CLOUD_MASKED
 
             # Check QA snow bit (4) => bit 1
             if np.bitwise_and(2**4, qa_band[i, j]):
@@ -1636,9 +1671,9 @@ def _get_binary_mask_ctable():
     # create color table
     binary_mask_ctable = gdal.ColorTable()
     # Masked
-    binary_mask_ctable.SetColorEntry(0, (64, 64, 64))
+    binary_mask_ctable.SetColorEntry(SHAD_NOT_MASKED, (64, 64, 64))
     # Not masked
-    binary_mask_ctable.SetColorEntry(1, (255, 255, 255))
+    binary_mask_ctable.SetColorEntry(SHAD_MASKED, (255, 255, 255))
     # Black - Fill value
     binary_mask_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return binary_mask_ctable
@@ -1655,11 +1690,11 @@ def _get_binary_water_ctable():
     # create color table
     binary_water_ctable = gdal.ColorTable()
     # No water
-    binary_water_ctable.SetColorEntry(0, (255, 255, 255))
+    binary_water_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 255))
     # Water
-    binary_water_ctable.SetColorEntry(1, (0, 0, 255))
+    binary_water_ctable.SetColorEntry(BWTR_WATER, (0, 0, 255))
     # Gray - QA masked
-    binary_water_ctable.SetColorEntry(9, (127, 127, 127))
+    binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
     # Black - Fill value
     binary_water_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return binary_water_ctable
