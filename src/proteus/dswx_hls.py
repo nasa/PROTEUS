@@ -2643,7 +2643,7 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
     return shadow_mask
 
 
-def _binary_repr(diagnostic_layer_decimal):
+def _binary_repr(diagnostic_layer_decimal, nbits=6):
     """
     Return the binary representation of the diagnostic layer in decimal
     representation.
@@ -2652,6 +2652,9 @@ def _binary_repr(diagnostic_layer_decimal):
        ----------
        diagnostic_layer_decimal: np.ndarray
               Diagnostic layer in decimal representation
+       nbits: int
+              Number of bits. Default: 6 (number of bits of
+              interpreted_dswx_band_dict 5 plus 1)
 
        Returns
        -------
@@ -2659,7 +2662,6 @@ def _binary_repr(diagnostic_layer_decimal):
               Diagnostic layer in binary representation
     """
 
-    nbits = 6
     diagnostic_layer_binary = np.zeros_like(diagnostic_layer_decimal,
                                             dtype=np.uint16)
 
