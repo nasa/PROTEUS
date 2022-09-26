@@ -105,7 +105,7 @@ FLAG_COLLAPSE_WTR_CLASSES = True
 WTR_NOT_WATER = 0
 
 # Water classes
-BWTR_WATER = 1
+
 WTR_COLLAPSED_OPEN_WATER = 1
 WTR_COLLAPSED_PARTIAL_SURFACE_WATER = 2
 WTR_UNCOLLAPSED_HIGH_CONF_WATER = 1
@@ -123,6 +123,10 @@ WTR_CLOUD_MASKED = 9
 SHAD_NOT_MASKED = 1
 SHAD_MASKED = 0
 
+# Other classes
+BWTR_WATER = 1
+CONF_NOT_WATER = 0
+CONF_CLOUD_MASKED = 254
 
 '''
 Internally, DSWx-HLS has 4 water classes derived from
@@ -153,10 +157,10 @@ Dictionary containing the mapping from the output 2-water classes
 (after collapsing) to confidence values in percent
 '''
 wtr_confidence_dict = {
-    WTR_NOT_WATER: 0,
+    WTR_NOT_WATER: CONF_NOT_WATER,
     WTR_COLLAPSED_OPEN_WATER: 85,
     WTR_COLLAPSED_PARTIAL_SURFACE_WATER: 70,
-    WTR_CLOUD_MASKED: 254,
+    WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
@@ -165,12 +169,12 @@ Dictionary containing the mapping from the original 4-water classes
 (before collapsing) to confidence values in percent
 '''
 wtr_confidence_non_collapsed_dict = {
-    WTR_NOT_WATER: 0,
+    WTR_NOT_WATER: CONF_NOT_WATER,
     WTR_UNCOLLAPSED_HIGH_CONF_WATER: 95,
     WTR_UNCOLLAPSED_MODERATE_CONF_WATER: 70,
     WTR_UNCOLLAPSED_POTENTIAL_WETLAND: 80,
     WTR_UNCOLLAPSED_LOW_CONF_WATER: 60,
-    WTR_CLOUD_MASKED: 254,
+    WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
@@ -1721,7 +1725,7 @@ def _get_confidence_layer_ctable():
                          255))
 
     # Gray - QA masked
-    confidence_layer_ctable.SetColorEntry(254, (127, 127, 127))
+    confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED, (127, 127, 127))
 
     # Black - Fill value
     confidence_layer_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
