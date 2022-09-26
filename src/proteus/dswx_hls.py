@@ -95,6 +95,21 @@ interpreted_dswx_band_dict = {
 
 FLAG_COLLAPSE_WTR_CLASSES = True
 
+
+'''
+Internally, DSWx-HLS has 4 water classes derived from
+USGS DSWe:
+
+1. high confidence-water;
+2. moderate-confidence water;
+3. potential wetland;
+4. low-confidence water or wetland.
+
+These classes are collapsed into 2 classes when DSWx-HLS
+WTR layers are saved:
+1. Open water;
+2. Partial surface water.
+'''
 collapse_wtr_classes_dict = {
     0: 0,
     1: 1,
@@ -105,6 +120,10 @@ collapse_wtr_classes_dict = {
     255: 255
 }
 
+'''
+Dictionary containing the mapping from the output 2-water classes
+(after collapsing) to confidence values in percent
+'''
 wtr_confidence_dict = {
     0: 0,
     1: 85,
@@ -113,6 +132,10 @@ wtr_confidence_dict = {
     255: 255
 }
 
+'''
+Dictionary containing the mapping from the original 4-water classes
+(before collapsing) to confidence values in percent
+'''
 wtr_confidence_non_collapsed_dict = {
     0: 0,
     1: 95,
