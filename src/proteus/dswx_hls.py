@@ -651,7 +651,7 @@ def create_landcover_mask(copernicus_landcover_file,
     # Reproject Copernicus land cover
     copernicus_landcover_reprojected_file = os.path.join(
         scratch_dir, 'copernicus_reprojected.tif')
-    copernicus_landcover_array = _relocate(copernicus_landcover_file,
+    copernicus_landcover_array = _warp(copernicus_landcover_file,
         geotransform, projection,
         length, width, scratch_dir, resample_algorithm='nearest',
         relocated_file=copernicus_landcover_reprojected_file,
@@ -666,7 +666,7 @@ def create_landcover_mask(copernicus_landcover_file,
     width_up_3 = 3 * width
     worldcover_reprojected_up_3_file = os.path.join(
         scratch_dir, 'worldcover_reprojected_up_3.tif')
-    worldcover_array_up_3 = _relocate(worldcover_file, geotransform_up_3,
+    worldcover_array_up_3 = _warp(worldcover_file, geotransform_up_3,
         projection, length_up_3, width_up_3, scratch_dir,
         resample_algorithm='nearest',
         relocated_file=worldcover_reprojected_up_3_file,
@@ -2093,7 +2093,7 @@ def get_projection_proj4(projection):
     return projection_proj4
 
 
-def _relocate(input_file, geotransform, projection,
+def _warp(input_file, geotransform, projection,
               length, width, scratch_dir = '.',
               resample_algorithm='nearest',
               relocated_file=None, margin_in_pixels=0,
@@ -2865,7 +2865,7 @@ def generate_dswx_layers(input_list,
             dir=scratch_dir, suffix='.tif').name
         if temp_files_list is not None:
             temp_files_list.append(dem_cropped_file)
-        dem_with_margin = _relocate(dem_file, geotransform, projection,
+        dem_with_margin = _warp(dem_file, geotransform, projection,
                                     length, width, scratch_dir,
                                     resample_algorithm='cubic',
                                     relocated_file=dem_cropped_file,
