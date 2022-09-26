@@ -2643,7 +2643,7 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
     return shadow_mask
 
 
-def _binary_repr(diagnostic_layer_decimal, nbits=6):
+def _get_binary_representation(diagnostic_layer_decimal, nbits=6):
     """
     Return the binary representation of the diagnostic layer in decimal
     representation.
@@ -2973,7 +2973,7 @@ def generate_dswx_layers(input_list,
     interpreted_dswx_band = generate_interpreted_layer(
         diagnostic_layer_decimal)
     
-    diagnostic_layer = _binary_repr(diagnostic_layer_decimal)
+    diagnostic_layer = _get_binary_representation(diagnostic_layer_decimal)
     del diagnostic_layer_decimal
 
     if output_diagnostic_layer:
