@@ -1701,7 +1701,8 @@ def _collapse_wtr_classes(interpreted_layer):
        collapsed_interpreted_layer: np.ndarray
               Interpreted layer with collapsed classes
     """
-    collapsed_interpreted_layer = np.full_like(interpreted_layer, 255)
+    fill_value = 255
+    collapsed_interpreted_layer = np.full_like(interpreted_layer, fill_value)
     for original_value, new_value in collapse_wtr_classes_dict.items():
         ind = np.where(interpreted_layer == original_value)
         collapsed_interpreted_layer[ind] = new_value
