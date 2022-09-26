@@ -2132,14 +2132,24 @@ def _warp(input_file, geotransform, projection,
        relocated_array : numpy.ndarray
               Relocated array
     """
+
+    # Pixel spacing
     dy = geotransform[5]
     dx = geotransform[1]
+
+    # Y-coordinate start (North) position with margin
     y0 = geotransform[3] - margin_in_pixels * dy
+
+    # X-coordinate start (West) position with margin
     x0 = geotransform[0] - margin_in_pixels * dx
 
+    # Y-coordinate end (South) position with margin
     yf = y0 + (length + 2 * margin_in_pixels) * dy
+
+    # X-coordinate end (East) position with margin
     xf = x0 + (width + 2 * margin_in_pixels) * dx
 
+    # Set output spatial reference system (SRS) from projection
     dstSRS = get_projection_proj4(projection)
 
     if relocated_file is None:
