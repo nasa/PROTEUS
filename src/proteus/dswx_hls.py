@@ -2673,6 +2673,26 @@ def _get_binary_representation(diagnostic_layer_decimal, nbits=6):
     return diagnostic_layer_binary
 
 
+def _crop_2d_array_all_sides(input_2d_array, margin):
+    """
+    Crops 2-D array by margin on top, bottom, left, and right.
+
+       Parameters
+       ----------
+       input_2d_array: np.ndarray
+              2-D array to be cropped
+       margin: int
+              The amount to crop arr from all four sides
+
+       Returns
+       -------
+       cropped_2d_array: np.ndarray
+              Cropped 2-D array
+    """
+    cropped_2d_array = input_2d_array[margin:-margin, margin:-margin]
+    return cropped_2d_array
+
+
 def generate_dswx_layers(input_list,
                          output_file = None,
                          hls_thresholds = None,
@@ -2899,14 +2919,12 @@ def generate_dswx_layers(input_list,
                 max_sun_inc_angle = max_sun_inc_angle)
 
         # remove extra margin from shadow_layer
-        shadow_layer = shadow_layer_with_margin[
-            DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS,
-            DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS]
+        shadow_layer = _crop_2d_array_all_sides(shadow_layer_with_margin,
+                                                DEM_MARGIN_IN_PIXELS)
         del shadow_layer_with_margin
 
         # remove extra margin from DEM
-        dem = dem_with_margin[DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS,
-                              DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS]
+        dem = _crop_2d_array_all_sides(dem_with_margin, DEM_MARGIN_IN_PIXELS)
         del dem_with_margin
         if output_dem_layer is not None:
            _save_array(dem, output_dem_layer,
