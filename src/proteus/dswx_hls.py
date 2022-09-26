@@ -21,7 +21,11 @@ COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE = 1e-6
 
 UINT8_FILL_VALUE = 255
 
-DEM_MARGIN_IN_PIXELS = 10
+'''
+Extra margin to accomodate use of any interpolation method and other
+operations taking place near the edge of the DEM
+'''
+DEM_MARGIN_IN_PIXELS = 50
 
 logger = logging.getLogger('dswx_hls')
 
