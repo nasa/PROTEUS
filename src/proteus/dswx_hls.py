@@ -1185,8 +1185,7 @@ def _get_confidence_layer(interpreted_layer,
         confidence_layer_classes = wtr_confidence_non_collapsed_dict
     confidence_layer = np.full_like(interpreted_layer, UINT8_FILL_VALUE)
     for original_value, new_value in confidence_layer_classes.items():
-        ind = np.where(interpreted_layer == original_value)
-        confidence_layer[ind] = new_value
+        confidence_layer[interpreted_layer == original_value] = new_value
     return confidence_layer
 
 
@@ -1711,8 +1710,8 @@ def _collapse_wtr_classes(interpreted_layer):
     collapsed_interpreted_layer = np.full_like(interpreted_layer,
                                                UINT8_FILL_VALUE)
     for original_value, new_value in collapse_wtr_classes_dict.items():
-        ind = np.where(interpreted_layer == original_value)
-        collapsed_interpreted_layer[ind] = new_value
+        collapsed_interpreted_layer[interpreted_layer == original_value] = \
+            new_value
     return collapsed_interpreted_layer
 
 
