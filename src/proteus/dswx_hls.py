@@ -100,6 +100,7 @@ interpreted_dswx_band_dict = {
 }
 
 FLAG_COLLAPSE_WTR_CLASSES = True
+FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 
 # Not-water classes
 WTR_NOT_WATER = 0
@@ -125,7 +126,7 @@ SHAD_MASKED = 0
 
 # Other classes
 BWTR_WATER = 1
-CONF_NOT_WATER = 0
+CONF_NOT_WATER = 99
 CONF_CLOUD_MASKED = 254
 
 '''
@@ -171,8 +172,8 @@ Dictionary containing the mapping from the original 4-water classes
 wtr_confidence_non_collapsed_dict = {
     WTR_NOT_WATER: CONF_NOT_WATER,
     WTR_UNCOLLAPSED_HIGH_CONF_WATER: 95,
-    WTR_UNCOLLAPSED_MODERATE_CONF_WATER: 70,
-    WTR_UNCOLLAPSED_POTENTIAL_WETLAND: 80,
+    WTR_UNCOLLAPSED_MODERATE_CONF_WATER: 80,
+    WTR_UNCOLLAPSED_POTENTIAL_WETLAND: 70,
     WTR_UNCOLLAPSED_LOW_CONF_WATER: 60,
     WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
@@ -231,6 +232,10 @@ dswx_hls_landcover_classes_dict = {
     # fill value (not masked)
     'fill_value': UINT8_FILL_VALUE}
 
+'''
+Dict of landcover threshold list:
+  [evergreen, low-intensity developed, high-intensity developed, water/wetland]
+'''
 landcover_threshold_dict = {"standard": [6, 3, 7, 3],
                             "water heavy": [6, 3, 7, 1]}
 
@@ -650,7 +655,7 @@ def _update_landcover_array(conglomerate_array, agg_sum, threshold,
         classification_val):
     flat_agg = agg_sum.reshape(-1)
     for position, value in enumerate(flat_agg):
-        if value > threshold:
+        if value >= threshold:
             conglomerate_array[position] = classification_val
     return
 
@@ -713,7 +718,7 @@ def create_landcover_mask(copernicus_landcover_file,
         temp_files_list=temp_files_list)
     temp_files_list.append(copernicus_landcover_reprojected_file)
 
-    # Reproject ESA Worldcover 10m
+    # Reproject ESA Worldcover 10m from geographic (lat/lon) to MGRS (UTM) 10m
     geotransform_up_3 = list(geotransform)
     geotransform_up_3[1] = geotransform[1] / 3  # dx / 3
     geotransform_up_3[5] = geotransform[5] / 3  # dy / 3
@@ -734,14 +739,17 @@ def create_landcover_mask(copernicus_landcover_file,
 
     # Create water mask
     logger.info(f'Creating water mask')
+    # WorldCover class 80: permanent water bodies
+    # WorldCover class 90: herbaceous wetland
     water_binary_mask = np.where((worldcover_array_up_3 == 80) |
                                  (worldcover_array_up_3 == 90), 1, 0)
-    h20_aggregate_sum = decimate_by_summation(water_binary_mask,
+    water_aggregate_sum = decimate_by_summation(water_binary_mask,
                                               size_y, size_x)
     del water_binary_mask
 
     # Create urban-areas mask
     logger.info(f'Creating urban-areas mask')
+    # WorldCover class 50: built-up
     urban_binary_mask = np.where((worldcover_array_up_3 == 50) , 1, 0)
     urban_aggregate_sum = decimate_by_summation(urban_binary_mask,
                                                 size_y, size_x)
@@ -749,6 +757,7 @@ def create_landcover_mask(copernicus_landcover_file,
 
     # Create vegetation mask
     logger.info(f'Creating vegetation mask')
+    # WorldCover class 10: tree cover
     tree_binary_mask  = np.where((worldcover_array_up_3 == 10) , 1, 0)
     del worldcover_array_up_3
     tree_aggregate_sum = decimate_by_summation(tree_binary_mask,
@@ -762,7 +771,7 @@ def create_landcover_mask(copernicus_landcover_file,
     # create array filled with 30000
     landcover_fill_value = \
         dswx_hls_landcover_classes_dict['fill_value']
-    hierarchy_combined = np.full(h20_aggregate_sum.reshape(-1).shape,
+    hierarchy_combined = np.full(water_aggregate_sum.reshape(-1).shape,
         landcover_fill_value, dtype=np.uint8)
 
     # load threshold list according to `mask_type`
@@ -792,10 +801,10 @@ def create_landcover_mask(copernicus_landcover_file,
     # water where 1/3 or more pixels
     water_class = \
         dswx_hls_landcover_classes_dict['water']
-    _update_landcover_array(hierarchy_combined, h20_aggregate_sum,
+    _update_landcover_array(hierarchy_combined, water_aggregate_sum,
                             threshold_list[3], water_class)
     
-    hierarchy_combined = hierarchy_combined.reshape(h20_aggregate_sum.shape)
+    hierarchy_combined = hierarchy_combined.reshape(water_aggregate_sum.shape)
 
     ctable = _get_landcover_mask_ctable()
     
@@ -1256,10 +1265,6 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
        diagnostic_layer : numpy.ndarray
             Diagnostic test band
     """
-    # Temporarily supress RuntimeWarnings:
-    # - divide by zero encountered in true_divide
-    # - invalid value encountered in true_divide
-    old_settings = np.seterr(invalid='ignore', divide='ignore')
 
     # Modified Normalized Difference Wetness Index (MNDWI)
     mndwi = (green - swir1)/(green + swir1)
@@ -1275,9 +1280,6 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
 
     # Normalized Difference Vegetation Index (NDVI)
     ndvi = (nir - red) / (nir + red)
-
-    # Restore numpy RuntimeWarnings settings
-    np.seterr(**old_settings)
 
     # Diagnostic test band
     shape = blue.shape
@@ -1527,6 +1529,8 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
                 xoff=0, yoff=0, xsize=1000, ysize=1000)
         else:
             image = layer_gdal_dataset.ReadAsArray()
+        if FLAG_CLIP_NEGATIVE_REFLECTANCE:
+            image = np.clip(image, 1, None)
         if flag_offset_and_scale_inputs:
             image = scale_factor * (np.asarray(image, dtype=np.float32) -
                                     offset)
@@ -1723,6 +1727,9 @@ def _get_confidence_layer_ctable():
             conf_value, (255 - conf_value_255,
                          255 - conf_value_255,
                          255))
+
+    # White - Not water
+    confidence_layer_ctable.SetColorEntry(CONF_NOT_WATER, (255, 255, 255))
 
     # Gray - QA masked
     confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED, (127, 127, 127))
