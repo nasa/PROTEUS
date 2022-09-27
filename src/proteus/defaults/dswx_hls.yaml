@@ -110,3 +110,6 @@ runconfig:
 
             # Partial Surface Water Test-2 SWIR2 Threshold
             pswt_2_swir2: 1000
+
+            # Land Cover Mask based test Near Infrared
+            lcmask_nir: 1200

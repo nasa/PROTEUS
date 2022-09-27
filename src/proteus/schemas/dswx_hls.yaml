@@ -134,3 +134,6 @@ hls_thresholds_options:
 
     # Partial Surface Water Test-2 SWIR2 Threshold
     pswt_2_swir2: num(required=False)
+
+    # Land Cover Mask based test Near Infrared
+    lcmask_nir: num(required=False)
