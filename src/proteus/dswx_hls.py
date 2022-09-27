@@ -1169,8 +1169,7 @@ def generate_interpreted_layer(diagnostic_layer):
     interpreted_layer = np.full(shape, 255, dtype = np.uint8)
 
     for key, value in interpreted_dswx_band_dict.items():
-        ind = np.where(diagnostic_layer == key)
-        interpreted_layer[ind] = value
+        interpreted_layer[diagnostic_layer == key] = value
 
     return interpreted_layer
 
