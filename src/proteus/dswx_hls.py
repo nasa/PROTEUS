@@ -1289,16 +1289,13 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
     # Surface water tests (see [1, 2])
 
     # Test 1 (open water test, more conservative)
-    ind = np.where(mndwi > hls_thresholds.wigt)
-    diagnostic_layer[ind] += 1
+    diagnostic_layer[mndwi > hls_thresholds.wigt] += 1
 
     # Test 2 (open water test)
-    ind = np.where(mbsrv > mbsrn)
-    diagnostic_layer[ind] += 2
+    diagnostic_layer[mbsrv > mbsrn] += 2
 
     # Test 3 (open water test)
-    ind = np.where(awesh > hls_thresholds.awgt)
-    diagnostic_layer[ind] += 4
+    diagnostic_layer[awesh > hls_thresholds.awgt] += 4
 
     # Test 4 (partial surface water test)
     ind = np.where((mndwi > hls_thresholds.pswt_1_mndwi) &
