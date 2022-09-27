@@ -79,7 +79,7 @@ runconfig:
         hls_thresholds:
 
             # Modified Normalized Difference Wetness Index (MNDWI) Threshold
-            wigt: 0.0124
+            wigt: 0.124
 
             # Automated Water Extent Shadow Threshold
             awgt: 0.0
