@@ -239,8 +239,6 @@ Dict of landcover threshold list:
 landcover_threshold_dict = {"standard": [6, 3, 7, 3],
                             "water heavy": [6, 3, 7, 1]}
 
-landcover_nir_threshold = 1200
-
 MIN_SLOPE_ANGLE = -5
 MAX_SUN_INC_ANGLE = 40
 
@@ -273,6 +271,8 @@ class HlsThresholds:
         Partial Surface Water Test-2 SWIR1 Threshold
     pswt_2_swir2 : float
         Partial Surface Water Test-2 SWIR2 Threshold
+    lcmask_nir : float
+        Land Cover Mask based test Near Infrared
     """
     def __init__(self):
 
@@ -287,6 +287,7 @@ class HlsThresholds:
         self.pswt_2_nir = None
         self.pswt_2_swir1 = None
         self.pswt_2_swir2 = None
+        self.lcmask_nir = None
 
 
 def get_dswx_hls_cli_parser():
@@ -899,7 +900,7 @@ def _is_landcover_class_high_intensity_developed(landcover_mask):
 
 
 def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
-        landcover_mask, shadow_layer):
+        landcover_mask, shadow_layer, hls_thresholds):
     """Apply landcover and shadow masks onto interpreted layer
 
        Parameters
@@ -912,6 +913,8 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
               Landcover mask
        shadow_layer: numpy.ndarray
               Shadow mask
+       hls_thresholds:
+              HLS reflectance thresholds for generating DSWx-HLS products
 
        Returns
        -------
@@ -945,7 +948,7 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
     # Check landcover (evergreen)
     to_mask_ind = np.where(
         _is_landcover_class_evergreen(landcover_mask) &
-        (nir > landcover_nir_threshold) &
+        (nir > hls_thresholds.lcmask_nir) &
          ((interpreted_layer == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) |
           (interpreted_layer == WTR_UNCOLLAPSED_LOW_CONF_WATER)))
     landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
@@ -953,7 +956,7 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
     # Check landcover (low intensity developed)
     to_mask_ind = np.where(
         _is_landcover_class_low_intensity_developed(landcover_mask) &
-        (nir > landcover_nir_threshold) &
+        (nir > hls_thresholds.lcmask_nir) &
          ((interpreted_layer == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) |
           (interpreted_layer == WTR_UNCOLLAPSED_LOW_CONF_WATER)))
     landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
@@ -3090,7 +3093,8 @@ def generate_dswx_layers(input_list,
                           output_files_list=build_vrt_list)
 
     landcover_shadow_masked_dswx = _apply_landcover_and_shadow_masks(
-        interpreted_dswx_band, nir, landcover_mask, shadow_layer)
+        interpreted_dswx_band, nir, landcover_mask, shadow_layer,
+        hls_thresholds)
 
     if output_shadow_masked_dswx is not None:
         save_dswx_product(landcover_shadow_masked_dswx,
