@@ -732,14 +732,14 @@ def create_landcover_mask(copernicus_landcover_file,
         resample_algorithm='nearest',
         relocated_file=worldcover_reprojected_up_3_file,
         temp_files_list=temp_files_list)
-    temp_files_list.append(worldcover_array_up_3)
+    temp_files_list.append(worldcover_reprojected_up_3_file)
 
     # Set multilooking parameters
     size_y = 3
     size_x = 3
 
     # Create water mask
-    logger.info(f'Creating water mask')
+    logger.info(f'creating water mask')
     # WorldCover class 80: permanent water bodies
     # WorldCover class 90: herbaceous wetland
     water_binary_mask = np.where((worldcover_array_up_3 == 80) |
@@ -749,7 +749,7 @@ def create_landcover_mask(copernicus_landcover_file,
     del water_binary_mask
 
     # Create urban-areas mask
-    logger.info(f'Creating urban-areas mask')
+    logger.info(f'creating urban-areas mask')
     # WorldCover class 50: built-up
     urban_binary_mask = np.where((worldcover_array_up_3 == 50) , 1, 0)
     urban_aggregate_sum = decimate_by_summation(urban_binary_mask,
@@ -757,7 +757,7 @@ def create_landcover_mask(copernicus_landcover_file,
     del urban_binary_mask
 
     # Create vegetation mask
-    logger.info(f'Creating vegetation mask')
+    logger.info(f'creating vegetation mask')
     # WorldCover class 10: tree cover
     tree_binary_mask  = np.where((worldcover_array_up_3 == 10) , 1, 0)
     del worldcover_array_up_3
@@ -765,7 +765,7 @@ def create_landcover_mask(copernicus_landcover_file,
                                                size_y, size_x)
     del tree_binary_mask
 
-    logger.info(f'Combining masks')
+    logger.info(f'combining masks')
     tree_aggregate_sum = np.where(copernicus_landcover_array == 111,
                                   tree_aggregate_sum, 0)
 
@@ -1362,11 +1362,6 @@ def _compute_mask_and_filter_interpreted_layer(
             if np.bitwise_and(2**3, qa_band[i, j]):
                 mask[i, j] += 1
 
-            # Check QA adjacent to cloud/cloud shadow bit (2) => bit 0
-            # Note: this line differs from original USGS DSWE ADD
-            elif np.bitwise_and(2**2, qa_band[i, j]):
-                mask[i, j] += 1
-
             # Check QA cloud bit (1) => bit 2
             if np.bitwise_and(2**1, qa_band[i, j]):
                 mask[i, j] += 4
@@ -1678,9 +1673,9 @@ def _get_binary_mask_ctable():
     # create color table
     binary_mask_ctable = gdal.ColorTable()
     # Masked
-    binary_mask_ctable.SetColorEntry(SHAD_NOT_MASKED, (64, 64, 64))
+    binary_mask_ctable.SetColorEntry(SHAD_MASKED, (64, 64, 64))
     # Not masked
-    binary_mask_ctable.SetColorEntry(SHAD_MASKED, (255, 255, 255))
+    binary_mask_ctable.SetColorEntry(SHAD_NOT_MASKED, (255, 255, 255))
     # Black - Fill value
     binary_mask_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return binary_mask_ctable
