@@ -49,6 +49,16 @@ runconfig:
             output_dir:
             product_id:
 
+        processing:
+            # Use terrain-masking based on the Otsu method
+            flag_use_otsu_terrain_masking: False
+
+            # Minimum slope angle in degrees for terrain masking
+            min_slope_angle: -5
+
+            # Maximum sun local-incidence angle in degrees for terrain masking
+            max_sun_local_inc_angle: 40
+
             save_wtr: True    # Layer 1 - WTR
             save_bwtr: True   # Layer 2 - BWTR
             save_conf: True   # Layer 3 - CONF
@@ -86,7 +96,7 @@ runconfig:
         hls_thresholds:
 
             # Modified Normalized Difference Wetness Index (MNDWI) Threshold
-            wigt: 0.0124
+            wigt: 0.124
 
             # Automated Water Extent Shadow Threshold
             awgt: 0.0
@@ -117,3 +127,6 @@ runconfig:
 
             # Partial Surface Water Test-2 SWIR2 Threshold
             pswt_2_swir2: 1000
+
+            # Land Cover Mask based test Near Infrared
+            lcmask_nir: 1200

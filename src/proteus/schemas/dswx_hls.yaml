@@ -50,6 +50,16 @@ runconfig:
             output_dir: str()
             product_id: str()
 
+        processing:
+            # Use terrain-masking based on the Otsu method
+            flag_use_otsu_terrain_masking: bool(required=False)
+
+            # Minimum slope angle in degrees for terrain masking
+            min_slope_angle: num(min=-180, max=180, required=False)
+
+            # Maximum sun local-incidence angle in degrees for terrain masking
+            max_sun_local_inc_angle: num(min=-180, max=180, required=False)
+
             # Layer 1 - WTR
             save_wtr: bool(required=False)
 
@@ -139,3 +149,6 @@ hls_thresholds_options:
 
     # Partial Surface Water Test-2 SWIR2 Threshold
     pswt_2_swir2: num(required=False)
+
+    # Land Cover Mask based test Near Infrared
+    lcmask_nir: num(required=False)
