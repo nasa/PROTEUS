@@ -89,6 +89,7 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
         logger.warning(f'file "{filename}" is NOT a valid cloud'
                        f' optimized GeoTIFF!')
 
+
 def get_geographic_boundaries_from_mgrs_tile(mgrs_tile_name, verbose=False):
 
     import mgrs
