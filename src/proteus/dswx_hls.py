@@ -415,6 +415,13 @@ def get_dswx_hls_cli_parser():
                         help='Output cloud/cloud-shadow classification file'
                         ' (GeoTIFF)')
 
+    parser.add_argument('--out-dem'
+                        '--output-digital-elevation-model',
+                        '--output-elevation-layer',
+                        dest='output_dem_layer',
+                        type=str,
+                        help='Output elevation layer file (GeoTIFF)')
+
     parser.add_argument('--browse'
                         '--output-browse-image',
                         dest='output_browse_image',
@@ -2517,6 +2524,9 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         arg_name = layer_names_to_args_dict[layer_name]
 
         # user (command-line interface) layer filename
+        print("%%%%%%%%%%", args)
+        print("arg_name: ", arg_name)
+
         user_layer_file = getattr(args, arg_name)
 
         # runconfig layer filename
@@ -3288,7 +3298,6 @@ def generate_dswx_layers(input_list,
                             dswx_metadata_dict,
                             geotransform,
                             projection,
-                            description=descrptn,
                             scratch_dir=scratch_dir)
             
             # Convert to a png
