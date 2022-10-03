@@ -73,7 +73,7 @@ def main():
         product_id=args.product_id,
         flag_use_otsu_terrain_masking=args.flag_use_otsu_terrain_masking,
         min_slope_angle = args.min_slope_angle,
-        max_sun_inc_angle = args.max_sun_inc_angle,
+        max_sun_local_inc_angle = args.max_sun_local_inc_angle,
         flag_debug=args.flag_debug)
 
 

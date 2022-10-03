@@ -101,6 +101,7 @@ interpreted_dswx_band_dict = {
 
 FLAG_COLLAPSE_WTR_CLASSES = True
 FLAG_CLIP_NEGATIVE_REFLECTANCE = True
+FLAG_COMPUTE_AVERAGE_SENSING_TIME = False
 
 # Not-water classes
 WTR_NOT_WATER = 0
@@ -240,7 +241,7 @@ landcover_threshold_dict = {"standard": [6, 3, 7, 3],
                             "water heavy": [6, 3, 7, 1]}
 
 MIN_SLOPE_ANGLE = -5
-MAX_SUN_INC_ANGLE = 40
+MAX_SUN_LOCAL_INC_ANGLE = 40
 
 
 class HlsThresholds:
@@ -1469,9 +1470,12 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             elif (k.upper() == 'LANDSAT_PRODUCT_ID' or
                     k.upper() == 'PRODUCT_URI'):
                 dswx_metadata_dict['SENSOR_PRODUCT_ID'] = v
-            elif k.upper() == 'SENSING_TIME':
+            elif (k.upper() == 'SENSING_TIME' and
+                    FLAG_COMPUTE_AVERAGE_SENSING_TIME):
                 dswx_metadata_dict['SENSING_TIME'] = \
                     _get_avg_sensing_time(v)
+            elif k.upper() == 'SENSING_TIME':
+                dswx_metadata_dict['SENSING_TIME'] = v
 
         sensor = None
 
@@ -1485,8 +1489,14 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
         # HLS Landsat metadata contain attribute SENSOR
         elif 'SENSOR' in metadata:
             sensor = metadata['SENSOR']
-            if 'OLI' in sensor:
-                spacecraft_name = 'Landsat-8'
+            if ('OLI' in sensor and
+                    'SENSOR_PRODUCT_ID' in dswx_metadata_dict.keys() and
+                    'LC' in dswx_metadata_dict['SENSOR_PRODUCT_ID']):
+                sensor_product_id = dswx_metadata_dict['SENSOR_PRODUCT_ID']
+                landsat_sat_num_index = sensor_product_id.find('LC')
+                landsat_sat_num = int(sensor_product_id[
+                    landsat_sat_num_index+2:landsat_sat_num_index+4])
+                spacecraft_name = f'Landsat-{landsat_sat_num}'
             else:
                 logger.info(f'ERROR the sensor "{sensor}" is not supported')
                 return False
@@ -1498,11 +1508,25 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
 
         dswx_metadata_dict['SPACECRAFT_NAME'] = spacecraft_name
         if sensor is not None:
-            dswx_metadata_dict['SENSOR'] = sensor
+            # Sensor may be in the form: "OLI_TIRS; OLI_TIRS"
+            sensor_name = None
+            flag_all_same = True
+            for s in sensor.split(';'):
+                current_sensor_name = s.strip()
+                if sensor_name is None:
+                    sensor_name = current_sensor_name
+                    continue
+                if sensor_name != current_sensor_name:
+                    flag_all_same = False
+                    break
+            if flag_all_same:
+                dswx_metadata_dict['SENSOR'] = sensor_name
+            else:
+                dswx_metadata_dict['SENSOR'] = sensor
         elif 'SENTINEL' in spacecraft_name:
             dswx_metadata_dict['SENSOR'] = 'MSI'
         else:
-            dswx_metadata_dict['SENSOR'] = 'OLI'
+            dswx_metadata_dict['SENSOR'] = 'OLI_TIRS'
 
     if key == 'qa':
         if flag_debug:
@@ -2398,7 +2422,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     args.flag_use_otsu_terrain_masking = \
         processing_group['flag_use_otsu_terrain_masking']
     args.min_slope_angle = processing_group['min_slope_angle']
-    args.max_sun_inc_angle = processing_group['max_sun_inc_angle']
+    args.max_sun_local_inc_angle = processing_group['max_sun_local_inc_angle']
 
     for i, (layer_name, args_name) in \
             enumerate(layer_names_to_args_dict.items()):
@@ -2452,8 +2476,8 @@ def _get_dswx_metadata_dict(product_id):
     dswx_metadata_dict['PRODUCT_ID'] = product_id
     dswx_metadata_dict['PRODUCT_VERSION'] = PRODUCT_VERSION
     dswx_metadata_dict['PROJECT'] = 'OPERA'
-    dswx_metadata_dict['LEVEL'] = '3'
-    dswx_metadata_dict['PRODUCT_TYPE'] = 'DSWx'
+    dswx_metadata_dict['PRODUCT_LEVEL'] = '3'
+    dswx_metadata_dict['PRODUCT_TYPE'] = 'DSWx-HLS'
     dswx_metadata_dict['PRODUCT_SOURCE'] = 'HLS'
 
     # save datetime 'YYYY-MM-DD HH:MM:SS'
@@ -2650,7 +2674,7 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
 
 def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
                                 min_slope_angle = MIN_SLOPE_ANGLE,
-                                max_sun_inc_angle = MAX_SUN_INC_ANGLE,
+                                max_sun_local_inc_angle = MAX_SUN_LOCAL_INC_ANGLE,
                                 pixel_spacing_x = 30, pixel_spacing_y = 30):
     """Compute hillshade using new OPERA shadow masking
 
@@ -2666,7 +2690,7 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
               Slope angle threshold
        MIN_SLOPE_ANGLE: float (optional)
               Maximum slope angle
-       max_sun_inc_angle: float (optional)
+       max_sun_local_inc_angle: float (optional)
               Maximum local-incidence angle
        pixel_spacing_x: float (optional)
               Pixel spacing in the X direction
@@ -2707,7 +2731,7 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
         terrain_normal_vector[1] * np.cos(sun_azimuth)))
 
     backslope_mask = directional_slope_angle <= MIN_SLOPE_ANGLE
-    low_sun_inc_angle_mask = sun_inc_angle_degrees <= max_sun_inc_angle
+    low_sun_inc_angle_mask = sun_inc_angle_degrees <= max_sun_local_inc_angle
     shadow_mask = (low_sun_inc_angle_mask | (~ backslope_mask))
 
     return shadow_mask
@@ -2789,7 +2813,7 @@ def generate_dswx_layers(input_list,
                          product_id=None,
                          flag_use_otsu_terrain_masking=True,
                          min_slope_angle=MIN_SLOPE_ANGLE,
-                         max_sun_inc_angle=MAX_SUN_INC_ANGLE,
+                         max_sun_local_inc_angle=MAX_SUN_LOCAL_INC_ANGLE,
                          flag_debug=False):
     """Compute the DSWx-HLS product
 
@@ -2849,7 +2873,7 @@ def generate_dswx_layers(input_list,
               with the Otsu threshold method
        MIN_SLOPE_ANGLE: float (optional)
               Maximum slope angle
-       max_sun_inc_angle: float (optional)
+       max_sun_local_inc_angle: float (optional)
               Maximum local-incidence angle
        flag_debug: bool (optional)
               Flag to indicate if execution is for debug purposes. If so,
@@ -2986,7 +3010,7 @@ def generate_dswx_layers(input_list,
             shadow_layer_with_margin = _compute_opera_shadow_layer(
                 dem_with_margin, sun_azimuth_angle, sun_elevation_angle,
                 min_slope_angle = min_slope_angle,
-                max_sun_inc_angle = max_sun_inc_angle)
+                max_sun_local_inc_angle = max_sun_local_inc_angle)
 
         # remove extra margin from shadow_layer
         shadow_layer = _crop_2d_array_all_sides(shadow_layer_with_margin,
