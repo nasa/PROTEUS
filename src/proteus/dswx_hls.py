@@ -1553,8 +1553,10 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             # Sensor may be in the form: "OLI_TIRS; OLI_TIRS"
             sensor_name = None
             flag_all_same = True
+            sensor_list = []
             for s in sensor.split(';'):
-                current_sensor_name = s.strip()
+                current_sensor_name = s.strip().replace('_TIRS', '')
+                sensor_list.append(current_sensor_name)
                 if sensor_name is None:
                     sensor_name = current_sensor_name
                     continue
@@ -1564,11 +1566,11 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             if flag_all_same:
                 dswx_metadata_dict['SENSOR'] = sensor_name
             else:
-                dswx_metadata_dict['SENSOR'] = sensor
+                dswx_metadata_dict['SENSOR'] = ';'.join(sensor_list)
         elif 'SENTINEL' in spacecraft_name:
             dswx_metadata_dict['SENSOR'] = 'MSI'
         else:
-            dswx_metadata_dict['SENSOR'] = 'OLI_TIRS'
+            dswx_metadata_dict['SENSOR'] = 'OLI'
 
     for metadata_key, metadata_value in metadata.items():
         if metadata_key == 'add_offset':
