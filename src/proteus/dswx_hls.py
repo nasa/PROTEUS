@@ -11,6 +11,8 @@ from collections import OrderedDict
 from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32
 from osgeo import gdal, osr
+from scipy.ndimage import binary_dilation
+
 from proteus.core import save_as_cog
 
 PRODUCT_VERSION = '0.5'
@@ -18,6 +20,7 @@ PRODUCT_VERSION = '0.5'
 FLAG_COLLAPSE_WTR_CLASSES = True
 FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 FLAG_COMPUTE_AVERAGE_SENSING_TIME = False
+FLAG_DILATE_SNOW_MASK_TO_COVER_ADJACENT_CLOUD = True
 
 landcover_mask_type = 'standard'
 
@@ -1381,13 +1384,27 @@ def _compute_mask_and_filter_interpreted_layer(
     masked_interpreted_water_layer[mask != 0] = WTR_CLOUD_MASKED
 
     # Check QA snow bit (4) => bit 1
-    mask[np.bitwise_and(qa_band, 2**4) == 2**4] += 2
+    snow_mask = np.bitwise_and(qa_band, 2**4) == 2**4
 
-    # Update WTR with snow class only if it's not cloud/cloud-shadow masked
-    masked_interpreted_water_layer[
-        (np.bitwise_and(qa_band, 2**4) == 2**4) &
-        (masked_interpreted_water_layer != WTR_CLOUD_MASKED)] = \
-            WTR_CLOUD_MASKED_SNOW
+    # Cover areas marked as adjacent to cloud or cloud shadow
+    if FLAG_DILATE_SNOW_MASK_TO_COVER_ADJACENT_CLOUD:
+        adjacent_to_cloud_mask = np.bitwise_and(qa_band, 2**2) == 2**2
+        areas_to_dilate = (adjacent_to_cloud_mask) & (mask == 0)
+
+        snow_mask = binary_dilation(snow_mask, iterations=10,
+                                    mask=areas_to_dilate)
+
+        not_masked = (~snow_mask) & (mask == 0)
+        not_masked = binary_dilation(not_masked, iterations=7,
+                                     mask=areas_to_dilate)
+
+        snow_mask[not_masked] = False
+
+    # Add snow class to CLOUD mask
+    mask[snow_mask] += 2
+
+    # Update WTR with snow class only over areas not marked as cloud/cloud-shadow
+    masked_interpreted_water_layer[mask == 2] = WTR_CLOUD_MASKED_SNOW
 
     return mask, masked_interpreted_water_layer
 
