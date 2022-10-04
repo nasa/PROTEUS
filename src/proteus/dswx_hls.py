@@ -1566,7 +1566,7 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             if flag_all_same:
                 dswx_metadata_dict['SENSOR'] = sensor_name
             else:
-                dswx_metadata_dict['SENSOR'] = ';'.join(sensor_list)
+                dswx_metadata_dict['SENSOR'] = '; '.join(sensor_list)
         elif 'SENTINEL' in spacecraft_name:
             dswx_metadata_dict['SENSOR'] = 'MSI'
         else:
