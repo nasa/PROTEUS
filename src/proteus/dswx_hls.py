@@ -1960,9 +1960,8 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
 
 def geotiff2png(src_geotiff_filename,
                 dest_png_filename,
-                output_height=-1,
-                output_width=-1,
-                scratch_dir='.',
+                output_height=None,
+                output_width=None,
                 logger=None,
                 ):
     """
@@ -1981,14 +1980,20 @@ def geotiff2png(src_geotiff_filename,
     output_width : int, optional.
         Width in Pixels for the output png. If not provided, 
         will default to the width of the source geotiff.
-    scratch_dir: str, optional
-        Temporary Directory
     logger : Logger, optional
         Logger for the project
 
     """
     # Load the source dataset
     gdal_ds = gdal.Open(src_geotiff_filename, 1)
+
+    # Set output height
+    if output_height is None:
+        output_height = gdal_ds.GetRasterBand(1).YSize
+
+    # Set output height
+    if output_width is None:
+        output_width = gdal_ds.GetRasterBand(1).XSize
 
     # select the resampling algorithm to use based on dtype
     gdal_dtype = gdal_ds.GetRasterBand(1).DataType
@@ -3353,9 +3358,11 @@ def generate_dswx_layers(input_list,
                 dest_png_filename=output_browse_image,
                 output_height=browse_image_height,
                 output_width=browse_image_width,
-                scratch_dir=scratch_dir,
                 logger=logger
                 )
+        
+        # add the browse image to the output files list
+        output_files_list += [output_browse_image]
         
     if output_cloud_mask:
         save_cloud_mask(cloud, output_cloud_mask, dswx_metadata_dict, geotransform,
