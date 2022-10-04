@@ -2605,10 +2605,10 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         # If a browse image filename was provided via CLI, it takes
         # precendence over the default filename.
         if cli_browse_fname is not None:
-                logger.warning(f'command line {cli_arg_name} "{cli_browse_fname}" has'
-                               f' precedence over default {cli_arg_name}'
-                               f' "{default_browse_fname}".')
-                # `args` already contains the correct filename; no need to update.
+            logger.warning(f'command line {cli_arg_name} "{cli_browse_fname}" has'
+                           f' precedence over default {cli_arg_name}'
+                           f' "{default_browse_fname}".')
+            # `args` already contains the correct filename; no need to update.
         else:
             # use the default browse filename
             setattr(args, cli_arg_name, default_browse_fname)
