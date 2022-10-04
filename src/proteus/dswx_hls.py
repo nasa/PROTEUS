@@ -1791,9 +1791,9 @@ def _get_confidence_layer_ctable():
     # White - Not water
     confidence_layer_ctable.SetColorEntry(CONF_NOT_WATER, (255, 255, 255))
 
-    # White - QA masked (snow)
+    # Cyan - QA masked (snow)
     confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED_SNOW,
-                                          (255, 255, 255))
+                                          (0, 255, 255))
 
     # Gray - QA masked (cloud/cloud-shadow)
     confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED, (127, 127, 127))
