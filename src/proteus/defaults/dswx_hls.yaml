@@ -85,13 +85,13 @@ runconfig:
             # Setting `browse_image_height` and `browse_image_width` equal
             # will maintain this original HLS and DSWx-HLS aspect ratio
             # of 3660 pixels x 3660 pixels.
-            # If these fields are left empty, 3660 x 3660 will be used.
+            # If these fields are left empty, 1024 x 1024 will be used.
 
             # Height in Pixels
-            browse_image_height: 3660
+            browse_image_height: 1024
 
             # Width in Pixels
-            browse_image_width: 3660
+            browse_image_width: 1024
 
         hls_thresholds:
 

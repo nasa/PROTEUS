@@ -2468,8 +2468,6 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     browse_image_height = browse_image_group['browse_image_height']
     browse_image_width = browse_image_group['browse_image_width']
 
-    print("SAM 1: ", browse_image_height)
-
     if (input_file_path is not None and len(input_file_path) == 1 and
             os.path.isdir(input_file_path[0])):
         logger.info(f'input HLS files directory: {input_file_path[0]}')
@@ -2525,9 +2523,6 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         arg_name = layer_names_to_args_dict[layer_name]
 
         # user (command-line interface) layer filename
-        print("%%%%%%%%%%", args)
-        print("arg_name: ", arg_name)
-
         user_layer_file = getattr(args, arg_name)
 
         # runconfig layer filename
@@ -2922,8 +2917,8 @@ def generate_dswx_layers(input_list,
                          output_cloud_mask=None,
                          output_dem_layer=None,
                          output_browse_image=None,
-                         browse_image_height=3660,
-                         browse_image_width=3660,
+                         browse_image_height=None,
+                         browse_image_width=None,
                          landcover_file=None,
                          landcover_description=None,
                          worldcover_file=None,
@@ -3273,6 +3268,18 @@ def generate_dswx_layers(input_list,
     # Note: The browse image will be always be saved as a separate png file;
     # it will not included in the combined `output_file`.
     if output_browse_image:
+
+        # Set defaults here; as the workflow is currently set up,
+        # it is ineffective to supply the defaults this in this function's
+        # argument list.
+        # (Because this function is called from ../bin/dswx_hls.py, which
+        # supplies specific values for each argument (even if that value is None),
+        # any defaults in this argument list will be overwritten by the ones supplied.
+        if browse_image_height is None:
+            browse_image_height = 1024
+        if browse_image_width is None:
+            browse_image_width = 1024
+
         # If the `output_interpreted_band` was generated,
         # convert that to the browse image
         if output_interpreted_band:
