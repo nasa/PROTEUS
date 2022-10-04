@@ -1918,7 +1918,7 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
         gdal_band.SetNoDataValue(UINT8_FILL_VALUE)
         if n_valid_bands == 1:
             # set color table and color interpretation
-            dswx_ctable = _get_interpreted_dswx_ctable()
+            dswx_ctable = _get_interpreted_dswx_ctable(flag_collapse_wtr_classes)
             gdal_band.SetRasterColorTable(dswx_ctable)
             gdal_band.SetRasterColorInterpretation(
                 gdal.GCI_PaletteIndex)
