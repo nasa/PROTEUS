@@ -11,9 +11,16 @@ from collections import OrderedDict
 from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32
 from osgeo import gdal, osr
+from scipy.ndimage import binary_dilation
+
 from proteus.core import save_as_cog
 
 PRODUCT_VERSION = '0.5'
+
+FLAG_COLLAPSE_WTR_CLASSES = True
+FLAG_CLIP_NEGATIVE_REFLECTANCE = True
+FLAG_COMPUTE_AVERAGE_SENSING_TIME = False
+FLAG_DILATE_SNOW_MASK_TO_COVER_ADJACENT_CLOUD = True
 
 landcover_mask_type = 'standard'
 
@@ -99,9 +106,6 @@ interpreted_dswx_band_dict = {
     0b10100 : 4
 }
 
-FLAG_COLLAPSE_WTR_CLASSES = True
-FLAG_CLIP_NEGATIVE_REFLECTANCE = True
-FLAG_COMPUTE_AVERAGE_SENSING_TIME = False
 
 # Not-water classes
 WTR_NOT_WATER = 0
@@ -120,6 +124,7 @@ LAST_UNCOLLAPSED_WATER_CLASS = 4
 
 # Cloud/cloud-shadow masked classes
 WTR_CLOUD_MASKED = 9
+WTR_CLOUD_MASKED_SNOW = 8
 
 # Shadow mask
 SHAD_NOT_MASKED = 1
@@ -128,6 +133,7 @@ SHAD_MASKED = 0
 # Other classes
 BWTR_WATER = 1
 CONF_NOT_WATER = 99
+CONF_CLOUD_MASKED_SNOW = 253
 CONF_CLOUD_MASKED = 254
 
 '''
@@ -150,6 +156,7 @@ collapse_wtr_classes_dict = {
     WTR_UNCOLLAPSED_MODERATE_CONF_WATER: WTR_COLLAPSED_OPEN_WATER,
     WTR_UNCOLLAPSED_POTENTIAL_WETLAND: WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
     WTR_UNCOLLAPSED_LOW_CONF_WATER: WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
+    WTR_CLOUD_MASKED_SNOW: WTR_CLOUD_MASKED_SNOW,
     WTR_CLOUD_MASKED: WTR_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
@@ -162,6 +169,7 @@ wtr_confidence_dict = {
     WTR_NOT_WATER: CONF_NOT_WATER,
     WTR_COLLAPSED_OPEN_WATER: 85,
     WTR_COLLAPSED_PARTIAL_SURFACE_WATER: 70,
+    WTR_CLOUD_MASKED_SNOW: CONF_CLOUD_MASKED_SNOW,
     WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
@@ -176,6 +184,7 @@ wtr_confidence_non_collapsed_dict = {
     WTR_UNCOLLAPSED_MODERATE_CONF_WATER: 80,
     WTR_UNCOLLAPSED_POTENTIAL_WETLAND: 70,
     WTR_UNCOLLAPSED_LOW_CONF_WATER: 60,
+    WTR_CLOUD_MASKED_SNOW: CONF_CLOUD_MASKED_SNOW,
     WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
@@ -761,8 +770,10 @@ def create_landcover_mask(copernicus_landcover_file,
     logger.info(f'creating water mask')
     # WorldCover class 80: permanent water bodies
     # WorldCover class 90: herbaceous wetland
+    # WorldCover class 95: mangroves
     water_binary_mask = np.where((worldcover_array_up_3 == 80) |
-                                 (worldcover_array_up_3 == 90), 1, 0)
+                                 (worldcover_array_up_3 == 90) |
+                                 (worldcover_array_up_3 == 95), 1, 0)
     water_aggregate_sum = decimate_by_summation(water_binary_mask,
                                               size_y, size_x)
     del water_binary_mask
@@ -947,7 +958,7 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
     if shadow_layer is not None and landcover_mask is None:
         logger.info('applying shadow mask:')
         to_mask_ind = np.where((shadow_layer == SHAD_MASKED) &
-            ((interpreted_layer >= FIRST_UNCOLLAPSED_WATER_CLASS) |
+            ((interpreted_layer >= FIRST_UNCOLLAPSED_WATER_CLASS) &
              (interpreted_layer <= LAST_UNCOLLAPSED_WATER_CLASS)))
         landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
@@ -1011,8 +1022,8 @@ def _get_interpreted_dswx_ctable(
 
     # set color for each value
 
-    # White - Not water
-    dswx_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 255))
+    # Yellow - Not water
+    dswx_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 194))
 
     if flag_collapse_wtr_classes:
         # Blue - Open water
@@ -1035,8 +1046,11 @@ def _get_interpreted_dswx_ctable(
         dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_LOW_CONF_WATER,
                                   (0, 255, 0))
 
-    # Gray - QA masked
+    # Gray - QA masked (Cloud/cloud-shadow)
     dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
+
+    # White - QA masked (Snow)
+    dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (255, 255, 255))
 
     # Black - Fill value
     dswx_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
@@ -1103,8 +1117,8 @@ def _get_landcover_mask_ctable():
     high_intensity_developed_class_offset = \
         dswx_hls_landcover_classes_dict['high_intensity_developed_offset']
 
-    # White - Not masked (fill_value)
-    mask_ctable.SetColorEntry(fill_value, (255, 255, 255))
+    # Yellow - Not masked (fill_value)
+    mask_ctable.SetColorEntry(fill_value, (255, 255, 194))
 
     # Green - Evergreen forest class
     mask_ctable.SetColorEntry(evergreen_forest_class, (0, 255, 0))
@@ -1221,7 +1235,11 @@ def _get_binary_water_layer(interpreted_water_layer):
     for class_value in range(1, 5):
         binary_water_layer[interpreted_water_layer == class_value] = BWTR_WATER
 
-    # Q/A masked
+    # Q/A masked (cloud/snow)
+    binary_water_layer[interpreted_water_layer == WTR_CLOUD_MASKED_SNOW] = \
+        WTR_CLOUD_MASKED_SNOW
+
+    # Q/A masked (cloud/cloud-shadow)
     binary_water_layer[interpreted_water_layer == WTR_CLOUD_MASKED] = \
         WTR_CLOUD_MASKED
 
@@ -1374,24 +1392,37 @@ def _compute_mask_and_filter_interpreted_layer(
     (*) set output as 9
     '''
 
-    for i in range(shape[0]):
-        for j in range(shape[1]):
+    # Check QA cloud shadow bit (3) => bit 0
+    mask[np.bitwise_and(qa_band, 2**3) == 2**3] += 1
 
-            # Check QA cloud shadow bit (3) => bit 0
-            if np.bitwise_and(2**3, qa_band[i, j]):
-                mask[i, j] += 1
+    # Check QA cloud bit (1) => bit 2
+    mask[np.bitwise_and(qa_band, 2**1) == 2**1] += 4
 
-            # Check QA cloud bit (1) => bit 2
-            if np.bitwise_and(2**1, qa_band[i, j]):
-                mask[i, j] += 4
+    # If cloud (1) or cloud shadow (3), mark WTR as WTR_CLOUD_MASKED
+    masked_interpreted_water_layer[mask != 0] = WTR_CLOUD_MASKED
 
-            if mask[i, j] != 0:
-                masked_interpreted_water_layer[i, j] = WTR_CLOUD_MASKED
+    # Check QA snow bit (4) => bit 1
+    snow_mask = np.bitwise_and(qa_band, 2**4) == 2**4
 
-            # Check QA snow bit (4) => bit 1
-            if np.bitwise_and(2**4, qa_band[i, j]):
-                mask[i, j] += 2
-                masked_interpreted_water_layer[i, j] = 0
+    # Cover areas marked as adjacent to cloud or cloud shadow
+    if FLAG_DILATE_SNOW_MASK_TO_COVER_ADJACENT_CLOUD:
+        adjacent_to_cloud_mask = np.bitwise_and(qa_band, 2**2) == 2**2
+        areas_to_dilate = (adjacent_to_cloud_mask) & (mask == 0)
+
+        snow_mask = binary_dilation(snow_mask, iterations=10,
+                                    mask=areas_to_dilate)
+
+        not_masked = (~snow_mask) & (mask == 0)
+        not_masked = binary_dilation(not_masked, iterations=7,
+                                     mask=areas_to_dilate)
+
+        snow_mask[not_masked] = False
+
+    # Add snow class to CLOUD mask
+    mask[snow_mask] += 2
+
+    # Update WTR with snow class only over areas not marked as cloud/cloud-shadow
+    masked_interpreted_water_layer[mask == 2] = WTR_CLOUD_MASKED_SNOW
 
     return mask, masked_interpreted_water_layer
 
@@ -1467,6 +1498,8 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
               Flag indicating if band was successfuly loaded into memory
     """
     layer_gdal_dataset = gdal.Open(filename, gdal.GA_ReadOnly)
+    band = layer_gdal_dataset.GetRasterBand(1)
+    fill_data = band.GetNoDataValue()
     if layer_gdal_dataset is None:
         return None
 
@@ -1475,6 +1508,15 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
         if band_suffix:
             hls_dataset_name = hls_dataset_name.replace(f'.{band_suffix}', '')
         image_dict['hls_dataset_name'] = hls_dataset_name
+
+    if key == 'qa':
+        if flag_debug:
+            logger.info('reading in debug mode')
+            image_dict[key] = layer_gdal_dataset.ReadAsArray(
+                xoff=0, yoff=0, xsize=1000, ysize=1000)
+        else:
+            image_dict[key] = layer_gdal_dataset.ReadAsArray()
+        return True
 
     offset = 0.0
     scale_factor = 1.
@@ -1546,45 +1588,41 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
         else:
             dswx_metadata_dict['SENSOR'] = 'OLI_TIRS'
 
-    if key == 'qa':
-        if flag_debug:
-            logger.info('reading in debug mode')
-            image_dict[key] = layer_gdal_dataset.ReadAsArray(
-                xoff=0, yoff=0, xsize=1000, ysize=1000)
-        else:
-            image_dict[key] = layer_gdal_dataset.ReadAsArray()
+    for metadata_key, metadata_value in metadata.items():
+        if metadata_key == 'add_offset':
+            offset = float(metadata_value)
+        elif metadata_key == 'scale_factor':
+           scale_factor = float(metadata_value)
+    if flag_debug:
+        logger.info('reading in debug mode')
+        image = layer_gdal_dataset.ReadAsArray(
+            xoff=0, yoff=0, xsize=1000, ysize=1000)
     else:
-        for metadata_key, metadata_value in metadata.items():
-            if metadata_key == 'add_offset':
-                offset = float(metadata_value)
-            elif metadata_key == 'scale_factor':
-               scale_factor = float(metadata_value)
-        if flag_debug:
-            logger.info('reading in debug mode')
-            image = layer_gdal_dataset.ReadAsArray(
-                xoff=0, yoff=0, xsize=1000, ysize=1000)
-        else:
-            image = layer_gdal_dataset.ReadAsArray()
-        if FLAG_CLIP_NEGATIVE_REFLECTANCE:
-            image = np.clip(image, 1, None)
-        if flag_offset_and_scale_inputs:
-            image = scale_factor * (np.asarray(image, dtype=np.float32) -
-                                    offset)
-        image_dict[key] = image
+        image = layer_gdal_dataset.ReadAsArray()
+    invalid_ind = np.where(image == fill_data)
+    if FLAG_CLIP_NEGATIVE_REFLECTANCE:
+        image = np.clip(image, 1, None)
+    if flag_offset_and_scale_inputs:
+        image = scale_factor * (np.asarray(image, dtype=np.float32) -
+                                offset)
+        image[invalid_ind] == np.nan
+    elif FLAG_CLIP_NEGATIVE_REFLECTANCE:
+        image[invalid_ind] = fill_data
 
-    # save offset and scale factor into corresponding dictionaries
-    offset_dict[key] = offset
-    scale_dict[key] = scale_factor
+    image_dict[key] = image
 
     if 'geotransform' not in image_dict.keys():
         image_dict['geotransform'] = \
             layer_gdal_dataset.GetGeoTransform()
         image_dict['projection'] = \
             layer_gdal_dataset.GetProjection()
-        band = layer_gdal_dataset.GetRasterBand(1)
-        image_dict['fill_data'] = band.GetNoDataValue()
+        image_dict['fill_data'] = fill_data
         image_dict['length'] = image_dict[key].shape[0]
         image_dict['width'] = image_dict[key].shape[1]
+
+    # save offset and scale factor into corresponding dictionaries
+    offset_dict[key] = offset
+    scale_dict[key] = scale_factor
 
     return True
 
@@ -1733,13 +1771,15 @@ def _get_binary_water_ctable():
     """
     # create color table
     binary_water_ctable = gdal.ColorTable()
-    # No water
-    binary_water_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 255))
-    # Water
+    # Yellow - No water
+    binary_water_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 194))
+    # Blue - Water
     binary_water_ctable.SetColorEntry(BWTR_WATER, (0, 0, 255))
-    # Gray - QA masked
+    # White - QA masked (snow)
+    binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (255, 255, 255))
+    # Gray - QA masked (cloud/cloud-shadow)
     binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
-    # Black - Fill value
+    # Black (transparent) - Fill value
     binary_water_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return binary_water_ctable
 
@@ -1764,10 +1804,14 @@ def _get_confidence_layer_ctable():
                          255 - conf_value_255,
                          255))
 
-    # White - Not water
-    confidence_layer_ctable.SetColorEntry(CONF_NOT_WATER, (255, 255, 255))
+    # Yellow - Not water
+    confidence_layer_ctable.SetColorEntry(CONF_NOT_WATER, (255, 255, 194))
 
-    # Gray - QA masked
+    # White - QA masked (snow)
+    confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED_SNOW,
+                                          (255, 255, 255))
+
+    # Gray - QA masked (cloud/cloud-shadow)
     confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED, (127, 127, 127))
 
     # Black - Fill value
@@ -3173,9 +3217,9 @@ def generate_dswx_layers(input_list,
 
     # Set array of invalid pixels
     if not flag_offset_and_scale_inputs:
-        invalid_ind = np.where(blue < -5000)
+        invalid_ind = np.where(blue == image_dict['fill_data'])
     else:
-        invalid_ind = np.where(blue < -0.5)
+        invalid_ind = np.where(np.isnan(blue))
 
     if output_rgb_file:
         _save_output_rgb_file(red, green, blue, output_rgb_file,
