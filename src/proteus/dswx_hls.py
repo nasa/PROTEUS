@@ -1943,11 +1943,6 @@ def geotiff2png(src_geotiff_filename,
         Logger for the project
 
     """
-    if logger is None:
-        logger = logging.getLogger('proteus')
-
-    # logger.info('COG step 1: add overviews')
-
     # Load the source dataset
     gdal_ds = gdal.Open(src_geotiff_filename, 1)
 
@@ -1975,6 +1970,10 @@ def geotiff2png(src_geotiff_filename,
                         resampleAlg=resamp_algorithm,
                         nogcp=True,  # do not print GCPs
                         )
+
+    if logger is None:
+        logger = logging.getLogger('proteus')
+    logger.info(f'Browse Image PNG created: {dest_png_filename}')
 
 
 def save_cloud_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
@@ -2468,6 +2467,8 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     product_id = product_path_group['product_id']
     browse_image_height = browse_image_group['browse_image_height']
     browse_image_width = browse_image_group['browse_image_width']
+
+    print("SAM 1: ", browse_image_height)
 
     if (input_file_path is not None and len(input_file_path) == 1 and
             os.path.isdir(input_file_path[0])):
@@ -3275,43 +3276,36 @@ def generate_dswx_layers(input_list,
         # If the `output_interpreted_band` was generated,
         # convert that to the browse image
         if output_interpreted_band:
-            # create the browse image
-            geotiff2png(src_geotiff_filename=output_interpreted_band,
-                    dest_png_filename=output_browse_image,
-                    output_height=browse_image_height,
-                    output_width=browse_image_width,
-                    scratch_dir=scratch_dir,
-                    logger=logger
-                    )
+            src_geotiff_filename = output_interpreted_band
         else:
-            # If the `output_interpreted_band` was not generated,
-            # we'll need to make it temporarily to convert is to
-            # the browse image
+            # If the `output_interpreted_band` geotiff was not generated,
+            # we'll need to make it as a temporary file, and then convert
+            # that to the browse image.
 
             # Create the source image as a geotiff
-            # Reason: gdal.Create() cannot create .png files, so we
+            # Reason: gdal.Create() cannot currently create .png files, so we
             # must start from a GeoTiff, etc.
             # Source: https://gis.stackexchange.com/questions/132298/gdal-c-api-how-to-create-png-or-jpeg-from-scratch
-            tmp_geotiff_file = os.path.join(scratch_dir,"dswx_tmp.tif")
+            src_geotiff_filename = os.path.join(scratch_dir,"dswx_tmp.tif")
             save_dswx_product(masked_dswx_band,
-                            tmp_geotiff_file,
+                            src_geotiff_filename,
                             dswx_metadata_dict,
                             geotransform,
                             projection,
                             scratch_dir=scratch_dir)
-            
-            # Convert to a png
-            geotiff2png(src_geotiff_filename=tmp_geotiff_file,
-                    dest_png_filename=output_browse_image,
-                    output_height=browse_image_height,
-                    output_width=browse_image_width,
-                    scratch_dir=scratch_dir,
-                    logger=logger
-                    )
-        
-            # remove the temporarily-created file
-            temp_files_list += [tmp_geotiff_file]
 
+            # add the temp file to the list to be removed at the end
+            temp_files_list += [src_geotiff_filename]
+
+        # Convert the geotiff to a PNG to create the browse image
+        geotiff2png(src_geotiff_filename=src_geotiff_filename,
+                dest_png_filename=output_browse_image,
+                output_height=browse_image_height,
+                output_width=browse_image_width,
+                scratch_dir=scratch_dir,
+                logger=logger
+                )
+        
     if output_cloud_mask:
         save_cloud_mask(cloud, output_cloud_mask, dswx_metadata_dict, geotransform,
                         projection,
