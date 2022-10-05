@@ -1022,8 +1022,8 @@ def _get_interpreted_dswx_ctable(
 
     # set color for each value
 
-    # Yellow - Not water
-    dswx_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 194))
+    # White - Not water
+    dswx_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 255))
 
     if flag_collapse_wtr_classes:
         # Blue - Open water
@@ -1049,8 +1049,8 @@ def _get_interpreted_dswx_ctable(
     # Gray - QA masked (Cloud/cloud-shadow)
     dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
 
-    # White - QA masked (Snow)
-    dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (255, 255, 255))
+    # Cyan - QA masked (Snow)
+    dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0, 255, 255))
 
     # Black - Fill value
     dswx_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
@@ -1117,8 +1117,8 @@ def _get_landcover_mask_ctable():
     high_intensity_developed_class_offset = \
         dswx_hls_landcover_classes_dict['high_intensity_developed_offset']
 
-    # Yellow - Not masked (fill_value)
-    mask_ctable.SetColorEntry(fill_value, (255, 255, 194))
+    # White - Not masked (fill_value)
+    mask_ctable.SetColorEntry(fill_value, (255, 255, 255))
 
     # Green - Evergreen forest class
     mask_ctable.SetColorEntry(evergreen_forest_class, (0, 255, 0))
@@ -1571,8 +1571,10 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             # Sensor may be in the form: "OLI_TIRS; OLI_TIRS"
             sensor_name = None
             flag_all_same = True
+            sensor_list = []
             for s in sensor.split(';'):
-                current_sensor_name = s.strip()
+                current_sensor_name = s.strip().replace('_TIRS', '')
+                sensor_list.append(current_sensor_name)
                 if sensor_name is None:
                     sensor_name = current_sensor_name
                     continue
@@ -1582,11 +1584,11 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             if flag_all_same:
                 dswx_metadata_dict['SENSOR'] = sensor_name
             else:
-                dswx_metadata_dict['SENSOR'] = sensor
+                dswx_metadata_dict['SENSOR'] = '; '.join(sensor_list)
         elif 'SENTINEL' in spacecraft_name:
             dswx_metadata_dict['SENSOR'] = 'MSI'
         else:
-            dswx_metadata_dict['SENSOR'] = 'OLI_TIRS'
+            dswx_metadata_dict['SENSOR'] = 'OLI'
 
     for metadata_key, metadata_value in metadata.items():
         if metadata_key == 'add_offset':
@@ -1771,12 +1773,12 @@ def _get_binary_water_ctable():
     """
     # create color table
     binary_water_ctable = gdal.ColorTable()
-    # Yellow - No water
-    binary_water_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 194))
+    # White - No water
+    binary_water_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 255))
     # Blue - Water
     binary_water_ctable.SetColorEntry(BWTR_WATER, (0, 0, 255))
-    # White - QA masked (snow)
-    binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (255, 255, 255))
+    # Cyan - QA masked (snow)
+    binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0, 255, 255))
     # Gray - QA masked (cloud/cloud-shadow)
     binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
     # Black (transparent) - Fill value
@@ -1804,12 +1806,12 @@ def _get_confidence_layer_ctable():
                          255 - conf_value_255,
                          255))
 
-    # Yellow - Not water
-    confidence_layer_ctable.SetColorEntry(CONF_NOT_WATER, (255, 255, 194))
+    # White - Not water
+    confidence_layer_ctable.SetColorEntry(CONF_NOT_WATER, (255, 255, 255))
 
-    # White - QA masked (snow)
+    # Cyan - QA masked (snow)
     confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED_SNOW,
-                                          (255, 255, 255))
+                                          (0, 255, 255))
 
     # Gray - QA masked (cloud/cloud-shadow)
     confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED, (127, 127, 127))
