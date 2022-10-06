@@ -96,6 +96,21 @@ runconfig:
             # SWIR-1, NIR, and Red reflectance color composition
             save_infrared_rgb: bool(required=False)
 
+        browse_image_group:
+            # Save a browse image PNG of the WTR layer.
+            save_browse: bool(required=False)
+
+            # Setting `browse_image_height` and `browse_image_width` equal
+            # will maintain this original HLS and DSWx-HLS aspect ratio
+            # of 3660 pixels x 3660 pixels.
+            # If these fields are left empty, 3660 x 3660 will be used.
+
+            # Height in Pixels
+            browse_image_height: num(required=False)
+
+            # Width in Pixels
+            browse_image_width: num(required=False)
+
         hls_thresholds: include('hls_thresholds_options', required=False)
 
 ---

@@ -431,7 +431,25 @@ def get_dswx_hls_cli_parser():
                         type=str,
                         help='Output elevation layer file (GeoTIFF)')
 
+    parser.add_argument('--browse'
+                        '--output-browse-image',
+                        dest='output_browse_image',
+                        type=str,
+                        help='Output browse image file (png)')
+
     # Parameters
+    parser.add_argument('--bheight'
+                        '--browse-image-height',
+                        dest='browse_image_height',
+                        type=int,
+                        help='Height in pixels for browse image PNG')
+
+    parser.add_argument('--bwidth'
+                        '--browse-image-width',
+                        dest='browse_image_width',
+                        type=int,
+                        help='Width in pixels for browse image PNG')
+
     parser.add_argument('--offset-and-scale-inputs',
                         dest='flag_offset_and_scale_inputs',
                         action='store_true',
@@ -1926,6 +1944,7 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
             gdal_band.SetDescription(description)
         else:
             gdal_band.SetDescription(description_from_dict)
+
         gdal_band.FlushCache()
         gdal_band = None
         if n_valid_bands == 1:
@@ -1939,6 +1958,73 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
     if output_files_list is not None:
         output_files_list.append(output_file)
     logger.info(f'file saved: {output_file}')
+
+
+def geotiff2png(src_geotiff_filename,
+                dest_png_filename,
+                output_height=None,
+                output_width=None,
+                logger=None,
+                ):
+    """
+    Convert a GeoTIFF file to a png file.
+
+    Parameters
+    ----------
+    src_geotiff_filename : str
+        Name (with path) of the source geotiff file to be 
+        converted. This file must already exist.
+    dest_png_filename : str
+        Name (with path) for the output .png file
+    output_height : int, optional.
+        Height in Pixels for the output png. If not provided, 
+        will default to the height of the source geotiff.
+    output_width : int, optional.
+        Width in Pixels for the output png. If not provided, 
+        will default to the width of the source geotiff.
+    logger : Logger, optional
+        Logger for the project
+
+    """
+    # Load the source dataset
+    gdal_ds = gdal.Open(src_geotiff_filename, 1)
+
+    # Set output height
+    if output_height is None:
+        output_height = gdal_ds.GetRasterBand(1).YSize
+
+    # Set output height
+    if output_width is None:
+        output_width = gdal_ds.GetRasterBand(1).XSize
+
+    # select the resampling algorithm to use based on dtype
+    gdal_dtype = gdal_ds.GetRasterBand(1).DataType
+    dtype_name = gdal.GetDataTypeName(gdal_dtype).lower()
+    is_integer = 'byte' in dtype_name  or 'int' in dtype_name
+
+    if is_integer:
+        resamp_algorithm = 'NEAREST'
+    else:
+        resamp_algorithm = 'CUBICSPLINE'
+
+    del gdal_ds  # close the dataset (Python object and pointers)
+
+    # Do not output the .aux.xml file alongside the PNG
+    gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
+
+    # Translate the existing geotiff to the .png format
+    gdal.Translate(dest_png_filename, 
+                        src_geotiff_filename, 
+                        format='PNG',
+                        height=output_height,
+                        width=output_width,
+                        resampleAlg=resamp_algorithm,
+                        nogcp=True,  # do not print GCPs
+                        )
+
+    if logger is None:
+        logger = logging.getLogger('proteus')
+    logger.info(f'Browse Image PNG created: {dest_png_filename}')
 
 
 def save_cloud_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
@@ -2416,6 +2502,9 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     product_path_group = runconfig['runconfig']['groups'][
         'product_path_group']
 
+    browse_image_group = runconfig['runconfig']['groups'][
+        'browse_image_group']
+
     processing_group = runconfig['runconfig']['groups']['processing']
 
     dem_file = ancillary_ds_group['dem_file']
@@ -2427,6 +2516,8 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     scratch_dir = product_path_group['scratch_path']
     output_directory = product_path_group['output_dir']
     product_id = product_path_group['product_id']
+    browse_image_height = browse_image_group['browse_image_height']
+    browse_image_width = browse_image_group['browse_image_width']
 
     if (input_file_path is not None and len(input_file_path) == 1 and
             os.path.isdir(input_file_path[0])):
@@ -2446,7 +2537,10 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         'worldcover_file': worldcover_file,
         'worldcover_description': worldcover_description,
         'scratch_dir': scratch_dir,
-        'product_id': product_id}
+        'product_id': product_id,
+        'browse_image_height': browse_image_height,
+        'browse_image_width': browse_image_width
+        }
 
     for var_name, runconfig_file in variables_to_update_dict.items():
         user_file = getattr(args, var_name)
@@ -2499,7 +2593,30 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
         setattr(args, args_name, runconfig_layer_file)
 
+    # Browse Image Filename
+    if browse_image_group['save_browse']:
+        # Get user's CLI input for the browse image filename
+        cli_arg_name = 'output_browse_image'
+        cli_browse_fname = getattr(args, cli_arg_name)
+
+        # Construct the default browse image filename per the runconfig
+        product_basename = (f'{product_id}_v{PRODUCT_VERSION}.png')
+        default_browse_fname = os.path.join(output_directory,
+                                            product_basename)
+
+        # If a browse image filename was provided via CLI, it takes
+        # precendence over the default filename.
+        if cli_browse_fname is not None:
+            logger.warning(f'command line {cli_arg_name} "{cli_browse_fname}" has'
+                           f' precedence over default {cli_arg_name}'
+                           f' "{default_browse_fname}".')
+            # `args` already contains the correct filename; no need to update.
+        else:
+            # use the default browse filename
+            setattr(args, cli_arg_name, default_browse_fname)
+
     return hls_thresholds
+
 
 def _get_dswx_metadata_dict(product_id):
     """Create and return metadata dictionary
@@ -2850,6 +2967,9 @@ def generate_dswx_layers(input_list,
                          output_shadow_layer=None,
                          output_cloud_mask=None,
                          output_dem_layer=None,
+                         output_browse_image=None,
+                         browse_image_height=None,
+                         browse_image_width=None,
                          landcover_file=None,
                          landcover_description=None,
                          worldcover_file=None,
@@ -2899,6 +3019,12 @@ def generate_dswx_layers(input_list,
               Output cloud/cloud-shadow mask filename
        output_dem_layer: str (optional)
               Output elevation layer filename
+       output_browse_image: str (optional)
+              Output browse image PNG filename
+       browse_image_height: int (optional)
+              Height in pixels of the browse image PNG
+       browse_image_width: int (optional)
+              Width in pixels of the browse image PNG
        landcover_file: str (optional)
               Copernicus Global Land Service (CGLS) Land Cover Layer file
        landcover_description: str (optional)
@@ -3189,6 +3315,57 @@ def generate_dswx_layers(input_list,
                           scratch_dir=scratch_dir,
                           output_files_list=build_vrt_list)
 
+    # Output the WTR layer as the browse image
+    # Note: The browse image will be always be saved as a separate png file;
+    # it will not included in the combined `output_file`.
+    if output_browse_image:
+
+        # Set defaults here; as the workflow is currently set up,
+        # it is ineffective to supply the defaults this in this function's
+        # argument list.
+        # (Because this function is called from ../bin/dswx_hls.py, which
+        # supplies specific values for each argument (even if that value is None),
+        # any defaults in this argument list will be overwritten by the ones supplied.
+        if browse_image_height is None:
+            browse_image_height = 1024
+        if browse_image_width is None:
+            browse_image_width = 1024
+
+        # If the `output_interpreted_band` was generated,
+        # convert that to the browse image
+        if output_interpreted_band:
+            src_geotiff_filename = output_interpreted_band
+        else:
+            # If the `output_interpreted_band` geotiff was not generated,
+            # we'll need to make it as a temporary file, and then convert
+            # that to the browse image.
+
+            # Create the source image as a geotiff
+            # Reason: gdal.Create() cannot currently create .png files, so we
+            # must start from a GeoTiff, etc.
+            # Source: https://gis.stackexchange.com/questions/132298/gdal-c-api-how-to-create-png-or-jpeg-from-scratch
+            src_geotiff_filename = os.path.join(scratch_dir,"dswx_tmp.tif")
+            save_dswx_product(masked_dswx_band,
+                            src_geotiff_filename,
+                            dswx_metadata_dict,
+                            geotransform,
+                            projection,
+                            scratch_dir=scratch_dir)
+
+            # add the temp file to the list to be removed at the end
+            temp_files_list += [src_geotiff_filename]
+
+        # Convert the geotiff to a PNG to create the browse image
+        geotiff2png(src_geotiff_filename=src_geotiff_filename,
+                dest_png_filename=output_browse_image,
+                output_height=browse_image_height,
+                output_width=browse_image_width,
+                logger=logger
+                )
+        
+        # add the browse image to the output files list
+        output_files_list += [output_browse_image]
+        
     if output_cloud_mask:
         save_cloud_mask(cloud, output_cloud_mask, dswx_metadata_dict, geotransform,
                         projection,
