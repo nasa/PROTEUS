@@ -724,7 +724,9 @@ def create_landcover_mask(copernicus_landcover_file,
        output_files_list: list (optional)
               Mutable list of output files
        temp_files_list: list (optional)
-              Mutable list of temporary files
+              Mutable list of temporary files. If provided,
+              paths to the temporary files generated will be
+              appended to this list.
     """
     if not os.path.isfile(copernicus_landcover_file):
         logger.error(f'ERROR file not found: {copernicus_landcover_file}')
@@ -2046,7 +2048,7 @@ def save_cloud_mask(mask, output_file, dswx_metadata_dict, geotransform, project
        description: str (optional)
               Band description
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        output_files_list: list (optional)
               Mutable list of output files
     """
@@ -2100,7 +2102,7 @@ def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
        description: str (optional)
               Band description
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        output_files_list: list (optional)
               Mutable list of output files
     """
@@ -2155,7 +2157,7 @@ def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
        description: str (optional)
               Band description
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        output_files_list: list (optional)
               Mutable list of output files
        output_dtype: gdal.DataType
@@ -2239,7 +2241,7 @@ def _save_output_rgb_file(red, green, blue, output_file,
        output_files_list: list (optional)
               Mutable list of output files
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        flag_infrared: bool
               Flag to indicate if layer represents infrared reflectance,
               i.e., Red, NIR, and SWIR-1
@@ -2343,7 +2345,7 @@ def _warp(input_file, geotransform, projection,
               Output width before adding the margin defined by
               `margin_in_pixels`
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        resample_algorithm: str
               Resample algorithm
        relocated_file: str
@@ -2351,7 +2353,9 @@ def _warp(input_file, geotransform, projection,
        margin_in_pixels: int
               Margin in pixels (default: 0)
        temp_files_list: list (optional)
-              Mutable list of temporary files
+              Mutable list of temporary files. If provided,
+              paths to the temporary files generated will be
+              appended to this list.
 
        Returns
        -------
@@ -2808,13 +2812,15 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
        dem_file: str
               DEM filename
        scratch_dir: str
-              Scratch directory
+              Directory for temporary files
        sun_azimuth_angle: float
               Sun azimuth angle
        sun_elevation_angle: float
               Sun elevation angle
        temp_files_list: list (optional)
-              Mutable list of temporary files
+              Mutable list of temporary files. If provided,
+              paths to the temporary files generated will be
+              appended to this list.
 
        Returns
        -------
@@ -3036,7 +3042,7 @@ def generate_dswx_layers(input_list,
        flag_offset_and_scale_inputs: bool (optional)
               Flag indicating if DSWx-HLS should be offsetted and scaled
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        product_id: str (optional)
               Product ID that will be saved in the output' product's
               metadata
