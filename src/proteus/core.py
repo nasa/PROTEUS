@@ -33,8 +33,11 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
 
     overviews_list = [4, 16, 64, 128]
 
-    if ovr_resamp_algorithm is None:
+    is_integer = 'byte' in dtype_name  or 'int' in dtype_name
+    if ovr_resamp_algorithm is None and is_integer:
         ovr_resamp_algorithm = 'NEAREST'
+    elif ovr_resamp_algorithm is None:
+        ovr_resamp_algorithm = 'CUBICSPLINE'
 
     gdal_ds.BuildOverviews(ovr_resamp_algorithm, overviews_list,
                            gdal.TermProgress_nocb)
