@@ -20,7 +20,6 @@ PRODUCT_VERSION = '0.5'
 FLAG_COLLAPSE_WTR_CLASSES = True
 FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 FLAG_COMPUTE_AVERAGE_SENSING_TIME = False
-FLAG_DILATE_SNOW_MASK_TO_COVER_ADJACENT_CLOUD = True
 
 landcover_mask_type = 'standard'
 
@@ -469,6 +468,15 @@ def get_dswx_hls_cli_parser():
                         type=str,
                         help='Product ID that will be saved in the output'
                         "product's metadata")
+
+    parser.add_argument('--mask-adjacent-to-cloud-mode',
+                        dest='mask_adjacent_to_cloud_mode',
+                        type=str,
+                        default='cover',
+                        choices=['mask', 'ignore', 'cover'],
+                        help='Define how areas adjacent to cloud/cloud-shadow'
+                        ' should be handled. Options: "mask", "ignore", and'
+                        ' "cover"')
 
     parser.add_argument('--debug',
                         dest='flag_debug',
@@ -1082,8 +1090,8 @@ def _get_cloud_mask_ctable():
     mask_ctable.SetColorEntry(1, (64, 64, 64))
     # Cyan - snow/ice
     mask_ctable.SetColorEntry(2, (0, 255, 255))
-    # Blue - Cloud shadow and snow/ice
-    mask_ctable.SetColorEntry(3, (0, 0, 255))
+    # Dark cyan - Cloud shadow and snow/ice
+    mask_ctable.SetColorEntry(3, (0, 127, 127))
     # Light gray - Cloud
     mask_ctable.SetColorEntry(4, (192, 192, 192))
     # Gray - Cloud and cloud shadow
@@ -1357,7 +1365,8 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
 
 
 def _compute_mask_and_filter_interpreted_layer(
-        unmasked_interpreted_water_layer, qa_band):
+        unmasked_interpreted_water_layer, qa_band,
+        mask_adjacent_to_cloud_mode):
     """Compute cloud/cloud-shadow mask and filter interpreted water layer
 
        Parameters
@@ -1366,6 +1375,9 @@ def _compute_mask_and_filter_interpreted_layer(
               Cloud-unmasked interpreted water layer
        qa_band: numpy ndarray
               HLS Q/A band
+       mask_adjacent_to_cloud_mode: str
+              Define how areas adjacent to cloud/cloud-shadow should be handled.
+              Options: "mask", "ignore", and "cover"
 
        Returns
        -------
@@ -1380,10 +1392,10 @@ def _compute_mask_and_filter_interpreted_layer(
     QA band - Landsat 8
     BITS:
     0 - Cirrus (reserved but not used)
-    1 - Cloud (*)
-    2 - Adjacent to cloud/shadow
-    3 - Cloud shadow (*)
-    4 - Snow/ice (*)
+    1 - Cloud (*1)
+    2 - Adjacent to cloud/shadow (*3)
+    3 - Cloud shadow (*1)
+    4 - Snow/ice (*2)
     5 - Water
     6-7 - Aerosol quality:
           00 - Climatology aerosol
@@ -1391,11 +1403,26 @@ def _compute_mask_and_filter_interpreted_layer(
           10 - Moderate aerosol
           11 - High aerosol
 
-    (*) set output as 9
+    (*1) set output as 9
+    (*2) set output as 8
+    (*3) mode dependent (mask_adjacent_to_cloud_mode)
     '''
 
+    if (mask_adjacent_to_cloud_mode not in ['mask', 'ignore', 'cover']):
+        error_msg = (f'ERROR mask adjacent to cloud/cloud-shadow mode:'
+                     f' {mask_adjacent_to_cloud_mode}')
+        logger.info(error_msg)
+        raise Exception(error_msg)
+
+    logger.info(f'mask adjacent to cloud/cloud-shadow mode:'
+                f' {mask_adjacent_to_cloud_mode}')
+ 
     # Check QA cloud shadow bit (3) => bit 0
-    mask[np.bitwise_and(qa_band, 2**3) == 2**3] += 1
+    mask[np.bitwise_and(qa_band, 2**3) == 2**3] = 1
+
+    if mask_adjacent_to_cloud_mode == 'mask':
+        # Check QA adjacent to cloud/shadow bit (2) => bit 0
+       mask[np.bitwise_and(qa_band, 2**2) == 2**2] = 1
 
     # Check QA cloud bit (1) => bit 2
     mask[np.bitwise_and(qa_band, 2**1) == 2**1] += 4
@@ -1406,14 +1433,26 @@ def _compute_mask_and_filter_interpreted_layer(
     # Check QA snow bit (4) => bit 1
     snow_mask = np.bitwise_and(qa_band, 2**4) == 2**4
 
-    # Cover areas marked as adjacent to cloud or cloud shadow
-    if FLAG_DILATE_SNOW_MASK_TO_COVER_ADJACENT_CLOUD:
+    # Cover areas marked as adjacent to cloud/shadow
+    if mask_adjacent_to_cloud_mode == 'cover':
+        # Dilate snow mask over areas adjacent to cloud/shadow
         adjacent_to_cloud_mask = np.bitwise_and(qa_band, 2**2) == 2**2
         areas_to_dilate = (adjacent_to_cloud_mask) & (mask == 0)
 
         snow_mask = binary_dilation(snow_mask, iterations=10,
                                     mask=areas_to_dilate)
 
+        '''
+        Dilate back not-water areas over areas marked as snow that are
+        probably not snow. This is done only over areas marked as
+        adjacent to cloud/shadow. Since snow is usually interpreted as
+        water, not-water areas should only grow over classes that are not
+        marked as water in WTR-2 as that are likely covered by snow
+        '''
+        areas_to_dilate &= ((masked_interpreted_water_layer >=
+                             FIRST_UNCOLLAPSED_WATER_CLASS) &
+                            (masked_interpreted_water_layer <=
+                             LAST_UNCOLLAPSED_WATER_CLASS))
         not_masked = (~snow_mask) & (mask == 0)
         not_masked = binary_dilation(not_masked, iterations=7,
                                      mask=areas_to_dilate)
@@ -2568,6 +2607,9 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     args.min_slope_angle = processing_group['min_slope_angle']
     args.max_sun_local_inc_angle = processing_group['max_sun_local_inc_angle']
 
+    args.mask_adjacent_to_cloud_mode = \
+        processing_group['mask_adjacent_to_cloud_mode']
+
     for i, (layer_name, args_name) in \
             enumerate(layer_names_to_args_dict.items()):
         layer_number = i + 1
@@ -2986,6 +3028,7 @@ def generate_dswx_layers(input_list,
                          flag_use_otsu_terrain_masking=True,
                          min_slope_angle=MIN_SLOPE_ANGLE,
                          max_sun_local_inc_angle=MAX_SUN_LOCAL_INC_ANGLE,
+                         mask_adjacent_to_cloud_mode='cover',
                          flag_debug=False):
     """Compute the DSWx-HLS product
 
@@ -3056,6 +3099,9 @@ def generate_dswx_layers(input_list,
        flag_debug: bool (optional)
               Flag to indicate if execution is for debug purposes. If so,
               only a subset of the image will be loaded into memory
+       mask_adjacent_to_cloud_mode: str
+              Define how areas adjacent to cloud/cloud-shadow should be handled.
+              Options: "mask", "ignore", and "cover"
 
        Returns
        -------
@@ -3304,7 +3350,8 @@ def generate_dswx_layers(input_list,
                           output_files_list=build_vrt_list)
 
     cloud, masked_dswx_band = _compute_mask_and_filter_interpreted_layer(
-        landcover_shadow_masked_dswx, qa)
+        landcover_shadow_masked_dswx, qa,
+        mask_adjacent_to_cloud_mode)
 
     if invalid_ind is not None:
         # Set invalid pixels to mask fill value

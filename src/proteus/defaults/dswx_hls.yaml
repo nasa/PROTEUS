@@ -59,6 +59,9 @@ runconfig:
             # Maximum sun local-incidence angle in degrees for terrain masking
             max_sun_local_inc_angle: 40
 
+            # Define how areas adjacent to cloud/cloud-shadow should be handled
+            mask_adjacent_to_cloud_mode: 'cover'
+
             save_wtr: True    # Layer 1 - WTR
             save_bwtr: True   # Layer 2 - BWTR
             save_conf: True   # Layer 3 - CONF
@@ -79,18 +82,18 @@ runconfig:
         # Settings for saving browse image PNG of the WTR layer.
         browse_image_group:
 
-            # Browse Image
-            save_browse: True  # Save a PNG of Layer 1 (WTR)
+            # Save a browse image PNG of the WTR layer.
+            save_browse: True
 
             # Setting `browse_image_height` and `browse_image_width` equal
             # will maintain this original HLS and DSWx-HLS aspect ratio
             # of 3660 pixels x 3660 pixels.
             # If these fields are left empty, 1024 x 1024 will be used.
 
-            # Height in Pixels
+            # Height in pixels
             browse_image_height: 1024
 
-            # Width in Pixels
+            # Width in pixels
             browse_image_width: 1024
 
         hls_thresholds:

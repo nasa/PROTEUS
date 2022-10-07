@@ -60,6 +60,9 @@ runconfig:
             # Maximum sun local-incidence angle in degrees for terrain masking
             max_sun_local_inc_angle: num(min=-180, max=180, required=False)
 
+            # Define how areas adjacent to cloud/cloud-shadow should be handled
+            mask_adjacent_to_cloud_mode: enum('mask', 'ignore', 'cover', required=False)
+
             # Layer 1 - WTR
             save_wtr: bool(required=False)
 
@@ -105,11 +108,11 @@ runconfig:
             # of 3660 pixels x 3660 pixels.
             # If these fields are left empty, 3660 x 3660 will be used.
 
-            # Height in Pixels
-            browse_image_height: num(required=False)
+            # Height in pixels
+            browse_image_height: num(min=1, required=False)
 
-            # Width in Pixels
-            browse_image_width: num(required=False)
+            # Width in pixels
+            browse_image_width: num(min=1, required=False)
 
         hls_thresholds: include('hls_thresholds_options', required=False)
 
