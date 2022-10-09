@@ -1610,6 +1610,12 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             xoff=0, yoff=0, xsize=1000, ysize=1000)
     else:
         image = layer_gdal_dataset.ReadAsArray()
+
+    if fill_data is None and '_FillValue' in metadata.keys():
+        fill_data = metadata['_FillValue']
+    elif fill_data is None:
+        fill_data = -9999
+
     invalid_ind = np.where(image == fill_data)
     if FLAG_CLIP_NEGATIVE_REFLECTANCE:
         image = np.clip(image, 1, None)
