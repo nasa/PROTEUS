@@ -2852,8 +2852,7 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
 
 
 def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
-                                min_slope_angle = MIN_SLOPE_ANGLE,
-                                max_sun_local_inc_angle = MAX_SUN_LOCAL_INC_ANGLE,
+                                min_slope_angle, max_sun_local_inc_angle,
                                 pixel_spacing_x = 30, pixel_spacing_y = 30):
     """Compute hillshade using new OPERA shadow masking
 
@@ -2867,9 +2866,9 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
               Sun elevation angle
        slope_angle_threshold: float
               Slope angle threshold
-       MIN_SLOPE_ANGLE: float (optional)
+       min_slope_angle: float
               Maximum slope angle
-       max_sun_local_inc_angle: float (optional)
+       max_sun_local_inc_angle: float
               Maximum local-incidence angle
        pixel_spacing_x: float (optional)
               Pixel spacing in the X direction
@@ -2909,7 +2908,7 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
         terrain_normal_vector[0] * np.sin(sun_azimuth) +
         terrain_normal_vector[1] * np.cos(sun_azimuth)))
 
-    backslope_mask = directional_slope_angle <= MIN_SLOPE_ANGLE
+    backslope_mask = directional_slope_angle <= min_slope_angle
     low_sun_inc_angle_mask = sun_inc_angle_degrees <= max_sun_local_inc_angle
     shadow_mask = (low_sun_inc_angle_mask | (~ backslope_mask))
 
