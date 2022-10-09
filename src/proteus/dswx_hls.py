@@ -1599,11 +1599,11 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
         else:
             dswx_metadata_dict['SENSOR'] = 'OLI'
 
-    for metadata_key, metadata_value in metadata.items():
-        if metadata_key == 'add_offset':
-            offset = float(metadata_value)
-        elif metadata_key == 'scale_factor':
-           scale_factor = float(metadata_value)
+    if 'add_offset' in metadata:
+        offset = float(metadata['add_offset'])
+    if 'scale_factor' in metadata:
+        scale_factor = float(metadata['scale_factor'])
+
     if flag_debug:
         logger.info('reading in debug mode')
         image = layer_gdal_dataset.ReadAsArray(
