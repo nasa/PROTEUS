@@ -1507,11 +1507,11 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
               Flag indicating if band was successfuly loaded into memory
     """
     layer_gdal_dataset = gdal.Open(filename, gdal.GA_ReadOnly)
-    band = layer_gdal_dataset.GetRasterBand(1)
-    fill_data = band.GetNoDataValue()
     if layer_gdal_dataset is None:
         return None
-
+    band = layer_gdal_dataset.GetRasterBand(1)
+    fill_data = band.GetNoDataValue()
+ 
     if 'hls_dataset_name' not in image_dict.keys():
         hls_dataset_name = os.path.splitext(os.path.basename(filename))[0]
         if band_suffix:
