@@ -21,7 +21,8 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
               Resampling algorithm for overviews.
               Options: "AVERAGE", "AVERAGE_MAGPHASE", "RMS", "BILINEAR",
               "CUBIC", "CUBICSPLINE", "GAUSS", "LANCZOS", "MODE",
-              "NEAREST", or "NONE" 
+              "NEAREST", or "NONE". Defaults to "NEAREST", if integer, and
+              "CUBICSPLINE", otherwise.
     """
     if logger is None:
         logger = logging.getLogger('proteus')
