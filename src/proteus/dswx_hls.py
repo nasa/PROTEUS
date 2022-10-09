@@ -23,6 +23,10 @@ disables the collapsing of these classes into 2 water classes at the time
 when the interpreted layers (WTR-1, WTR-2, and WTR) are saved.
 '''
 FLAG_COLLAPSE_WTR_CLASSES = True
+
+'''
+If enabled, set all negative reflectance values to 1 before scaling is applied
+'''
 FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 
 landcover_mask_type = 'standard'
