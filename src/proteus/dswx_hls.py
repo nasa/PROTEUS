@@ -259,29 +259,29 @@ class HlsThresholds:
     Attributes
     ----------
     wigt : float
-        Modified Normalized Difference Wetness Index (MNDWI) Threshold
+        Modified Normalized Difference Wetness Index (MNDWI) threshold
     awgt : float
-        Automated Water Extent Shadow Threshold
+        Automated water extent shadow threshold
     pswt_1_mndwi : float
-        Partial Surface Water Test-1 MNDWI Threshold
+        Partial surface water test-1 MNDWI threshold
     pswt_1_nir : float
-        Partial Surface Water Test-1 NIR Threshold
+        Partial surface water test-1 NIR threshold
     pswt_1_swir1 : float
-        Partial Surface Water Test-1 SWIR1 Threshold
+        Partial surface water test-1 SWIR1 threshold
     pswt_1_ndvi : float
-        Partial Surface Water Test-1 NDVI Threshold
+        Partial surface water test-1 NDVI threshold
     pswt_2_mndwi : float
-        Partial Surface Water Test-2 MNDWI Threshold
+        Partial surface water test-2 MNDWI threshold
     pswt_2_blue : float
-        Partial Surface Water Test-2 Blue Threshold
+        Partial surface water test-2 Blue threshold
     pswt_2_nir : float
-        Partial Surface Water Test-2 NIR Threshold
+        Partial surface water test-2 NIR threshold
     pswt_2_swir1 : float
-        Partial Surface Water Test-2 SWIR1 Threshold
+        Partial surface water test-2 SWIR1 threshold
     pswt_2_swir2 : float
-        Partial Surface Water Test-2 SWIR2 Threshold
+        Partial surface water test-2 SWIR2 threshold
     lcmask_nir : float
-        Land Cover Mask based test Near Infrared
+        Land cover mask near infrared test threshold
     """
     def __init__(self):
 
@@ -1466,42 +1466,6 @@ def _compute_mask_and_filter_interpreted_layer(
     masked_interpreted_water_layer[mask == 2] = WTR_CLOUD_MASKED_SNOW
 
     return mask, masked_interpreted_water_layer
-
-
-def _get_avg_sensing_time(sensing_time_str):
-    """
-       Compute average sensing time
-
-       Parameters
-       ----------
-       sensing_time_str: str
-              String containing the list of sensing times separated by ";"
-
-       Returns
-       -------
-       average_sensing_time_string: str
-              Average sensing time
-    """
-    sensing_time_list = [d.strip() for d in
-                         sensing_time_str.split(';')]
-
-    if len(sensing_time_list) == 1:
-        return sensing_time_list[0]
-
-    timestamp_sum = 0
-    for sensing_time in sensing_time_list:
-        # datetime parses microseconds but not nanoseconds
-        sensing_time_splitted = sensing_time.split('.')
-        sensing_time_splitted[1] = sensing_time_splitted[1][0:6]
-        sensing_time_microseconds = '.'.join(
-            sensing_time_splitted)+'Z'
-        dt_object = datetime.datetime.strptime(
-            sensing_time_microseconds, "%Y-%m-%dT%H:%M:%S.%fZ")
-        timestamp_sum += dt_object.timestamp()
-    timestamp_avg = timestamp_sum / len(sensing_time_list)
-    datetime_avg = datetime.datetime.fromtimestamp(timestamp_avg)
-    datetime_avg_str = datetime_avg.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    return datetime_avg_str
 
 
 def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
