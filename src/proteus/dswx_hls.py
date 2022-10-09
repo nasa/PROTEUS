@@ -17,9 +17,13 @@ from proteus.core import save_as_cog
 
 PRODUCT_VERSION = '0.5'
 
+'''
+Internally, DSWx-HLS SAS stores 4 water classes. The flag below enables or
+disables the collapsing of these classes into 2 water classes at the time
+when the interpreted layers (WTR-1, WTR-2, and WTR) are saved.
+'''
 FLAG_COLLAPSE_WTR_CLASSES = True
 FLAG_CLIP_NEGATIVE_REFLECTANCE = True
-FLAG_COMPUTE_AVERAGE_SENSING_TIME = False
 
 landcover_mask_type = 'standard'
 
@@ -953,7 +957,7 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
               Landcover mask
        shadow_layer: numpy.ndarray
               Shadow mask
-       hls_thresholds:
+       hls_thresholds: HlsThresholds
               HLS reflectance thresholds for generating DSWx-HLS products
 
        Returns
@@ -1306,7 +1310,7 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
               Short-wave infrared 1 (SWIR-1) channel
        swir2: numpy.ndarray
               Short-wave infrared 2 (SWIR-2) channel
-       hls_thresholds:
+       hls_thresholds: HlsThresholds
               HLS reflectance thresholds for generating DSWx-HLS products
 
        Returns
@@ -1535,10 +1539,6 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             elif (k.upper() == 'LANDSAT_PRODUCT_ID' or
                     k.upper() == 'PRODUCT_URI'):
                 dswx_metadata_dict['SENSOR_PRODUCT_ID'] = v
-            elif (k.upper() == 'SENSING_TIME' and
-                    FLAG_COMPUTE_AVERAGE_SENSING_TIME):
-                dswx_metadata_dict['SENSING_TIME'] = \
-                    _get_avg_sensing_time(v)
             elif k.upper() == 'SENSING_TIME':
                 dswx_metadata_dict['SENSING_TIME'] = v
 
