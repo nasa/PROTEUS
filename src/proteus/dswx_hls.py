@@ -1578,22 +1578,17 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
         dswx_metadata_dict['SPACECRAFT_NAME'] = spacecraft_name
         if sensor is not None:
             # Sensor may be in the form: "OLI_TIRS; OLI_TIRS"
-            sensor_name = None
-            flag_all_same = True
-            sensor_list = []
-            for s in sensor.split(';'):
-                current_sensor_name = s.strip().replace('_TIRS', '')
-                sensor_list.append(current_sensor_name)
-                if sensor_name is None:
-                    sensor_name = current_sensor_name
-                    continue
-                if sensor_name != current_sensor_name:
-                    flag_all_same = False
-                    break
-            if flag_all_same:
-                dswx_metadata_dict['SENSOR'] = sensor_name
-            else:
-                dswx_metadata_dict['SENSOR'] = '; '.join(sensor_list)
+
+            # Tidy the names (DSWx-HLS does not use Landsat's TIR bands;
+            # only outputs from the OLI will be used in DSWx-HLS).
+            sensor_names = sensor.replace('_TIRS', '')
+
+            # Split sensor name(s) apart, remove redundancies while
+            # maintaining order, and add to the metadata dict
+            sensor_list = [s.strip() for s in sensor_names.split(';')]
+            sensor_list_unique = list(dict.fromkeys(sensor_list))
+            dswx_metadata_dict['SENSOR'] = '; '.join(sensor_list_unique)
+
         elif 'SENTINEL' in spacecraft_name:
             dswx_metadata_dict['SENSOR'] = 'MSI'
         else:
@@ -3065,7 +3060,7 @@ def generate_dswx_layers(input_list,
        flag_use_otsu_terrain_masking: bool (optional)
               Flag to indicate whether the terrain masking should be computed
               with the Otsu threshold method
-       MIN_SLOPE_ANGLE: float (optional)
+       min_slope_angle: float (optional)
               Maximum slope angle
        max_sun_local_inc_angle: float (optional)
               Maximum local-incidence angle
