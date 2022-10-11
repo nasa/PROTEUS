@@ -512,9 +512,8 @@ def get_dswx_hls_cli_parser():
                         dest='flag_use_otsu_terrain_masking',
                         action='store_true',
                         default=None,
-                        help=('indicate whether the terrain masking'
-                              ' should be computed with the Otsu threshold'
-                              ' method'))
+                        help=('Compute and apply terrain masking using Otsu'
+                              ' thresholding'))
 
     parser.add_argument('--min-slope-angle',
                         dest='min_slope_angle',
@@ -746,11 +745,7 @@ def decimate_by_summation(image, size_y, size_x):
 
 def _update_landcover_array(conglomerate_array, agg_sum, threshold,
         classification_val):
-    flat_agg = agg_sum.reshape(-1)
-    for position, value in enumerate(flat_agg):
-        if value >= threshold:
-            conglomerate_array[position] = classification_val
-    return
+    conglomerate_array[agg_sum > threshold] = classification_val
 
 
 def create_landcover_mask(copernicus_landcover_file,
@@ -800,8 +795,8 @@ def create_landcover_mask(copernicus_landcover_file,
         logger.error(f'ERROR file not found: {worldcover_file}')
         return
 
-    logger.info(f'Copernicus landcover 100 m file: {copernicus_landcover_file}')
-    logger.info(f'World cover 10 m file: {worldcover_file}')
+    logger.info(f'copernicus landcover 100 m file: {copernicus_landcover_file}')
+    logger.info(f'worldcover 10 m file: {worldcover_file}')
 
     # Reproject Copernicus land cover
     copernicus_landcover_reprojected_file = os.path.join(
@@ -837,9 +832,9 @@ def create_landcover_mask(copernicus_landcover_file,
     # WorldCover class 80: permanent water bodies
     # WorldCover class 90: herbaceous wetland
     # WorldCover class 95: mangroves
-    water_binary_mask = np.where((worldcover_array_up_3 == 80) |
-                                 (worldcover_array_up_3 == 90) |
-                                 (worldcover_array_up_3 == 95), 1, 0)
+    water_binary_mask = ((worldcover_array_up_3 == 80) |
+                         (worldcover_array_up_3 == 90) |
+                         (worldcover_array_up_3 == 95)).astype(np.uint8)
     water_aggregate_sum = decimate_by_summation(water_binary_mask,
                                               size_y, size_x)
     del water_binary_mask
@@ -847,7 +842,7 @@ def create_landcover_mask(copernicus_landcover_file,
     # Create urban-areas mask
     logger.info(f'creating urban-areas mask')
     # WorldCover class 50: built-up
-    urban_binary_mask = np.where((worldcover_array_up_3 == 50) , 1, 0)
+    urban_binary_mask = (worldcover_array_up_3 == 50).astype(np.uint8)
     urban_aggregate_sum = decimate_by_summation(urban_binary_mask,
                                                 size_y, size_x)
     del urban_binary_mask
@@ -855,20 +850,20 @@ def create_landcover_mask(copernicus_landcover_file,
     # Create vegetation mask
     logger.info(f'creating vegetation mask')
     # WorldCover class 10: tree cover
-    tree_binary_mask  = np.where((worldcover_array_up_3 == 10) , 1, 0)
+    tree_binary_mask  = (worldcover_array_up_3 == 10).astype(np.uint8)
     del worldcover_array_up_3
     tree_aggregate_sum = decimate_by_summation(tree_binary_mask,
                                                size_y, size_x)
     del tree_binary_mask
 
-    logger.info(f'combining masks')
     tree_aggregate_sum = np.where(copernicus_landcover_array == 111,
                                   tree_aggregate_sum, 0)
 
+    logger.info(f'combining masks')
     # create array filled with 30000
     landcover_fill_value = \
         dswx_hls_landcover_classes_dict['fill_value']
-    hierarchy_combined = np.full(water_aggregate_sum.reshape(-1).shape,
+    hierarchy_combined = np.full(water_aggregate_sum.shape,
         landcover_fill_value, dtype=np.uint8)
 
     # load threshold list according to `mask_type`
@@ -901,8 +896,6 @@ def create_landcover_mask(copernicus_landcover_file,
     _update_landcover_array(hierarchy_combined, water_aggregate_sum,
                             threshold_list[3], water_class)
     
-    hierarchy_combined = hierarchy_combined.reshape(water_aggregate_sum.shape)
-
     ctable = _get_landcover_mask_ctable()
     
     description = band_description_dict['LAND']
