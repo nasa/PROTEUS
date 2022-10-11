@@ -745,7 +745,7 @@ def decimate_by_summation(image, size_y, size_x):
 
 def _update_landcover_array(conglomerate_array, agg_sum, threshold,
         classification_val):
-    conglomerate_array[agg_sum > threshold] = classification_val
+    conglomerate_array[agg_sum >= threshold] = classification_val
 
 
 def create_landcover_mask(copernicus_landcover_file,
