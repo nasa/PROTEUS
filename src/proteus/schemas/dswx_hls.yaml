@@ -109,10 +109,10 @@ runconfig:
             # If these fields are left empty, 3660 x 3660 will be used.
 
             # Height in pixels
-            browse_image_height: num(min=1, required=False)
+            browse_image_height: int(min=1, required=False)
 
             # Width in pixels
-            browse_image_width: num(min=1, required=False)
+            browse_image_width: int(min=1, required=False)
 
         hls_thresholds: include('hls_thresholds_options', required=False)
 
