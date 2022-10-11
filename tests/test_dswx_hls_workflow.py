@@ -53,8 +53,7 @@ def test_workflow():
 
     create_logger(args.log_file)
 
-
-    hls_thresholds = parse_runconfig_file(
+    runconfig_constants = parse_runconfig_file(
         user_runconfig_file = user_runconfig_file, args = args)
 
     args.flag_debug = True
@@ -62,7 +61,7 @@ def test_workflow():
     generate_dswx_layers(
         args.input_list,
         args.output_file,
-        hls_thresholds = hls_thresholds,
+        hls_thresholds = runconfig_constants.hls_thresholds,
         dem_file=args.dem_file,
         output_interpreted_band=args.output_interpreted_band,
         output_rgb_file=args.output_rgb_file,

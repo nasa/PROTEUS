@@ -43,13 +43,13 @@ def main():
     else:
         user_runconfig_file = None
 
-    hls_thresholds = parse_runconfig_file(
+    runconfig_constants = parse_runconfig_file(
         user_runconfig_file = user_runconfig_file, args = args)
 
     generate_dswx_layers(
         args.input_list,
         args.output_file,
-        hls_thresholds = hls_thresholds,
+        hls_thresholds = runconfig_constants.hls_thresholds,
         dem_file=args.dem_file,
         dem_description=args.dem_description,
         output_interpreted_band=args.output_interpreted_band,

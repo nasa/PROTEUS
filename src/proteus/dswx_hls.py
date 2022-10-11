@@ -256,9 +256,6 @@ Dict of landcover threshold list:
 landcover_threshold_dict = {"standard": [6, 3, 7, 3],
                             "water heavy": [6, 3, 7, 1]}
 
-MIN_SLOPE_ANGLE = -5
-MAX_SUN_LOCAL_INC_ANGLE = 40
-
 
 class HlsThresholds:
     """
@@ -305,6 +302,40 @@ class HlsThresholds:
         self.pswt_2_swir1 = None
         self.pswt_2_swir2 = None
         self.lcmask_nir = None
+
+
+class RunConfigConstants:
+    """
+    Placeholder for constants defined by the default runconfig file
+
+    Attributes
+    ----------
+    hls_thresholds : HlsThresholds
+        HLS reflectance thresholds for generating DSWx-HLS products
+    flag_use_otsu_terrain_masking: bool
+           Flag to indicate whether the terrain masking should be computed
+           with the Otsu threshold method
+    min_slope_angle: float
+           Minimum slope angle
+    max_sun_local_inc_angle: float
+           Maximum local-incidence angle
+    mask_adjacent_to_cloud_mode: str
+           Define how areas adjacent to cloud/cloud-shadow should be handled.
+           Options: "mask", "ignore", and "cover"
+    browse_image_height: int
+            Height in pixels of the browse image PNG
+    browse_image_width: int
+            Width in pixels of the browse image PNG
+    """
+    def __init__(self):
+        self.hls_thresholds = HlsThresholds()
+        self.flag_use_otsu_terrain_masking = None
+        self.min_slope_angle = None
+        self.max_sun_local_inc_angle = None
+        self.mask_adjacent_to_cloud_mode = None
+        self.browse_image_height = None
+        self.browse_image_width = None
+ 
 
 
 def get_dswx_hls_cli_parser():
@@ -477,10 +508,27 @@ def get_dswx_hls_cli_parser():
                         help='Product ID that will be saved in the output'
                         "product's metadata")
 
+    parser.add_argument('--use-otsu-terrain-masking',
+                        dest='flag_use_otsu_terrain_masking',
+                        action='store_true',
+                        default=None,
+                        help=('indicate whether the terrain masking'
+                              ' should be computed with the Otsu threshold'
+                              ' method'))
+
+    parser.add_argument('--min-slope-angle',
+                        dest='min_slope_angle',
+                        type=float,
+                        help='')
+
+    parser.add_argument('--max-sun-local-inc-angle',
+                        dest='max_sun_local_inc_angle',
+                        type=float,
+                        help='Maximum local-incidence angle')
+
     parser.add_argument('--mask-adjacent-to-cloud-mode',
                         dest='mask_adjacent_to_cloud_mode',
                         type=str,
-                        default='cover',
                         choices=['mask', 'ignore', 'cover'],
                         help='Define how areas adjacent to cloud/cloud-shadow'
                         ' should be handled. Options: "mask", "ignore", and'
@@ -2492,19 +2540,44 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     else:
         runconfig = default_runconfig
 
-    hls_thresholds = HlsThresholds()
+    runconfig_constants = RunConfigConstants()
+    processing_group = runconfig['runconfig']['groups']['processing']
+    browse_image_group = runconfig['runconfig']['groups']['browse_image_group']
     hls_thresholds_user = runconfig['runconfig']['groups']['hls_thresholds']
 
-    # copy runconfig parameters from dictionary
+    # copy some processing parameters from runconfig dictionary
+    runconfig_constants_dict = runconfig_constants.__dict__
+    for key in processing_group.keys():
+        if key not in runconfig_constants_dict.keys():
+            continue
+        runconfig_constants.__setattr__(key, processing_group[key])
+
+    # copy browse image parameters from runconfig dictionary
+    for key in browse_image_group.keys():
+        if key not in runconfig_constants_dict.keys():
+            continue
+        runconfig_constants.__setattr__(key, browse_image_group[key])
+
+    # copy HLS thresholds from runconfig dictionary
     if hls_thresholds_user is not None:
         logger.info('HLS thresholds:')
         for key in hls_thresholds_user.keys():
             logger.info(f'     {key}: {hls_thresholds_user[key]}')
-            hls_thresholds.__setattr__(key, hls_thresholds_user[key])
+            runconfig_constants.hls_thresholds.__setattr__(key, hls_thresholds_user[key])
 
     if args is None:
-        return hls_thresholds
+        return runconfig_constants
 
+    # Update args with runconfig_constants attributes
+    for key in runconfig_constants_dict.keys():
+        try:
+            user_attr = getattr(args, key)
+        except AttributeError:
+            continue
+        if user_attr is not None:
+            continue
+        setattr(args, key, getattr(runconfig_constants, key))
+ 
     input_file_path = runconfig['runconfig']['groups']['input_file_group'][
         'input_file_path']
 
@@ -2513,11 +2586,6 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
     product_path_group = runconfig['runconfig']['groups'][
         'product_path_group']
-
-    browse_image_group = runconfig['runconfig']['groups'][
-        'browse_image_group']
-
-    processing_group = runconfig['runconfig']['groups']['processing']
 
     dem_file = ancillary_ds_group['dem_file']
     dem_description = ancillary_ds_group['dem_description']
@@ -2528,8 +2596,6 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     scratch_dir = product_path_group['scratch_path']
     output_directory = product_path_group['output_dir']
     product_id = product_path_group['product_id']
-    browse_image_height = browse_image_group['browse_image_height']
-    browse_image_width = browse_image_group['browse_image_width']
 
     if (input_file_path is not None and len(input_file_path) == 1 and
             os.path.isdir(input_file_path[0])):
@@ -2549,10 +2615,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         'worldcover_file': worldcover_file,
         'worldcover_description': worldcover_description,
         'scratch_dir': scratch_dir,
-        'product_id': product_id,
-        'browse_image_height': browse_image_height,
-        'browse_image_width': browse_image_width
-        }
+        'product_id': product_id}
 
     for var_name, runconfig_file in variables_to_update_dict.items():
         user_file = getattr(args, var_name)
@@ -2565,19 +2628,12 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
     # If user runconfig was not provided, return
     if user_runconfig_file is None:
-        return hls_thresholds
+        return runconfig_constants
 
     # Save layers
     if product_id is None:
         product_id = 'dswx_hls'
 
-    args.flag_use_otsu_terrain_masking = \
-        processing_group['flag_use_otsu_terrain_masking']
-    args.min_slope_angle = processing_group['min_slope_angle']
-    args.max_sun_local_inc_angle = processing_group['max_sun_local_inc_angle']
-
-    args.mask_adjacent_to_cloud_mode = \
-        processing_group['mask_adjacent_to_cloud_mode']
 
     for i, (layer_name, args_name) in \
             enumerate(layer_names_to_args_dict.items()):
@@ -2630,7 +2686,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
             # use the default browse filename
             setattr(args, cli_arg_name, default_browse_fname)
 
-    return hls_thresholds
+    return runconfig_constants
 
 
 def _get_dswx_metadata_dict(product_id):
@@ -2868,7 +2924,7 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
        slope_angle_threshold: float
               Slope angle threshold
        min_slope_angle: float
-              Maximum slope angle
+              Minimum slope angle
        max_sun_local_inc_angle: float
               Maximum local-incidence angle
        pixel_spacing_x: float (optional)
@@ -2993,10 +3049,10 @@ def generate_dswx_layers(input_list,
                          flag_offset_and_scale_inputs=False,
                          scratch_dir='.',
                          product_id=None,
-                         flag_use_otsu_terrain_masking=True,
-                         min_slope_angle=MIN_SLOPE_ANGLE,
-                         max_sun_local_inc_angle=MAX_SUN_LOCAL_INC_ANGLE,
-                         mask_adjacent_to_cloud_mode='cover',
+                         flag_use_otsu_terrain_masking=None,
+                         min_slope_angle=None,
+                         max_sun_local_inc_angle=None,
+                         mask_adjacent_to_cloud_mode=None,
                          flag_debug=False):
     """Compute the DSWx-HLS product
 
@@ -3061,13 +3117,13 @@ def generate_dswx_layers(input_list,
               Flag to indicate whether the terrain masking should be computed
               with the Otsu threshold method
        min_slope_angle: float (optional)
-              Maximum slope angle
+              Minimum slope angle
        max_sun_local_inc_angle: float (optional)
               Maximum local-incidence angle
        flag_debug: bool (optional)
               Flag to indicate if execution is for debug purposes. If so,
               only a subset of the image will be loaded into memory
-       mask_adjacent_to_cloud_mode: str
+       mask_adjacent_to_cloud_mode: str (optional)
               Define how areas adjacent to cloud/cloud-shadow should be handled.
               Options: "mask", "ignore", and "cover"
 
@@ -3076,9 +3132,32 @@ def generate_dswx_layers(input_list,
        success : bool
               Flag success indicating if execution was successful
     """
-    if hls_thresholds is None:
-        hls_thresholds = parse_runconfig_file()
 
+    flag_read_runconfig_constants = (hls_thresholds is None or
+                                     flag_use_otsu_terrain_masking is None or
+                                     min_slope_angle is None or
+                                     max_sun_local_inc_angle is None or
+                                     mask_adjacent_to_cloud_mode is None or
+                                     browse_image_height is None or
+                                     browse_image_width is None)
+
+    if flag_read_runconfig_constants:
+        runconfig_constants = parse_runconfig_file()
+        if hls_thresholds is None:
+            hls_thresholds = runconfig_constants.hls_thresholds
+        if flag_use_otsu_terrain_masking is None:
+            flag_use_otsu_terrain_masking = runconfig_constants.flag_use_otsu_terrain_masking
+        if min_slope_angle is None:
+            min_slope_angle = runconfig_constants.min_slope_angle
+        if max_sun_local_inc_angle is None:
+            max_sun_local_inc_angle = runconfig_constants.max_sun_local_inc_angle
+        if mask_adjacent_to_cloud_mode is None:
+            mask_adjacent_to_cloud_mode = runconfig_constants.mask_adjacent_to_cloud_mode
+        if browse_image_height is None:
+            browse_image_height = runconfig_constants.browse_image_height
+        if browse_image_width is None:
+            browse_image_width = runconfig_constants.browse_image_width
+        
     if scratch_dir is None:
         scratch_dir = '.'
 
@@ -3090,6 +3169,15 @@ def generate_dswx_layers(input_list,
         logger.info(f'    output multi-band file: {output_file}')
     logger.info(f'    DEM file: {dem_file}')
     logger.info(f'    scratch directory: {scratch_dir}')
+    logger.info(f'processing parameters:')
+    logger.info(f'    flag_use_otsu_terrain_masking: {flag_use_otsu_terrain_masking}')
+    logger.info(f'    min_slope_angle: {min_slope_angle}')
+    logger.info(f'    max_sun_local_inc_angle: {max_sun_local_inc_angle}')
+    logger.info(f'    mask_adjacent_to_cloud_mode: {mask_adjacent_to_cloud_mode}')
+    if output_browse_image:
+        logger.info(f'browse image:')
+        logger.info(f'    browse_image_height: {browse_image_height}')
+        logger.info(f'    browse_image_width: {browse_image_width}')
 
     os.makedirs(scratch_dir, exist_ok=True)
 
@@ -3340,17 +3428,6 @@ def generate_dswx_layers(input_list,
     # Note: The browse image will be always be saved as a separate png file;
     # it will not included in the combined `output_file`.
     if output_browse_image:
-
-        # Set defaults here; as the workflow is currently set up,
-        # it is ineffective to supply the defaults this in this function's
-        # argument list.
-        # (Because this function is called from ../bin/dswx_hls.py, which
-        # supplies specific values for each argument (even if that value is None),
-        # any defaults in this argument list will be overwritten by the ones supplied.
-        if browse_image_height is None:
-            browse_image_height = 1024
-        if browse_image_width is None:
-            browse_image_width = 1024
 
         # If the `output_interpreted_band` was generated,
         # convert that to the browse image
