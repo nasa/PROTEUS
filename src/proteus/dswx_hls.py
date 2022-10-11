@@ -697,7 +697,7 @@ def _print_first_value_diff(image_1, image_2, prefix):
     flag_error_found = False
     for i in range(image_1.shape[0]):
         for j in range(image_1.shape[1]):
-            if (abs(image_1[i, j] - image_2[i, j]) >
+            if (abs(image_1[i, j] - image_2[i, j]) <=
                     COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE):
                 continue
             print(prefix + f'     * input 1 has value'
