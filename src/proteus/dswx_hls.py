@@ -1648,7 +1648,7 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
         image = layer_gdal_dataset.ReadAsArray()
 
     if fill_data is None and '_FillValue' in metadata.keys():
-        fill_data = int(metadata['_FillValue'])
+        fill_data = float(metadata['_FillValue'])
     elif fill_data is None:
         fill_data = -9999
 
