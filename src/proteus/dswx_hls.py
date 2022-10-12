@@ -15,7 +15,7 @@ from scipy.ndimage import binary_dilation
 
 from proteus.core import save_as_cog
 
-PRODUCT_VERSION = '0.5'
+SOFTWARE_VERSION = '0.5'
 
 '''
 Internally, DSWx-HLS SAS stores 4 water classes. The flag below enables or
@@ -506,6 +506,12 @@ def get_dswx_hls_cli_parser():
                         dest='product_id',
                         type=str,
                         help='Product ID that will be saved in the output'
+                        "product's metadata")
+
+    parser.add_argument('--product-version',
+                        dest='product_version',
+                        type=str,
+                        help='Product version that will be saved in the output'
                         "product's metadata")
 
     parser.add_argument('--use-otsu-terrain-masking',
@@ -2589,6 +2595,14 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     scratch_dir = product_path_group['scratch_path']
     output_directory = product_path_group['output_dir']
     product_id = product_path_group['product_id']
+    product_version_float = product_path_group['product_version']
+
+    if product_id is None:
+        product_id = 'dswx_hls'
+    if product_version_float is None:
+        product_version = SOFTWARE_VERSION
+    else:
+        product_version = f'{product_version_float:.1f}'
 
     if (input_file_path is not None and len(input_file_path) == 1 and
             os.path.isdir(input_file_path[0])):
@@ -2608,7 +2622,8 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         'worldcover_file': worldcover_file,
         'worldcover_description': worldcover_description,
         'scratch_dir': scratch_dir,
-        'product_id': product_id}
+        'product_id': product_id,
+        'product_version': product_version}
 
     for var_name, runconfig_file in variables_to_update_dict.items():
         user_file = getattr(args, var_name)
@@ -2623,11 +2638,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     if user_runconfig_file is None:
         return runconfig_constants
 
-    # Save layers
-    if product_id is None:
-        product_id = 'dswx_hls'
-
-
+    # save layers
     for i, (layer_name, args_name) in \
             enumerate(layer_names_to_args_dict.items()):
         layer_number = i + 1
@@ -2641,7 +2652,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         user_layer_file = getattr(args, arg_name)
 
         # runconfig layer filename
-        product_basename = (f'{product_id}_v{PRODUCT_VERSION}_B{layer_number:02}'
+        product_basename = (f'{product_id}_v{product_version}_B{layer_number:02}'
                             f'_{layer_name}.tif')
         runconfig_layer_file = os.path.join(output_directory,
                                             product_basename)
@@ -2664,7 +2675,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         cli_browse_fname = getattr(args, cli_arg_name)
 
         # Construct the default browse image filename per the runconfig
-        product_basename = (f'{product_id}_v{PRODUCT_VERSION}.png')
+        product_basename = (f'{product_id}_v{product_version}.png')
         default_browse_fname = os.path.join(output_directory,
                                             product_basename)
 
@@ -2682,7 +2693,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     return runconfig_constants
 
 
-def _get_dswx_metadata_dict(product_id):
+def _get_dswx_metadata_dict(product_id, product_version):
     """Create and return metadata dictionary
 
        Parameters
@@ -2698,10 +2709,12 @@ def _get_dswx_metadata_dict(product_id):
     dswx_metadata_dict = OrderedDict()
 
     # identification
-
-
     dswx_metadata_dict['PRODUCT_ID'] = product_id
-    dswx_metadata_dict['PRODUCT_VERSION'] = PRODUCT_VERSION
+    if product_version is not None:
+        dswx_metadata_dict['PRODUCT_VERSION'] = product_version
+    else:
+        dswx_metadata_dict['PRODUCT_VERSION'] = SOFTWARE_VERSION
+    dswx_metadata_dict['SOFTWARE_VERSION'] = SOFTWARE_VERSION
     dswx_metadata_dict['PROJECT'] = 'OPERA'
     dswx_metadata_dict['PRODUCT_LEVEL'] = '3'
     dswx_metadata_dict['PRODUCT_TYPE'] = 'DSWx-HLS'
@@ -3042,6 +3055,7 @@ def generate_dswx_layers(input_list,
                          flag_offset_and_scale_inputs=False,
                          scratch_dir='.',
                          product_id=None,
+                         product_version=SOFTWARE_VERSION,
                          flag_use_otsu_terrain_masking=None,
                          min_slope_angle=None,
                          max_sun_local_inc_angle=None,
@@ -3106,6 +3120,9 @@ def generate_dswx_layers(input_list,
        product_id: str (optional)
               Product ID that will be saved in the output' product's
               metadata
+       product_version: str (optional)
+              Product version that will be saved in the output' product's
+              metadata
        flag_use_otsu_terrain_masking: bool (optional)
               Flag to indicate whether the terrain masking should be computed
               with the Otsu threshold method
@@ -3154,6 +3171,11 @@ def generate_dswx_layers(input_list,
     if scratch_dir is None:
         scratch_dir = '.'
 
+    if product_id is None and output_file:
+        product_id = os.path.splitext(os.path.basename(output_file))[0]
+    elif product_id is None:
+        product_id = 'dswx_hls'
+
     logger.info('input parameters:')
     logger.info('    file(s):')
     for input_file in input_list:
@@ -3162,6 +3184,10 @@ def generate_dswx_layers(input_list,
         logger.info(f'    output multi-band file: {output_file}')
     logger.info(f'    DEM file: {dem_file}')
     logger.info(f'    scratch directory: {scratch_dir}')
+    logger.info(f'product parameters:')
+    logger.info(f'    product ID: {product_id}')
+    logger.info(f'    product version: {product_version}')
+    logger.info(f'    software version: {SOFTWARE_VERSION}')
     logger.info(f'processing parameters:')
     logger.info(f'    flag_use_otsu_terrain_masking: {flag_use_otsu_terrain_masking}')
     logger.info(f'    min_slope_angle: {min_slope_angle}')
@@ -3183,12 +3209,7 @@ def generate_dswx_layers(input_list,
     dem = None
     shadow_layer = None
 
-    if product_id is None and output_file:
-        product_id = os.path.splitext(os.path.basename(output_file))[0]
-    elif product_id is None:
-        product_id = 'dswx_hls'
-
-    dswx_metadata_dict = _get_dswx_metadata_dict(product_id)
+    dswx_metadata_dict = _get_dswx_metadata_dict(product_id, product_version)
 
     version = None
     if not isinstance(input_list, list) or len(input_list) == 1:

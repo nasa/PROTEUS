@@ -24,7 +24,7 @@ def test_workflow():
         os.makedirs(test_data_directory, exist_ok=True)
 
     dataset_name = 's30_louisiana_mississippi'
-    dataset_url = ('https://zenodo.org/record/7183887/files/'
+    dataset_url = ('https://zenodo.org/record/7191337/files/'
                    's30_louisiana_mississippi.tar.gz')
     dataset_dir = os.path.join(test_data_directory, dataset_name)
     user_runconfig_file = os.path.join(dataset_dir, 'dswx_hls.yaml')
@@ -86,6 +86,7 @@ def test_workflow():
         flag_offset_and_scale_inputs=args.flag_offset_and_scale_inputs,
         scratch_dir=args.scratch_dir,
         product_id=args.product_id,
+        product_version=args.product_version,
         flag_use_otsu_terrain_masking=args.flag_use_otsu_terrain_masking,
         min_slope_angle = args.min_slope_angle,
         max_sun_local_inc_angle=args.max_sun_local_inc_angle,
