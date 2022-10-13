@@ -2,7 +2,7 @@
 PROTEUS - Parallelized Radar Optical Toolbox for Estimating dynamic sUrface water extentS
 
 # License
-**Copyright (c) 2021** California Institute of Technology (“Caltech”). U.S. Government
+**Copyright (c) 2022** California Institute of Technology (“Caltech”). U.S. Government
 sponsorship acknowledged.
 
 All rights reserved.
@@ -32,28 +32,33 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Installation
 
-Download the source code and move working directory to clone repository:
+### Download the Source Code
+Download the source code and change working directory to cloned repository:
 
 ```bash
-git clone https://github.com/opera-adt/PROTEUS.git
+git clone https://github.com/nasa/PROTEUS.git
 cd PROTEUS
 ```
 
-Install PROTEUS via conda/setup.py (recommended):
-
+### Standard Installation
+Install dependencies (installation via conda is recommended):
 ```bash
 conda install --file docker/requirements.txt
 conda install -c conda-forge --file docker/requirements.txt.forge
-python setup.py install
 ```
 
-Or via pip:
+Install via setup.py:
 
 ```bash
-pip install .
+python setup.py install
+python setup.py clean
 ```
 
-Or via environment path setup:
+Note: Installation via pip is not currently recommended due to an
+issue with the osgeo and gdal dependency.
+
+
+OR update environment path to run PROTEUS:
 
 ```bash
 export PROTEUS_HOME=$PWD
@@ -61,9 +66,39 @@ export PYTHONPATH=${PYTHONPATH}:${PROTEUS_HOME}/src
 export PATH=${PATH}:${PROTEUS_HOME}/bin
 ```
 
-Run workflow and unit tests:
+Run workflow tests to ensure proper installation:
 
 ```bash
-cd tests
-pytest -rpP
+pytest -rpP tests
 ```
+
+Process data sets; use a runconfig file to specify the location
+of the dataset, the output directory, parameters, etc.
+
+```bash
+dswx_hls.py <path to runconfig file>
+```
+
+A default runconfig file can be found: `PROTEUS > src > proteus > defaults > dswx_hls.yaml`.
+This file can be copied and modified for your needs.
+Note: The runconfig must meet this schema: `PROTEUS > src > proteus > schemas > dswx_hls.yaml`.
+
+
+### Alternate Installation: Docker Image
+
+Skip the standard installation process above.
+
+Then, from inside the cloned repository, build the Docker image:
+(This will automatically run the workflow tests.)
+
+```bash
+./build_docker_image.sh
+```
+
+Load the Docker container image onto your computer:
+
+```bash
+docker load -i docker/dockerimg_proteus_cal_val_3.1.tar
+```
+
+See DSWx-HLS Science Algorithm Software (SAS) User Guide for instructions on processing via Docker.
