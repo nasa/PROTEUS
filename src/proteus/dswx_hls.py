@@ -668,22 +668,22 @@ def _compare_dswx_hls_metadata(metadata_1, metadata_2):
     else:
         for k1, v1, in metadata_1.items():
             if k1 not in metadata_2.keys():
-                 flag_same_metadata = False
-                 metadata_error_message = (
-                     f'* the metadata key {k1} is present in'
-                     ' but it is not present in input 2')
-                 break
+                flag_same_metadata = False
+                metadata_error_message = (
+                    f'* the metadata key {k1} is present in'
+                    ' but it is not present in input 2')
+                break
             # Exclude metadata fields that are not required to be the same
             if k1 in ['PROCESSING_DATETIME', 'DEM_SOURCE', 'LANDCOVER_SOURCE',
                       'WORLDCOVER_SOURCE']:
-                 continue
+                continue
             if metadata_2[k1] != v1:
-                 flag_same_metadata = False
-                 metadata_error_message = (
-                     f'* contents of metadata key {k1} from'
-                     f' input 1 has value "{v1}" whereas the same key in'
-                     f' input 2 metadata has value "{metadata_2[k1]}"')
-                 break
+                flag_same_metadata = False
+                metadata_error_message = (
+                    f'* contents of metadata key {k1} from'
+                    f' input 1 has value "{v1}" whereas the same key in'
+                    f' input 2 metadata has value "{metadata_2[k1]}"')
+                break
     return metadata_error_message, flag_same_metadata
 
 
