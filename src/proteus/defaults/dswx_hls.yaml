@@ -62,7 +62,7 @@ runconfig:
             max_sun_local_inc_angle: 40
 
             # Define how areas adjacent to cloud/cloud-shadow should be handled
-            mask_adjacent_to_cloud_mode: 'cover'
+            mask_adjacent_to_cloud_mode: 'mask'
 
             save_wtr: True    # Layer 1 - WTR
             save_bwtr: True   # Layer 2 - BWTR
