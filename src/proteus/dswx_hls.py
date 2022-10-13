@@ -2481,7 +2481,7 @@ def _deep_update(main_dict, update_dict):
     for key, val in update_dict.items():
         if isinstance(val, dict):
             main_dict[key] = _deep_update(main_dict.get(key, {}), val)
-        else:
+        elif val is not None:
             main_dict[key] = val
 
     # return updated main_dict
