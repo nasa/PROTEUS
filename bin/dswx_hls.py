@@ -43,14 +43,15 @@ def main():
     else:
         user_runconfig_file = None
 
-    hls_thresholds = parse_runconfig_file(
+    runconfig_constants = parse_runconfig_file(
         user_runconfig_file = user_runconfig_file, args = args)
 
     generate_dswx_layers(
         args.input_list,
         args.output_file,
-        hls_thresholds = hls_thresholds,
+        hls_thresholds = runconfig_constants.hls_thresholds,
         dem_file=args.dem_file,
+        dem_description=args.dem_description,
         output_interpreted_band=args.output_interpreted_band,
         output_rgb_file=args.output_rgb_file,
         output_infrared_rgb_file=args.output_infrared_rgb_file,
@@ -63,11 +64,21 @@ def main():
         output_shadow_layer=args.output_shadow_layer,
         output_cloud_mask=args.output_cloud_mask,
         output_dem_layer=args.output_dem_layer,
+        output_browse_image=args.output_browse_image,
+        browse_image_height=args.browse_image_height,
+        browse_image_width=args.browse_image_width,
         landcover_file=args.landcover_file,
+        landcover_description=args.landcover_description,
         worldcover_file=args.worldcover_file,
+        worldcover_description=args.worldcover_description,
         flag_offset_and_scale_inputs=args.flag_offset_and_scale_inputs,
         scratch_dir=args.scratch_dir,
         product_id=args.product_id,
+        product_version=args.product_version,
+        flag_use_otsu_terrain_masking=args.flag_use_otsu_terrain_masking,
+        min_slope_angle = args.min_slope_angle,
+        max_sun_local_inc_angle=args.max_sun_local_inc_angle,
+        mask_adjacent_to_cloud_mode=args.mask_adjacent_to_cloud_mode,
         flag_debug=args.flag_debug)
 
 

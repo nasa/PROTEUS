@@ -25,7 +25,7 @@ RUN set -ex \
  && conda update --all --yes \
  && conda install --yes --file /tmp/requirements.txt \
  && conda install --yes --channel conda-forge --file /tmp/requirements_forge.txt \
- && conda clean -tip \
+ && conda clean -tipy \
  && rm -rf /opt/conda/pkgs \
  && rm /tmp/requirements.txt \
  && rm /tmp/requirements_forge.txt

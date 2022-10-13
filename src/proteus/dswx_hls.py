@@ -11,15 +11,35 @@ from collections import OrderedDict
 from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32
 from osgeo import gdal, osr
+from scipy.ndimage import binary_dilation
+
 from proteus.core import save_as_cog
 
-PRODUCT_VERSION = '0.1'
+SOFTWARE_VERSION = '0.5'
+
+'''
+Internally, DSWx-HLS SAS stores 4 water classes. The flag below enables or
+disables the collapsing of these classes into 2 water classes at the time
+when the interpreted layers (WTR-1, WTR-2, and WTR) are saved.
+'''
+FLAG_COLLAPSE_WTR_CLASSES = True
+
+'''
+If enabled, set all negative reflectance values to 1 before scaling is applied
+'''
+FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 
 landcover_mask_type = 'standard'
 
 COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE = 1e-6
 
-DEM_MARGIN_IN_PIXELS = 10
+UINT8_FILL_VALUE = 255
+
+'''
+Extra margin to accomodate use of any interpolation method and other
+operations taking place near the edge of the DEM
+'''
+DEM_MARGIN_IN_PIXELS = 50
 
 logger = logging.getLogger('dswx_hls')
 
@@ -93,34 +113,87 @@ interpreted_dswx_band_dict = {
     0b10100 : 4
 }
 
-FLAG_COLLAPSE_WTR_CLASSES = True
 
+# Not-water classes
+WTR_NOT_WATER = 0
+
+# Water classes
+
+WTR_COLLAPSED_OPEN_WATER = 1
+WTR_COLLAPSED_PARTIAL_SURFACE_WATER = 2
+WTR_UNCOLLAPSED_HIGH_CONF_WATER = 1
+WTR_UNCOLLAPSED_MODERATE_CONF_WATER = 2
+WTR_UNCOLLAPSED_POTENTIAL_WETLAND = 3
+WTR_UNCOLLAPSED_LOW_CONF_WATER = 4
+
+FIRST_UNCOLLAPSED_WATER_CLASS = 1
+LAST_UNCOLLAPSED_WATER_CLASS = 4
+
+# Cloud/cloud-shadow masked classes
+WTR_CLOUD_MASKED = 9
+WTR_CLOUD_MASKED_SNOW = 8
+
+# Shadow mask
+SHAD_NOT_MASKED = 1
+SHAD_MASKED = 0
+
+# Other classes
+BWTR_WATER = 1
+CONF_NOT_WATER = 99
+CONF_CLOUD_MASKED_SNOW = 253
+CONF_CLOUD_MASKED = 254
+
+'''
+Internally, DSWx-HLS has 4 water classes derived from
+USGS DSWe:
+
+1. High-confidence water;
+2. Moderate-confidence water;
+3. Potential wetland;
+4. Low-confidence water or wetland.
+
+These classes are collapsed into 2 classes when DSWx-HLS
+WTR layers are saved:
+1. Open water;
+2. Partial surface water.
+'''
 collapse_wtr_classes_dict = {
-    0: 0,
-    1: 1,
-    2: 1,
-    3: 2,
-    4: 2,
-    9: 9,
-    255: 255
+    WTR_NOT_WATER: WTR_NOT_WATER,
+    WTR_UNCOLLAPSED_HIGH_CONF_WATER: WTR_COLLAPSED_OPEN_WATER,
+    WTR_UNCOLLAPSED_MODERATE_CONF_WATER: WTR_COLLAPSED_OPEN_WATER,
+    WTR_UNCOLLAPSED_POTENTIAL_WETLAND: WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
+    WTR_UNCOLLAPSED_LOW_CONF_WATER: WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
+    WTR_CLOUD_MASKED_SNOW: WTR_CLOUD_MASKED_SNOW,
+    WTR_CLOUD_MASKED: WTR_CLOUD_MASKED,
+    UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
+'''
+Dictionary containing the mapping from the output 2-water classes
+(after collapsing) to confidence values in percent
+'''
 wtr_confidence_dict = {
-    0: 0,
-    1: 85,
-    2: 70,
-    9: 254,
-    255: 255
+    WTR_NOT_WATER: CONF_NOT_WATER,
+    WTR_COLLAPSED_OPEN_WATER: 85,
+    WTR_COLLAPSED_PARTIAL_SURFACE_WATER: 70,
+    WTR_CLOUD_MASKED_SNOW: CONF_CLOUD_MASKED_SNOW,
+    WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
+    UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
+'''
+Dictionary containing the mapping from the original 4-water classes
+(before collapsing) to confidence values in percent
+'''
 wtr_confidence_non_collapsed_dict = {
-    0: 0,
-    1: 95,
-    2: 70,
-    3: 80,
-    4: 60,
-    9: 254,
-    255: 255
+    WTR_NOT_WATER: CONF_NOT_WATER,
+    WTR_UNCOLLAPSED_HIGH_CONF_WATER: 95,
+    WTR_UNCOLLAPSED_MODERATE_CONF_WATER: 80,
+    WTR_UNCOLLAPSED_POTENTIAL_WETLAND: 70,
+    WTR_UNCOLLAPSED_LOW_CONF_WATER: 60,
+    WTR_CLOUD_MASKED_SNOW: CONF_CLOUD_MASKED_SNOW,
+    WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
+    UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
 collapsable_layers_list = ['WTR', 'WTR-1', 'WTR-2']
@@ -174,12 +247,14 @@ dswx_hls_landcover_classes_dict = {
     'evergreen_forest': 201,
 
     # fill value (not masked)
-    'fill_value': 255}
+    'fill_value': UINT8_FILL_VALUE}
 
+'''
+Dict of landcover threshold list:
+  [evergreen, low-intensity developed, high-intensity developed, water/wetland]
+'''
 landcover_threshold_dict = {"standard": [6, 3, 7, 3],
                             "water heavy": [6, 3, 7, 1]}
-
-landcover_nir_threshold = 1200
 
 
 class HlsThresholds:
@@ -189,27 +264,29 @@ class HlsThresholds:
     Attributes
     ----------
     wigt : float
-        Modified Normalized Difference Wetness Index (MNDWI) Threshold
+        Modified Normalized Difference Wetness Index (MNDWI) threshold
     awgt : float
-        Automated Water Extent Shadow Threshold
+        Automated water extent shadow threshold
     pswt_1_mndwi : float
-        Partial Surface Water Test-1 MNDWI Threshold
+        Partial surface water test-1 MNDWI threshold
     pswt_1_nir : float
-        Partial Surface Water Test-1 NIR Threshold
+        Partial surface water test-1 NIR threshold
     pswt_1_swir1 : float
-        Partial Surface Water Test-1 SWIR1 Threshold
+        Partial surface water test-1 SWIR1 threshold
     pswt_1_ndvi : float
-        Partial Surface Water Test-1 NDVI Threshold
+        Partial surface water test-1 NDVI threshold
     pswt_2_mndwi : float
-        Partial Surface Water Test-2 MNDWI Threshold
+        Partial surface water test-2 MNDWI threshold
     pswt_2_blue : float
-        Partial Surface Water Test-2 Blue Threshold
+        Partial surface water test-2 Blue threshold
     pswt_2_nir : float
-        Partial Surface Water Test-2 NIR Threshold
+        Partial surface water test-2 NIR threshold
     pswt_2_swir1 : float
-        Partial Surface Water Test-2 SWIR1 Threshold
+        Partial surface water test-2 SWIR1 threshold
     pswt_2_swir2 : float
-        Partial Surface Water Test-2 SWIR2 Threshold
+        Partial surface water test-2 SWIR2 threshold
+    lcmask_nir : float
+        Land cover mask near infrared test threshold
     """
     def __init__(self):
 
@@ -224,6 +301,41 @@ class HlsThresholds:
         self.pswt_2_nir = None
         self.pswt_2_swir1 = None
         self.pswt_2_swir2 = None
+        self.lcmask_nir = None
+
+
+class RunConfigConstants:
+    """
+    Placeholder for constants defined by the default runconfig file
+
+    Attributes
+    ----------
+    hls_thresholds : HlsThresholds
+        HLS reflectance thresholds for generating DSWx-HLS products
+    flag_use_otsu_terrain_masking: bool
+           Flag to indicate whether the terrain masking should be computed
+           with the Otsu threshold method
+    min_slope_angle: float
+           Minimum slope angle
+    max_sun_local_inc_angle: float
+           Maximum local-incidence angle
+    mask_adjacent_to_cloud_mode: str
+           Define how areas adjacent to cloud/cloud-shadow should be handled.
+           Options: "mask", "ignore", and "cover"
+    browse_image_height: int
+            Height in pixels of the browse image PNG
+    browse_image_width: int
+            Width in pixels of the browse image PNG
+    """
+    def __init__(self):
+        self.hls_thresholds = HlsThresholds()
+        self.flag_use_otsu_terrain_masking = None
+        self.min_slope_angle = None
+        self.max_sun_local_inc_angle = None
+        self.mask_adjacent_to_cloud_mode = None
+        self.browse_image_height = None
+        self.browse_image_width = None
+ 
 
 
 def get_dswx_hls_cli_parser():
@@ -242,19 +354,36 @@ def get_dswx_hls_cli_parser():
                         type=str,
                         help='Input digital elevation model (DEM)')
 
+    parser.add_argument('--dem-description',
+                        dest='dem_description',
+                        type=str,
+                        help='Description for the input digital elevation'
+                        ' model (DEM)')
+
     parser.add_argument('-c',
-                        '--copernicus-landcover-100m',
-                        '--landcover', '--land-cover',
+                        '--landcover',
                         dest='landcover_file',
                         type=str,
                         help='Input Copernicus Land Cover'
                         ' Discrete-Classification-map 100m')
 
+    parser.add_argument('--landcover-description',
+                        dest='landcover_description',
+                        type=str,
+                        help='Description for the input Copernicus Land Cover'
+                        ' Discrete-Classification-map 100m')
+
     parser.add_argument('-w',
-                        '--world-cover-10m', '--worldcover', '--world-cover',
+                        '--worldcover',
                         dest='worldcover_file',
                         type=str,
                         help='Input ESA WorldCover 10m')
+
+    parser.add_argument('--worldcover-description',
+                        dest='worldcover_description',
+                        type=str,
+                        help='Description for the input ESA WorldCover 10m')
+
 
     # Outputs
     parser.add_argument('-o',
@@ -340,7 +469,25 @@ def get_dswx_hls_cli_parser():
                         type=str,
                         help='Output elevation layer file (GeoTIFF)')
 
+    parser.add_argument('--browse'
+                        '--output-browse-image',
+                        dest='output_browse_image',
+                        type=str,
+                        help='Output browse image file (png)')
+
     # Parameters
+    parser.add_argument('--bheight'
+                        '--browse-image-height',
+                        dest='browse_image_height',
+                        type=int,
+                        help='Height in pixels for browse image PNG')
+
+    parser.add_argument('--bwidth'
+                        '--browse-image-width',
+                        dest='browse_image_width',
+                        type=int,
+                        help='Width in pixels for browse image PNG')
+
     parser.add_argument('--offset-and-scale-inputs',
                         dest='flag_offset_and_scale_inputs',
                         action='store_true',
@@ -360,6 +507,37 @@ def get_dswx_hls_cli_parser():
                         type=str,
                         help='Product ID that will be saved in the output'
                         "product's metadata")
+
+    parser.add_argument('--product-version',
+                        dest='product_version',
+                        type=str,
+                        help='Product version that will be saved in the output'
+                        "product's metadata")
+
+    parser.add_argument('--use-otsu-terrain-masking',
+                        dest='flag_use_otsu_terrain_masking',
+                        action='store_true',
+                        default=None,
+                        help=('Compute and apply terrain masking using Otsu'
+                              ' thresholding'))
+
+    parser.add_argument('--min-slope-angle',
+                        dest='min_slope_angle',
+                        type=float,
+                        help='')
+
+    parser.add_argument('--max-sun-local-inc-angle',
+                        dest='max_sun_local_inc_angle',
+                        type=float,
+                        help='Maximum local-incidence angle')
+
+    parser.add_argument('--mask-adjacent-to-cloud-mode',
+                        dest='mask_adjacent_to_cloud_mode',
+                        type=str,
+                        choices=['mask', 'ignore', 'cover'],
+                        help='Define how areas adjacent to cloud/cloud-shadow'
+                        ' should be handled. Options: "mask", "ignore", and'
+                        ' "cover"')
 
     parser.add_argument('--debug',
                         dest='flag_debug',
@@ -490,22 +668,22 @@ def _compare_dswx_hls_metadata(metadata_1, metadata_2):
     else:
         for k1, v1, in metadata_1.items():
             if k1 not in metadata_2.keys():
-                 flag_same_metadata = False
-                 metadata_error_message = (
-                     f'* the metadata key {k1} is present in'
-                     ' but it is not present in input 2')
-                 break
-            if k1 == 'PROCESSING_DATETIME':
-                # Processing datetimes are expected to be different from
-                # input 1 and 2
+                flag_same_metadata = False
+                metadata_error_message = (
+                    f'* the metadata key {k1} is present in'
+                    ' but it is not present in input 2')
+                break
+            # Exclude metadata fields that are not required to be the same
+            if k1 in ['PROCESSING_DATETIME', 'DEM_SOURCE', 'LANDCOVER_SOURCE',
+                      'WORLDCOVER_SOURCE']:
                 continue
             if metadata_2[k1] != v1:
-                 flag_same_metadata = False
-                 metadata_error_message = (
-                     f'* contents of metadata key {k1} from'
-                     f' input 1 has value "{v1}" whereas the same key in'
-                     f' input 2 metadata has value "{metadata_2[k1]}"')
-                 break
+                flag_same_metadata = False
+                metadata_error_message = (
+                    f'* contents of metadata key {k1} from'
+                    f' input 1 has value "{v1}" whereas the same key in'
+                    f' input 2 metadata has value "{metadata_2[k1]}"')
+                break
     return metadata_error_message, flag_same_metadata
 
 
@@ -525,7 +703,7 @@ def _print_first_value_diff(image_1, image_2, prefix):
     flag_error_found = False
     for i in range(image_1.shape[0]):
         for j in range(image_1.shape[1]):
-            if (abs(image_1[i, j] - image_2[i, j]) >
+            if (abs(image_1[i, j] - image_2[i, j]) <=
                     COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE):
                 continue
             print(prefix + f'     * input 1 has value'
@@ -573,17 +751,13 @@ def decimate_by_summation(image, size_y, size_x):
 
 def _update_landcover_array(conglomerate_array, agg_sum, threshold,
         classification_val):
-    flat_agg = agg_sum.reshape(-1)
-    for position, value in enumerate(flat_agg):
-        if value > threshold:
-            conglomerate_array[position] = classification_val
-    return
+    conglomerate_array[agg_sum >= threshold] = classification_val
 
 
 def create_landcover_mask(copernicus_landcover_file,
                           worldcover_file, output_file, scratch_dir,
                           mask_type, geotransform, projection, length, width,
-                          dswx_metadata_dict = {}, output_files_list = None,
+                          dswx_metadata_dict = None, output_files_list = None,
                           temp_files_list = None):
     """
     Create landcover mask LAND combining Copernicus Global Land Service
@@ -615,7 +789,9 @@ def create_landcover_mask(copernicus_landcover_file,
        output_files_list: list (optional)
               Mutable list of output files
        temp_files_list: list (optional)
-              Mutable list of temporary files
+              Mutable list of temporary files. If provided,
+              paths to the temporary files generated will be
+              appended to this list.
     """
     if not os.path.isfile(copernicus_landcover_file):
         logger.error(f'ERROR file not found: {copernicus_landcover_file}')
@@ -625,20 +801,20 @@ def create_landcover_mask(copernicus_landcover_file,
         logger.error(f'ERROR file not found: {worldcover_file}')
         return
 
-    logger.info(f'Copernicus landcover 100 m file: {copernicus_landcover_file}')
-    logger.info(f'World cover 10 m file: {worldcover_file}')
+    logger.info(f'copernicus landcover 100 m file: {copernicus_landcover_file}')
+    logger.info(f'worldcover 10 m file: {worldcover_file}')
 
     # Reproject Copernicus land cover
     copernicus_landcover_reprojected_file = os.path.join(
         scratch_dir, 'copernicus_reprojected.tif')
-    copernicus_landcover_array = _relocate(copernicus_landcover_file,
+    copernicus_landcover_array = _warp(copernicus_landcover_file,
         geotransform, projection,
         length, width, scratch_dir, resample_algorithm='nearest',
         relocated_file=copernicus_landcover_reprojected_file,
         temp_files_list=temp_files_list)
     temp_files_list.append(copernicus_landcover_reprojected_file)
 
-    # Reproject ESA Worldcover 10m
+    # Reproject ESA Worldcover 10m from geographic (lat/lon) to MGRS (UTM) 10m
     geotransform_up_3 = list(geotransform)
     geotransform_up_3[1] = geotransform[1] / 3  # dx / 3
     geotransform_up_3[5] = geotransform[5] / 3  # dy / 3
@@ -646,49 +822,55 @@ def create_landcover_mask(copernicus_landcover_file,
     width_up_3 = 3 * width
     worldcover_reprojected_up_3_file = os.path.join(
         scratch_dir, 'worldcover_reprojected_up_3.tif')
-    worldcover_array_up_3 = _relocate(worldcover_file, geotransform_up_3,
+    worldcover_array_up_3 = _warp(worldcover_file, geotransform_up_3,
         projection, length_up_3, width_up_3, scratch_dir,
         resample_algorithm='nearest',
         relocated_file=worldcover_reprojected_up_3_file,
         temp_files_list=temp_files_list)
-    temp_files_list.append(worldcover_array_up_3)
+    temp_files_list.append(worldcover_reprojected_up_3_file)
 
     # Set multilooking parameters
     size_y = 3
     size_x = 3
 
     # Create water mask
-    logger.info(f'Creating water mask')
-    water_binary_mask = np.where((worldcover_array_up_3 == 80) |
-                                 (worldcover_array_up_3 == 90), 1, 0)
-    h20_aggregate_sum = decimate_by_summation(water_binary_mask,
+    logger.info(f'creating water mask')
+    # WorldCover class 80: permanent water bodies
+    # WorldCover class 90: herbaceous wetland
+    # WorldCover class 95: mangroves
+    water_binary_mask = ((worldcover_array_up_3 == 80) |
+                         (worldcover_array_up_3 == 90) |
+                         (worldcover_array_up_3 == 95)).astype(np.uint8)
+    water_aggregate_sum = decimate_by_summation(water_binary_mask,
                                               size_y, size_x)
     del water_binary_mask
 
     # Create urban-areas mask
-    logger.info(f'Creating urban-areas mask')
-    urban_binary_mask = np.where((worldcover_array_up_3 == 50) , 1, 0)
+    logger.info(f'creating urban-areas mask')
+    # WorldCover class 50: built-up
+    urban_binary_mask = (worldcover_array_up_3 == 50).astype(np.uint8)
     urban_aggregate_sum = decimate_by_summation(urban_binary_mask,
                                                 size_y, size_x)
     del urban_binary_mask
 
     # Create vegetation mask
-    logger.info(f'Creating vegetation mask')
-    tree_binary_mask  = np.where((worldcover_array_up_3 == 10) , 1, 0)
+    logger.info(f'creating vegetation mask')
+    # WorldCover class 10: tree cover
+    tree_binary_mask  = (worldcover_array_up_3 == 10).astype(np.uint8)
     del worldcover_array_up_3
     tree_aggregate_sum = decimate_by_summation(tree_binary_mask,
                                                size_y, size_x)
     del tree_binary_mask
 
-    logger.info(f'Combining masks')
     tree_aggregate_sum = np.where(copernicus_landcover_array == 111,
                                   tree_aggregate_sum, 0)
 
+    logger.info(f'combining masks')
     # create array filled with 30000
     landcover_fill_value = \
         dswx_hls_landcover_classes_dict['fill_value']
-    hierarchy_combined = np.full(h20_aggregate_sum.reshape(-1).shape,
-        landcover_fill_value, dtype=np.byte)
+    hierarchy_combined = np.full(water_aggregate_sum.shape,
+        landcover_fill_value, dtype=np.uint8)
 
     # load threshold list according to `mask_type`
     threshold_list = landcover_threshold_dict[mask_type.lower()]
@@ -717,11 +899,9 @@ def create_landcover_mask(copernicus_landcover_file,
     # water where 1/3 or more pixels
     water_class = \
         dswx_hls_landcover_classes_dict['water']
-    _update_landcover_array(hierarchy_combined, h20_aggregate_sum,
+    _update_landcover_array(hierarchy_combined, water_aggregate_sum,
                             threshold_list[3], water_class)
     
-    hierarchy_combined = hierarchy_combined.reshape(h20_aggregate_sum.shape)
-
     ctable = _get_landcover_mask_ctable()
     
     description = band_description_dict['LAND']
@@ -815,7 +995,7 @@ def _is_landcover_class_high_intensity_developed(landcover_mask):
 
 
 def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
-        landcover_mask, shadow_layer):
+        landcover_mask, shadow_layer, hls_thresholds):
     """Apply landcover and shadow masks onto interpreted layer
 
        Parameters
@@ -828,6 +1008,8 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
               Landcover mask
        shadow_layer: numpy.ndarray
               Shadow mask
+       hls_thresholds: HlsThresholds
+              HLS reflectance thresholds for generating DSWx-HLS products
 
        Returns
        -------
@@ -840,16 +1022,18 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
     # apply shadow mask - shadows are set to 0 (not water)
     if shadow_layer is not None and landcover_mask is None:
         logger.info('applying shadow mask:')
-        to_mask_ind = np.where((shadow_layer == 0) &
-            ((interpreted_layer >= 1) | (interpreted_layer <= 4)))
-        landcover_shadow_masked_dswx[to_mask_ind] = 0
+        to_mask_ind = np.where((shadow_layer == SHAD_MASKED) &
+            ((interpreted_layer >= FIRST_UNCOLLAPSED_WATER_CLASS) &
+             (interpreted_layer <= LAST_UNCOLLAPSED_WATER_CLASS)))
+        landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     elif shadow_layer is not None:
         logger.info('applying shadow mask (with landcover):')
-        to_mask_ind = np.where((shadow_layer == 0) &
+        to_mask_ind = np.where((shadow_layer == SHAD_MASKED) &
             (~_is_landcover_class_water_or_wetland(landcover_mask)) &
-            ((interpreted_layer >= 1) & (interpreted_layer <= 4)))
-        landcover_shadow_masked_dswx[to_mask_ind] = 0
+            ((interpreted_layer >= FIRST_UNCOLLAPSED_WATER_CLASS) &
+             (interpreted_layer <= LAST_UNCOLLAPSED_WATER_CLASS)))
+        landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     if landcover_mask is None:
         return landcover_shadow_masked_dswx
@@ -859,22 +1043,25 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
     # Check landcover (evergreen)
     to_mask_ind = np.where(
         _is_landcover_class_evergreen(landcover_mask) &
-        (nir > landcover_nir_threshold) & ((interpreted_layer == 3) |
-                                           (interpreted_layer == 4)))
-    landcover_shadow_masked_dswx[to_mask_ind] = 0
+        (nir > hls_thresholds.lcmask_nir) &
+         ((interpreted_layer == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) |
+          (interpreted_layer == WTR_UNCOLLAPSED_LOW_CONF_WATER)))
+    landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     # Check landcover (low intensity developed)
     to_mask_ind = np.where(
         _is_landcover_class_low_intensity_developed(landcover_mask) &
-        (nir > landcover_nir_threshold) & ((interpreted_layer == 3) |
-                                           (interpreted_layer == 4)))
-    landcover_shadow_masked_dswx[to_mask_ind] = 0
+        (nir > hls_thresholds.lcmask_nir) &
+         ((interpreted_layer == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) |
+          (interpreted_layer == WTR_UNCOLLAPSED_LOW_CONF_WATER)))
+    landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     # Check landcover (high intensity developed)
     to_mask_ind = np.where(
         _is_landcover_class_high_intensity_developed(landcover_mask) &
-        ((interpreted_layer >= 1) & (interpreted_layer <= 4)))
-    landcover_shadow_masked_dswx[to_mask_ind] = 0
+        ((interpreted_layer >= FIRST_UNCOLLAPSED_WATER_CLASS) &
+         (interpreted_layer <= LAST_UNCOLLAPSED_WATER_CLASS)))
+    landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     return landcover_shadow_masked_dswx
 
@@ -901,25 +1088,37 @@ def _get_interpreted_dswx_ctable(
     # set color for each value
 
     # White - Not water
-    dswx_ctable.SetColorEntry(0, (255, 255, 255))
-    # Blue - Water (high confidence)
-    dswx_ctable.SetColorEntry(1, (0, 0, 255))
-    if flag_collapse_wtr_classes:
-        # Green - Low confidence water or wetland
-        dswx_ctable.SetColorEntry(2, (0, 255, 0))
-    else:
-        # Light blue - Water (moderate conf.)
-        dswx_ctable.SetColorEntry(2, (0, 127, 255))
-        # Dark green - Potential wetland
-        dswx_ctable.SetColorEntry(3, (0, 127, 0))
-        # Green - Low confidence water or wetland
-        dswx_ctable.SetColorEntry(4, (0, 255, 0))
+    dswx_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 255))
 
-    # Gray - QA masked
-    dswx_ctable.SetColorEntry(9, (127, 127, 127))
+    if flag_collapse_wtr_classes:
+        # Blue - Open water
+        dswx_ctable.SetColorEntry(WTR_COLLAPSED_OPEN_WATER,
+                                  (0, 0, 255)) 
+        # Green - Partial surface water
+        dswx_ctable.SetColorEntry(WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
+                                  (0, 255, 0))
+    else:
+        # Blue - Water (high confidence)
+        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_HIGH_CONF_WATER,
+                                  (0, 0, 255)) 
+        # Light blue - Water (moderate conf.)
+        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_MODERATE_CONF_WATER,
+                                  (0, 127, 255))
+        # Dark green - Potential wetland
+        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_POTENTIAL_WETLAND,
+                                  (0, 127, 0))
+        # Green - Low confidence water or wetland
+        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_LOW_CONF_WATER,
+                                  (0, 255, 0))
+
+    # Gray - QA masked (Cloud/cloud-shadow)
+    dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
+
+    # Cyan - QA masked (Snow)
+    dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0, 255, 255))
 
     # Black - Fill value
-    dswx_ctable.SetColorEntry(255, (0, 0, 0, 255))
+    dswx_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
 
     return dswx_ctable
 
@@ -946,8 +1145,8 @@ def _get_cloud_mask_ctable():
     mask_ctable.SetColorEntry(1, (64, 64, 64))
     # Cyan - snow/ice
     mask_ctable.SetColorEntry(2, (0, 255, 255))
-    # Blue - Cloud shadow and snow/ice
-    mask_ctable.SetColorEntry(3, (0, 0, 255))
+    # Dark cyan - Cloud shadow and snow/ice
+    mask_ctable.SetColorEntry(3, (0, 127, 127))
     # Light gray - Cloud
     mask_ctable.SetColorEntry(4, (192, 192, 192))
     # Gray - Cloud and cloud shadow
@@ -957,7 +1156,7 @@ def _get_cloud_mask_ctable():
     # Light blue - Cloud, cloud shadow, and snow/ice
     mask_ctable.SetColorEntry(7, (127, 127, 255))
     # Black - Fill value
-    mask_ctable.SetColorEntry(255, (0, 0, 0, 255))
+    mask_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return mask_ctable
 
 
@@ -1071,8 +1270,7 @@ def generate_interpreted_layer(diagnostic_layer):
     interpreted_layer = np.full(shape, 255, dtype = np.uint8)
 
     for key, value in interpreted_dswx_band_dict.items():
-        ind = np.where(diagnostic_layer == key)
-        interpreted_layer[ind] = value
+        interpreted_layer[diagnostic_layer == key] = value
 
     return interpreted_layer
 
@@ -1090,21 +1288,25 @@ def _get_binary_water_layer(interpreted_water_layer):
        binary_water_layer : numpy.ndarray
             Binary water layer
     """
-    # fill value: 255
-    binary_water_layer = np.full_like(interpreted_water_layer, 255)
+    # fill value
+    binary_water_layer = np.full_like(interpreted_water_layer,
+                                      UINT8_FILL_VALUE)
 
-    # water classes: 0
-    ind = np.where(interpreted_water_layer == 0)
-    binary_water_layer[ind] = 0
+    # water classes
+    binary_water_layer[interpreted_water_layer == WTR_NOT_WATER] = \
+        WTR_NOT_WATER
 
     # water classes: 1 to 4
     for class_value in range(1, 5):
-        ind = np.where(interpreted_water_layer == class_value)
-        binary_water_layer[ind] = 1
+        binary_water_layer[interpreted_water_layer == class_value] = BWTR_WATER
 
-    # Q/A masked: 9
-    ind = np.where(interpreted_water_layer == 9)
-    binary_water_layer[ind] = 9
+    # Q/A masked (cloud/snow)
+    binary_water_layer[interpreted_water_layer == WTR_CLOUD_MASKED_SNOW] = \
+        WTR_CLOUD_MASKED_SNOW
+
+    # Q/A masked (cloud/cloud-shadow)
+    binary_water_layer[interpreted_water_layer == WTR_CLOUD_MASKED] = \
+        WTR_CLOUD_MASKED
 
     return binary_water_layer
 
@@ -1133,10 +1335,9 @@ def _get_confidence_layer(interpreted_layer,
         confidence_layer_classes = wtr_confidence_dict
     else:
         confidence_layer_classes = wtr_confidence_non_collapsed_dict
-    confidence_layer = np.full_like(interpreted_layer, 255)
+    confidence_layer = np.full_like(interpreted_layer, UINT8_FILL_VALUE)
     for original_value, new_value in confidence_layer_classes.items():
-        ind = np.where(interpreted_layer == original_value)
-        confidence_layer[ind] = new_value
+        confidence_layer[interpreted_layer == original_value] = new_value
     return confidence_layer
 
 
@@ -1160,7 +1361,7 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
               Short-wave infrared 1 (SWIR-1) channel
        swir2: numpy.ndarray
               Short-wave infrared 2 (SWIR-2) channel
-       hls_thresholds:
+       hls_thresholds: HlsThresholds
               HLS reflectance thresholds for generating DSWx-HLS products
 
        Returns
@@ -1168,10 +1369,6 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
        diagnostic_layer : numpy.ndarray
             Diagnostic test band
     """
-    # Temporarily supress RuntimeWarnings:
-    # - divide by zero encountered in true_divide
-    # - invalid value encountered in true_divide
-    old_settings = np.seterr(invalid='ignore', divide='ignore')
 
     # Modified Normalized Difference Wetness Index (MNDWI)
     mndwi = (green - swir1)/(green + swir1)
@@ -1188,9 +1385,6 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
     # Normalized Difference Vegetation Index (NDVI)
     ndvi = (nir - red) / (nir + red)
 
-    # Restore numpy RuntimeWarnings settings
-    np.seterr(**old_settings)
-
     # Diagnostic test band
     shape = blue.shape
     diagnostic_layer = np.zeros(shape, dtype = np.uint16)
@@ -1199,16 +1393,13 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
     # Surface water tests (see [1, 2])
 
     # Test 1 (open water test, more conservative)
-    ind = np.where(mndwi > hls_thresholds.wigt)
-    diagnostic_layer[ind] += 1
+    diagnostic_layer[mndwi > hls_thresholds.wigt] += 1
 
     # Test 2 (open water test)
-    ind = np.where(mbsrv > mbsrn)
-    diagnostic_layer[ind] += 2
+    diagnostic_layer[mbsrv > mbsrn] += 2
 
     # Test 3 (open water test)
-    ind = np.where(awesh > hls_thresholds.awgt)
-    diagnostic_layer[ind] += 4
+    diagnostic_layer[awesh > hls_thresholds.awgt] += 4
 
     # Test 4 (partial surface water test)
     ind = np.where((mndwi > hls_thresholds.pswt_1_mndwi) &
@@ -1229,7 +1420,8 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
 
 
 def _compute_mask_and_filter_interpreted_layer(
-        unmasked_interpreted_water_layer, qa_band):
+        unmasked_interpreted_water_layer, qa_band,
+        mask_adjacent_to_cloud_mode):
     """Compute cloud/cloud-shadow mask and filter interpreted water layer
 
        Parameters
@@ -1238,6 +1430,9 @@ def _compute_mask_and_filter_interpreted_layer(
               Cloud-unmasked interpreted water layer
        qa_band: numpy ndarray
               HLS Q/A band
+       mask_adjacent_to_cloud_mode: str
+              Define how areas adjacent to cloud/cloud-shadow should be handled.
+              Options: "mask", "ignore", and "cover"
 
        Returns
        -------
@@ -1252,10 +1447,10 @@ def _compute_mask_and_filter_interpreted_layer(
     QA band - Landsat 8
     BITS:
     0 - Cirrus (reserved but not used)
-    1 - Cloud (*)
-    2 - Adjacent to cloud/shadow
-    3 - Cloud shadow (*)
-    4 - Snow/ice (*)
+    1 - Cloud (*1)
+    2 - Adjacent to cloud/shadow (*3)
+    3 - Cloud shadow (*1)
+    4 - Snow/ice (*2)
     5 - Water
     6-7 - Aerosol quality:
           00 - Climatology aerosol
@@ -1263,71 +1458,69 @@ def _compute_mask_and_filter_interpreted_layer(
           10 - Moderate aerosol
           11 - High aerosol
 
-    (*) set output as 9
+    (*1) set output as 9
+    (*2) set output as 8
+    (*3) mode dependent (mask_adjacent_to_cloud_mode)
     '''
 
-    for i in range(shape[0]):
-        for j in range(shape[1]):
+    if (mask_adjacent_to_cloud_mode not in ['mask', 'ignore', 'cover']):
+        error_msg = (f'ERROR mask adjacent to cloud/cloud-shadow mode:'
+                     f' {mask_adjacent_to_cloud_mode}')
+        logger.info(error_msg)
+        raise Exception(error_msg)
 
-            # Check QA cloud shadow bit (3) => bit 0
-            if np.bitwise_and(2**3, qa_band[i, j]):
-                mask[i, j] += 1
+    logger.info(f'mask adjacent to cloud/cloud-shadow mode:'
+                f' {mask_adjacent_to_cloud_mode}')
+ 
+    # Check QA cloud shadow bit (3) => bit 0
+    mask[np.bitwise_and(qa_band, 2**3) == 2**3] = 1
 
-            # Check QA adjacent to cloud/cloud shadow bit (2) => bit 0
-            # Note: this line differs from original USGS DSWE ADD
-            elif np.bitwise_and(2**2, qa_band[i, j]):
-                mask[i, j] += 1
+    if mask_adjacent_to_cloud_mode == 'mask':
+        # Check QA adjacent to cloud/shadow bit (2) => bit 0
+       mask[np.bitwise_and(qa_band, 2**2) == 2**2] = 1
 
-            # Check QA snow bit (4) => bit 1
-            if np.bitwise_and(2**4, qa_band[i, j]):
-                mask[i, j] += 2
+    # Check QA cloud bit (1) => bit 2
+    mask[np.bitwise_and(qa_band, 2**1) == 2**1] += 4
 
-            # Check QA cloud bit (1) => bit 2
-            if np.bitwise_and(2**1, qa_band[i, j]):
-                mask[i, j] += 4
+    # If cloud (1) or cloud shadow (3), mark WTR as WTR_CLOUD_MASKED
+    masked_interpreted_water_layer[mask != 0] = WTR_CLOUD_MASKED
 
-            if mask[i, j] == 0:
-                continue
+    # Check QA snow bit (4) => bit 1
+    snow_mask = np.bitwise_and(qa_band, 2**4) == 2**4
 
-            masked_interpreted_water_layer[i, j] = 9
+    # Cover areas marked as adjacent to cloud/shadow
+    if mask_adjacent_to_cloud_mode == 'cover':
+        # Dilate snow mask over areas adjacent to cloud/shadow
+        adjacent_to_cloud_mask = np.bitwise_and(qa_band, 2**2) == 2**2
+        areas_to_dilate = (adjacent_to_cloud_mask) & (mask == 0)
+
+        snow_mask = binary_dilation(snow_mask, iterations=10,
+                                    mask=areas_to_dilate)
+
+        '''
+        Dilate back not-water areas over areas marked as snow that are
+        probably not snow. This is done only over areas marked as
+        adjacent to cloud/shadow. Since snow is usually interpreted as
+        water, not-water areas should only grow over classes that are not
+        marked as water in WTR-2 as that are likely covered by snow
+        '''
+        areas_to_dilate &= ((masked_interpreted_water_layer >=
+                             FIRST_UNCOLLAPSED_WATER_CLASS) &
+                            (masked_interpreted_water_layer <=
+                             LAST_UNCOLLAPSED_WATER_CLASS))
+        not_masked = (~snow_mask) & (mask == 0)
+        not_masked = binary_dilation(not_masked, iterations=7,
+                                     mask=areas_to_dilate)
+
+        snow_mask[not_masked] = False
+
+    # Add snow class to CLOUD mask
+    mask[snow_mask] += 2
+
+    # Update WTR with snow class only over areas not marked as cloud/cloud-shadow
+    masked_interpreted_water_layer[mask == 2] = WTR_CLOUD_MASKED_SNOW
 
     return mask, masked_interpreted_water_layer
-
-
-def _get_avg_sensing_time(sensing_time_str):
-    """
-       Compute average sensing time
-
-       Parameters
-       ----------
-       sensing_time_str: str
-              String containing the list of sensing times separated by ";"
-
-       Returns
-       -------
-       average_sensing_time_string: str
-              Average sensing time
-    """
-    sensing_time_list = [d.strip() for d in
-                         sensing_time_str.split(';')]
-
-    if len(sensing_time_list) == 1:
-        return sensing_time_list[0]
-
-    timestamp_sum = 0
-    for sensing_time in sensing_time_list:
-        # datetime parses microseconds but not nanoseconds
-        sensing_time_splitted = sensing_time.split('.')
-        sensing_time_splitted[1] = sensing_time_splitted[1][0:6]
-        sensing_time_microseconds = '.'.join(
-            sensing_time_splitted)+'Z'
-        dt_object = datetime.datetime.strptime(
-            sensing_time_microseconds, "%Y-%m-%dT%H:%M:%S.%fZ")
-        timestamp_sum += dt_object.timestamp()
-    timestamp_avg = timestamp_sum / len(sensing_time_list)
-    datetime_avg = datetime.datetime.fromtimestamp(timestamp_avg)
-    datetime_avg_str = datetime_avg.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    return datetime_avg_str
 
 
 def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
@@ -1367,12 +1560,23 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
     layer_gdal_dataset = gdal.Open(filename, gdal.GA_ReadOnly)
     if layer_gdal_dataset is None:
         return None
-
+    band = layer_gdal_dataset.GetRasterBand(1)
+    fill_data = band.GetNoDataValue()
+ 
     if 'hls_dataset_name' not in image_dict.keys():
         hls_dataset_name = os.path.splitext(os.path.basename(filename))[0]
         if band_suffix:
             hls_dataset_name = hls_dataset_name.replace(f'.{band_suffix}', '')
         image_dict['hls_dataset_name'] = hls_dataset_name
+
+    if key == 'qa':
+        if flag_debug:
+            logger.info('reading in debug mode')
+            image_dict[key] = layer_gdal_dataset.ReadAsArray(
+                xoff=0, yoff=0, xsize=1000, ysize=1000)
+        else:
+            image_dict[key] = layer_gdal_dataset.ReadAsArray()
+        return True
 
     offset = 0.0
     scale_factor = 1.
@@ -1387,8 +1591,7 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
                     k.upper() == 'PRODUCT_URI'):
                 dswx_metadata_dict['SENSOR_PRODUCT_ID'] = v
             elif k.upper() == 'SENSING_TIME':
-                dswx_metadata_dict['SENSING_TIME'] = \
-                    _get_avg_sensing_time(v)
+                dswx_metadata_dict['SENSING_TIME'] = v
 
         sensor = None
 
@@ -1402,8 +1605,14 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
         # HLS Landsat metadata contain attribute SENSOR
         elif 'SENSOR' in metadata:
             sensor = metadata['SENSOR']
-            if 'OLI' in sensor:
-                spacecraft_name = 'Landsat-8'
+            if ('OLI' in sensor and
+                    'SENSOR_PRODUCT_ID' in dswx_metadata_dict.keys() and
+                    'LC' in dswx_metadata_dict['SENSOR_PRODUCT_ID']):
+                sensor_product_id = dswx_metadata_dict['SENSOR_PRODUCT_ID']
+                landsat_sat_num_index = sensor_product_id.find('LC')
+                landsat_sat_num = int(sensor_product_id[
+                    landsat_sat_num_index+2:landsat_sat_num_index+4])
+                spacecraft_name = f'Landsat-{landsat_sat_num}'
             else:
                 logger.info(f'ERROR the sensor "{sensor}" is not supported')
                 return False
@@ -1415,49 +1624,64 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
 
         dswx_metadata_dict['SPACECRAFT_NAME'] = spacecraft_name
         if sensor is not None:
-            dswx_metadata_dict['SENSOR'] = sensor
+            # Sensor may be in the form: "OLI_TIRS; OLI_TIRS"
+
+            # Tidy the names (DSWx-HLS does not use Landsat's TIR bands;
+            # only outputs from the OLI will be used in DSWx-HLS).
+            sensor_names = sensor.replace('_TIRS', '')
+
+            # Split sensor name(s) apart, remove redundancies while
+            # maintaining order, and add to the metadata dict
+            sensor_list = [s.strip() for s in sensor_names.split(';')]
+            sensor_list_unique = list(dict.fromkeys(sensor_list))
+            dswx_metadata_dict['SENSOR'] = '; '.join(sensor_list_unique)
+
         elif 'SENTINEL' in spacecraft_name:
             dswx_metadata_dict['SENSOR'] = 'MSI'
         else:
             dswx_metadata_dict['SENSOR'] = 'OLI'
 
-    if key == 'qa':
-        if flag_debug:
-            logger.info('reading in debug mode')
-            image_dict[key] = layer_gdal_dataset.ReadAsArray(
-                xoff=0, yoff=0, xsize=1000, ysize=1000)
-        else:
-            image_dict[key] = layer_gdal_dataset.ReadAsArray()
-    else:
-        for metadata_key, metadata_value in metadata.items():
-            if metadata_key == 'add_offset':
-                offset = float(metadata_value)
-            elif metadata_key == 'scale_factor':
-               scale_factor = float(metadata_value)
-        if flag_debug:
-            logger.info('reading in debug mode')
-            image = layer_gdal_dataset.ReadAsArray(
-                xoff=0, yoff=0, xsize=1000, ysize=1000)
-        else:
-            image = layer_gdal_dataset.ReadAsArray()
-        if flag_offset_and_scale_inputs:
-            image = scale_factor * (np.asarray(image, dtype=np.float32) -
-                                    offset)
-        image_dict[key] = image
+    if 'add_offset' in metadata:
+        offset = float(metadata['add_offset'])
+    if 'scale_factor' in metadata:
+        scale_factor = float(metadata['scale_factor'])
 
-    # save offset and scale factor into corresponding dictionaries
-    offset_dict[key] = offset
-    scale_dict[key] = scale_factor
+    if flag_debug:
+        logger.info('reading in debug mode')
+        image = layer_gdal_dataset.ReadAsArray(
+            xoff=0, yoff=0, xsize=1000, ysize=1000)
+    else:
+        image = layer_gdal_dataset.ReadAsArray()
+
+    if fill_data is None and '_FillValue' in metadata.keys():
+        fill_data = float(metadata['_FillValue'])
+    elif fill_data is None:
+        fill_data = -9999
+
+    invalid_ind = np.where(image == fill_data)
+    if FLAG_CLIP_NEGATIVE_REFLECTANCE:
+        image = np.clip(image, 1, None)
+    if flag_offset_and_scale_inputs:
+        image = scale_factor * (np.asarray(image, dtype=np.float32) -
+                                offset)
+        image[invalid_ind] == np.nan
+    elif FLAG_CLIP_NEGATIVE_REFLECTANCE:
+        image[invalid_ind] = fill_data
+
+    image_dict[key] = image
 
     if 'geotransform' not in image_dict.keys():
         image_dict['geotransform'] = \
             layer_gdal_dataset.GetGeoTransform()
         image_dict['projection'] = \
             layer_gdal_dataset.GetProjection()
-        band = layer_gdal_dataset.GetRasterBand(1)
-        image_dict['fill_data'] = band.GetNoDataValue()
+        image_dict['fill_data'] = fill_data
         image_dict['length'] = image_dict[key].shape[0]
         image_dict['width'] = image_dict[key].shape[1]
+
+    # save offset and scale factor into corresponding dictionaries
+    offset_dict[key] = offset
+    scale_dict[key] = scale_factor
 
     return True
 
@@ -1588,11 +1812,11 @@ def _get_binary_mask_ctable():
     # create color table
     binary_mask_ctable = gdal.ColorTable()
     # Masked
-    binary_mask_ctable.SetColorEntry(0, (64, 64, 64))
+    binary_mask_ctable.SetColorEntry(SHAD_MASKED, (64, 64, 64))
     # Not masked
-    binary_mask_ctable.SetColorEntry(1, (255, 255, 255))
+    binary_mask_ctable.SetColorEntry(SHAD_NOT_MASKED, (255, 255, 255))
     # Black - Fill value
-    binary_mask_ctable.SetColorEntry(255, (0, 0, 0, 255))
+    binary_mask_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return binary_mask_ctable
 
 
@@ -1606,14 +1830,16 @@ def _get_binary_water_ctable():
     """
     # create color table
     binary_water_ctable = gdal.ColorTable()
-    # No water
-    binary_water_ctable.SetColorEntry(0, (255, 255, 255))
-    # Water
-    binary_water_ctable.SetColorEntry(1, (0, 0, 255))
-    # Gray - QA masked
-    binary_water_ctable.SetColorEntry(9, (127, 127, 127))
-    # Black - Fill value
-    binary_water_ctable.SetColorEntry(255, (0, 0, 0, 255))
+    # White - No water
+    binary_water_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 255))
+    # Blue - Water
+    binary_water_ctable.SetColorEntry(BWTR_WATER, (0, 0, 255))
+    # Cyan - QA masked (snow)
+    binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0, 255, 255))
+    # Gray - QA masked (cloud/cloud-shadow)
+    binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
+    # Black (transparent) - Fill value
+    binary_water_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return binary_water_ctable
 
 
@@ -1637,11 +1863,18 @@ def _get_confidence_layer_ctable():
                          255 - conf_value_255,
                          255))
 
-    # Gray - QA masked
-    confidence_layer_ctable.SetColorEntry(254, (127, 127, 127))
+    # White - Not water
+    confidence_layer_ctable.SetColorEntry(CONF_NOT_WATER, (255, 255, 255))
+
+    # Cyan - QA masked (snow)
+    confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED_SNOW,
+                                          (0, 255, 255))
+
+    # Gray - QA masked (cloud/cloud-shadow)
+    confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED, (127, 127, 127))
 
     # Black - Fill value
-    confidence_layer_ctable.SetColorEntry(255, (0, 0, 0, 255))
+    confidence_layer_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
     return confidence_layer_ctable
 
 def _collapse_wtr_classes(interpreted_layer):
@@ -1659,10 +1892,11 @@ def _collapse_wtr_classes(interpreted_layer):
        collapsed_interpreted_layer: np.ndarray
               Interpreted layer with collapsed classes
     """
-    collapsed_interpreted_layer = np.full_like(interpreted_layer, 255)
+    collapsed_interpreted_layer = np.full_like(interpreted_layer,
+                                               UINT8_FILL_VALUE)
     for original_value, new_value in collapse_wtr_classes_dict.items():
-        ind = np.where(interpreted_layer == original_value)
-        collapsed_interpreted_layer[ind] = new_value
+        collapsed_interpreted_layer[interpreted_layer == original_value] = \
+            new_value
     return collapsed_interpreted_layer
 
 
@@ -1756,10 +1990,10 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
             band_array = _collapse_wtr_classes(band_array)
 
         gdal_band.WriteArray(band_array)
-        gdal_band.SetNoDataValue(255)
+        gdal_band.SetNoDataValue(UINT8_FILL_VALUE)
         if n_valid_bands == 1:
             # set color table and color interpretation
-            dswx_ctable = _get_interpreted_dswx_ctable()
+            dswx_ctable = _get_interpreted_dswx_ctable(flag_collapse_wtr_classes)
             gdal_band.SetRasterColorTable(dswx_ctable)
             gdal_band.SetRasterColorInterpretation(
                 gdal.GCI_PaletteIndex)
@@ -1767,6 +2001,7 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
             gdal_band.SetDescription(description)
         else:
             gdal_band.SetDescription(description_from_dict)
+
         gdal_band.FlushCache()
         gdal_band = None
         if n_valid_bands == 1:
@@ -1780,6 +2015,73 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
     if output_files_list is not None:
         output_files_list.append(output_file)
     logger.info(f'file saved: {output_file}')
+
+
+def geotiff2png(src_geotiff_filename,
+                dest_png_filename,
+                output_height=None,
+                output_width=None,
+                logger=None,
+                ):
+    """
+    Convert a GeoTIFF file to a png file.
+
+    Parameters
+    ----------
+    src_geotiff_filename : str
+        Name (with path) of the source geotiff file to be 
+        converted. This file must already exist.
+    dest_png_filename : str
+        Name (with path) for the output .png file
+    output_height : int, optional.
+        Height in Pixels for the output png. If not provided, 
+        will default to the height of the source geotiff.
+    output_width : int, optional.
+        Width in Pixels for the output png. If not provided, 
+        will default to the width of the source geotiff.
+    logger : Logger, optional
+        Logger for the project
+
+    """
+    # Load the source dataset
+    gdal_ds = gdal.Open(src_geotiff_filename, 1)
+
+    # Set output height
+    if output_height is None:
+        output_height = gdal_ds.GetRasterBand(1).YSize
+
+    # Set output height
+    if output_width is None:
+        output_width = gdal_ds.GetRasterBand(1).XSize
+
+    # select the resampling algorithm to use based on dtype
+    gdal_dtype = gdal_ds.GetRasterBand(1).DataType
+    dtype_name = gdal.GetDataTypeName(gdal_dtype).lower()
+    is_integer = 'byte' in dtype_name  or 'int' in dtype_name
+
+    if is_integer:
+        resamp_algorithm = 'NEAREST'
+    else:
+        resamp_algorithm = 'CUBICSPLINE'
+
+    del gdal_ds  # close the dataset (Python object and pointers)
+
+    # Do not output the .aux.xml file alongside the PNG
+    gdal.SetConfigOption('GDAL_PAM_ENABLED', 'NO')
+
+    # Translate the existing geotiff to the .png format
+    gdal.Translate(dest_png_filename, 
+                        src_geotiff_filename, 
+                        format='PNG',
+                        height=output_height,
+                        width=output_width,
+                        resampleAlg=resamp_algorithm,
+                        nogcp=True,  # do not print GCPs
+                        )
+
+    if logger is None:
+        logger = logging.getLogger('proteus')
+    logger.info(f'Browse Image PNG created: {dest_png_filename}')
 
 
 def save_cloud_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
@@ -1801,7 +2103,7 @@ def save_cloud_mask(mask, output_file, dswx_metadata_dict, geotransform, project
        description: str (optional)
               Band description
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        output_files_list: list (optional)
               Mutable list of output files
     """
@@ -1814,7 +2116,7 @@ def save_cloud_mask(mask, output_file, dswx_metadata_dict, geotransform, project
     gdal_ds.SetProjection(projection)
     mask_band = gdal_ds.GetRasterBand(1)
     mask_band.WriteArray(mask)
-    mask_band.SetNoDataValue(255)
+    mask_band.SetNoDataValue(UINT8_FILL_VALUE)
 
     # set color table and color interpretation
     mask_ctable = _get_cloud_mask_ctable()
@@ -1855,7 +2157,7 @@ def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
        description: str (optional)
               Band description
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        output_files_list: list (optional)
               Mutable list of output files
     """
@@ -1868,7 +2170,7 @@ def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
     gdal_ds.SetProjection(projection)
     binary_water_band = gdal_ds.GetRasterBand(1)
     binary_water_band.WriteArray(binary_water_layer)
-    binary_water_band.SetNoDataValue(255)
+    binary_water_band.SetNoDataValue(UINT8_FILL_VALUE)
 
     # set color table and color interpretation
     binary_water_ctable = _get_binary_water_ctable()
@@ -1910,7 +2212,7 @@ def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
        description: str (optional)
               Band description
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        output_files_list: list (optional)
               Mutable list of output files
        output_dtype: gdal.DataType
@@ -1924,7 +2226,8 @@ def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
     shape = input_array.shape
     driver = gdal.GetDriverByName("GTiff")
     gdal_ds = driver.Create(output_file, shape[1], shape[0], 1, output_dtype)
-    gdal_ds.SetMetadata(dswx_metadata_dict)
+    if dswx_metadata_dict is not None:
+        gdal_ds.SetMetadata(dswx_metadata_dict)
     gdal_ds.SetGeoTransform(geotransform)
     gdal_ds.SetProjection(projection)
     raster_band = gdal_ds.GetRasterBand(1)
@@ -1993,7 +2296,7 @@ def _save_output_rgb_file(red, green, blue, output_file,
        output_files_list: list (optional)
               Mutable list of output files
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        flag_infrared: bool
               Flag to indicate if layer represents infrared reflectance,
               i.e., Red, NIR, and SWIR-1
@@ -2073,7 +2376,7 @@ def get_projection_proj4(projection):
     return projection_proj4
 
 
-def _relocate(input_file, geotransform, projection,
+def _warp(input_file, geotransform, projection,
               length, width, scratch_dir = '.',
               resample_algorithm='nearest',
               relocated_file=None, margin_in_pixels=0,
@@ -2097,7 +2400,7 @@ def _relocate(input_file, geotransform, projection,
               Output width before adding the margin defined by
               `margin_in_pixels`
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        resample_algorithm: str
               Resample algorithm
        relocated_file: str
@@ -2105,21 +2408,33 @@ def _relocate(input_file, geotransform, projection,
        margin_in_pixels: int
               Margin in pixels (default: 0)
        temp_files_list: list (optional)
-              Mutable list of temporary files
+              Mutable list of temporary files. If provided,
+              paths to the temporary files generated will be
+              appended to this list.
 
        Returns
        -------
        relocated_array : numpy.ndarray
               Relocated array
     """
+
+    # Pixel spacing
     dy = geotransform[5]
     dx = geotransform[1]
+
+    # Output Y-coordinate start (North) position with margin
     y0 = geotransform[3] - margin_in_pixels * dy
+
+    # Output X-coordinate start (West) position with margin
     x0 = geotransform[0] - margin_in_pixels * dx
 
+    # Output Y-coordinate end (South) position with margin
     yf = y0 + (length + 2 * margin_in_pixels) * dy
+
+    # Output X-coordinate end (East) position with margin
     xf = x0 + (width + 2 * margin_in_pixels) * dx
 
+    # Set output spatial reference system (SRS) from projection
     dstSRS = get_projection_proj4(projection)
 
     if relocated_file is None:
@@ -2166,7 +2481,7 @@ def _deep_update(main_dict, update_dict):
     for key, val in update_dict.items():
         if isinstance(val, dict):
             main_dict[key] = _deep_update(main_dict.get(key, {}), val)
-        else:
+        elif val is not None:
             main_dict[key] = val
 
     # return updated main_dict
@@ -2224,19 +2539,44 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     else:
         runconfig = default_runconfig
 
-    hls_thresholds = HlsThresholds()
+    runconfig_constants = RunConfigConstants()
+    processing_group = runconfig['runconfig']['groups']['processing']
+    browse_image_group = runconfig['runconfig']['groups']['browse_image_group']
     hls_thresholds_user = runconfig['runconfig']['groups']['hls_thresholds']
 
-    # copy runconfig parameters from dictionary
+    # copy some processing parameters from runconfig dictionary
+    runconfig_constants_dict = runconfig_constants.__dict__
+    for key in processing_group.keys():
+        if key not in runconfig_constants_dict.keys():
+            continue
+        runconfig_constants.__setattr__(key, processing_group[key])
+
+    # copy browse image parameters from runconfig dictionary
+    for key in browse_image_group.keys():
+        if key not in runconfig_constants_dict.keys():
+            continue
+        runconfig_constants.__setattr__(key, browse_image_group[key])
+
+    # copy HLS thresholds from runconfig dictionary
     if hls_thresholds_user is not None:
         logger.info('HLS thresholds:')
         for key in hls_thresholds_user.keys():
             logger.info(f'     {key}: {hls_thresholds_user[key]}')
-            hls_thresholds.__setattr__(key, hls_thresholds_user[key])
+            runconfig_constants.hls_thresholds.__setattr__(key, hls_thresholds_user[key])
 
     if args is None:
-        return hls_thresholds
+        return runconfig_constants
 
+    # Update args with runconfig_constants attributes
+    for key in runconfig_constants_dict.keys():
+        try:
+            user_attr = getattr(args, key)
+        except AttributeError:
+            continue
+        if user_attr is not None:
+            continue
+        setattr(args, key, getattr(runconfig_constants, key))
+ 
     input_file_path = runconfig['runconfig']['groups']['input_file_group'][
         'input_file_path']
 
@@ -2246,25 +2586,23 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     product_path_group = runconfig['runconfig']['groups'][
         'product_path_group']
 
-    if 'dem_file' not in ancillary_ds_group:
-        dem_file = None
-    else:
-        dem_file = ancillary_ds_group['dem_file']
-
-    if 'landcover_file' not in ancillary_ds_group:
-        landcover_file = None
-    else:
-        landcover_file = ancillary_ds_group['landcover_file']
-
-    if 'worldcover_file' not in ancillary_ds_group:
-        worldcover_file = None
-    else:
-        worldcover_file = ancillary_ds_group[
-            'worldcover_file']
-
+    dem_file = ancillary_ds_group['dem_file']
+    dem_description = ancillary_ds_group['dem_description']
+    landcover_file = ancillary_ds_group['landcover_file']
+    landcover_description = ancillary_ds_group['landcover_description']
+    worldcover_file = ancillary_ds_group['worldcover_file']
+    worldcover_description = ancillary_ds_group['worldcover_description']
     scratch_dir = product_path_group['scratch_path']
     output_directory = product_path_group['output_dir']
     product_id = product_path_group['product_id']
+    product_version_float = product_path_group['product_version']
+
+    if product_id is None:
+        product_id = 'dswx_hls'
+    if product_version_float is None:
+        product_version = SOFTWARE_VERSION
+    else:
+        product_version = f'{product_version_float:.1f}'
 
     if (input_file_path is not None and len(input_file_path) == 1 and
             os.path.isdir(input_file_path[0])):
@@ -2278,10 +2616,14 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     # update args with runconfig parameters listed below
     variables_to_update_dict = {
         'dem_file': dem_file,
+        'dem_description': dem_description,
         'landcover_file': landcover_file,
+        'landcover_description': landcover_description,
         'worldcover_file': worldcover_file,
+        'worldcover_description': worldcover_description,
         'scratch_dir': scratch_dir,
-        'product_id': product_id}
+        'product_id': product_id,
+        'product_version': product_version}
 
     for var_name, runconfig_file in variables_to_update_dict.items():
         user_file = getattr(args, var_name)
@@ -2294,25 +2636,23 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
     # If user runconfig was not provided, return
     if user_runconfig_file is None:
-        return hls_thresholds
+        return runconfig_constants
 
-    # Save layers
-    if product_id is None:
-        product_id = 'dswx_hls'
+    # save layers
     for i, (layer_name, args_name) in \
             enumerate(layer_names_to_args_dict.items()):
         layer_number = i + 1
         layer_var_name = layer_name.lower().replace('-', '_')
         runconfig_field = f'save_{layer_var_name}'
 
-        flag_save_layer = product_path_group[runconfig_field]
+        flag_save_layer = processing_group[runconfig_field]
         arg_name = layer_names_to_args_dict[layer_name]
 
         # user (command-line interface) layer filename
         user_layer_file = getattr(args, arg_name)
 
         # runconfig layer filename
-        product_basename = (f'{product_id}_v{PRODUCT_VERSION}_B{layer_number:02}'
+        product_basename = (f'{product_id}_v{product_version}_B{layer_number:02}'
                             f'_{layer_name}.tif')
         runconfig_layer_file = os.path.join(output_directory,
                                             product_basename)
@@ -2328,9 +2668,32 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
         setattr(args, args_name, runconfig_layer_file)
 
-    return hls_thresholds
+    # Browse Image Filename
+    if browse_image_group['save_browse']:
+        # Get user's CLI input for the browse image filename
+        cli_arg_name = 'output_browse_image'
+        cli_browse_fname = getattr(args, cli_arg_name)
 
-def _get_dswx_metadata_dict(product_id):
+        # Construct the default browse image filename per the runconfig
+        product_basename = (f'{product_id}_v{product_version}.png')
+        default_browse_fname = os.path.join(output_directory,
+                                            product_basename)
+
+        # If a browse image filename was provided via CLI, it takes
+        # precendence over the default filename.
+        if cli_browse_fname is not None:
+            logger.warning(f'command line {cli_arg_name} "{cli_browse_fname}" has'
+                           f' precedence over default {cli_arg_name}'
+                           f' "{default_browse_fname}".')
+            # `args` already contains the correct filename; no need to update.
+        else:
+            # use the default browse filename
+            setattr(args, cli_arg_name, default_browse_fname)
+
+    return runconfig_constants
+
+
+def _get_dswx_metadata_dict(product_id, product_version):
     """Create and return metadata dictionary
 
        Parameters
@@ -2346,13 +2709,15 @@ def _get_dswx_metadata_dict(product_id):
     dswx_metadata_dict = OrderedDict()
 
     # identification
-
-
     dswx_metadata_dict['PRODUCT_ID'] = product_id
-    dswx_metadata_dict['PRODUCT_VERSION'] = PRODUCT_VERSION
+    if product_version is not None:
+        dswx_metadata_dict['PRODUCT_VERSION'] = product_version
+    else:
+        dswx_metadata_dict['PRODUCT_VERSION'] = SOFTWARE_VERSION
+    dswx_metadata_dict['SOFTWARE_VERSION'] = SOFTWARE_VERSION
     dswx_metadata_dict['PROJECT'] = 'OPERA'
-    dswx_metadata_dict['LEVEL'] = '3'
-    dswx_metadata_dict['PRODUCT_TYPE'] = 'DSWx'
+    dswx_metadata_dict['PRODUCT_LEVEL'] = '3'
+    dswx_metadata_dict['PRODUCT_TYPE'] = 'DSWx-HLS'
     dswx_metadata_dict['PRODUCT_SOURCE'] = 'HLS'
 
     # save datetime 'YYYY-MM-DD HH:MM:SS'
@@ -2361,9 +2726,14 @@ def _get_dswx_metadata_dict(product_id):
 
     return dswx_metadata_dict
 
-def _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset,
-                                     dem_file=None, landcover_file=None,
-                                     worldcover_file=None):
+def _populate_dswx_metadata_datasets(dswx_metadata_dict,
+                                     hls_dataset,
+                                     dem_file=None,
+                                     dem_description=None,
+                                     landcover_file=None,
+                                     landcover_description=None,
+                                     worldcover_file=None,
+                                     worldcover_description=None):
     """Populate metadata dictionary with input files
 
        Parameters
@@ -2374,20 +2744,43 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset,
               HLS dataset name
        dem_file: str
               DEM filename
+       dem_description: str
+              DEM description
        landcover_file: str
               Landcover filename
-       worldcover_file: str
-              Built-up cover fraction filename
+       landcover_description: str
+              Landcover description
+        worldcover_file: str
+              Worldcover filename
+        worldcover_description: str
+              Worldcover description
     """
 
     # input datasets
     dswx_metadata_dict['HLS_DATASET'] = hls_dataset
-    dswx_metadata_dict['DEM_FILE'] = dem_file if dem_file else '(not provided)'
-    dswx_metadata_dict['LANDCOVER_FILE'] = \
-        landcover_file if landcover_file else '(not provided)'
-    dswx_metadata_dict['WORLDCOVER_FILE'] = \
-        worldcover_file if worldcover_file \
-                                     else '(not provided)'
+    if dem_description:
+        dswx_metadata_dict['DEM_SOURCE'] = dem_description
+    elif dem_file:
+        dswx_metadata_dict['DEM_SOURCE'] = \
+            os.path.basename(dem_file)
+    else:
+        dswx_metadata_dict['DEM_SOURCE'] = '(not provided)'
+
+    if landcover_description:
+        dswx_metadata_dict['LANDCOVER_SOURCE'] = landcover_description
+    elif landcover_file:
+        dswx_metadata_dict['LANDCOVER_SOURCE'] = \
+            os.path.basename(landcover_file)
+    else:
+        dswx_metadata_dict['LANDCOVER_SOURCE'] = '(not provided)'
+
+    if worldcover_description:
+        dswx_metadata_dict['WORLDCOVER_SOURCE'] = worldcover_description
+    elif worldcover_file:
+        dswx_metadata_dict['WORLDCOVER_SOURCE'] = \
+            os.path.basename(worldcover_file)
+    else:
+        dswx_metadata_dict['WORLDCOVER_SOURCE'] = '(not provided)'
 
 
 class Logger(object):
@@ -2492,13 +2885,15 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
        dem_file: str
               DEM filename
        scratch_dir: str
-              Scratch directory
+              Directory for temporary files
        sun_azimuth_angle: float
               Sun azimuth angle
        sun_elevation_angle: float
               Sun elevation angle
        temp_files_list: list (optional)
-              Mutable list of temporary files
+              Mutable list of temporary files. If provided,
+              paths to the temporary files generated will be
+              appended to this list.
 
        Returns
        -------
@@ -2519,7 +2914,71 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
     return hillshade
 
 
-def _binary_repr(diagnostic_layer_decimal):
+def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
+                                min_slope_angle, max_sun_local_inc_angle,
+                                pixel_spacing_x = 30, pixel_spacing_y = 30):
+    """Compute hillshade using new OPERA shadow masking
+
+       Parameters
+       ----------
+       dem_file: str
+              DEM filename
+       sun_azimuth_angle: float
+              Sun azimuth angle
+       sun_elevation_angle: float
+              Sun elevation angle
+       slope_angle_threshold: float
+              Slope angle threshold
+       min_slope_angle: float
+              Minimum slope angle
+       max_sun_local_inc_angle: float
+              Maximum local-incidence angle
+       pixel_spacing_x: float (optional)
+              Pixel spacing in the X direction
+       pixel_spacing_y: float (optional)
+              Pixel spacing in the Y direction
+
+       Returns
+       -------
+       hillshade : numpy.ndarray
+              Hillshade
+    """
+    sun_azimuth = np.radians(sun_azimuth_angle)
+    sun_zenith_degrees = 90 - sun_elevation_angle
+    sun_zenith = np.radians(sun_zenith_degrees)
+
+    target_to_sun_unit_vector = [np.sin(sun_azimuth) * np.sin(sun_zenith),
+                                 np.cos(sun_azimuth) * np.sin(sun_zenith),
+                                 np.cos(sun_zenith)]
+    
+    gradient_h = np.gradient(dem)
+    terrain_normal_vector = [-gradient_h[1] / pixel_spacing_x,
+                             -gradient_h[0] / - abs(pixel_spacing_y),
+                             1]
+
+    normalization_factor = np.sqrt(terrain_normal_vector[0] ** 2 +
+                                   terrain_normal_vector[1] ** 2 + 1)
+
+    sun_inc_angle = np.arccos(
+        (terrain_normal_vector[0] * target_to_sun_unit_vector[0] +
+         terrain_normal_vector[1] * target_to_sun_unit_vector[1] +
+         terrain_normal_vector[2] * target_to_sun_unit_vector[2]) /
+         normalization_factor)
+
+    sun_inc_angle_degrees = np.degrees(sun_inc_angle)
+        
+    directional_slope_angle = np.degrees(np.arctan(
+        terrain_normal_vector[0] * np.sin(sun_azimuth) +
+        terrain_normal_vector[1] * np.cos(sun_azimuth)))
+
+    backslope_mask = directional_slope_angle <= min_slope_angle
+    low_sun_inc_angle_mask = sun_inc_angle_degrees <= max_sun_local_inc_angle
+    shadow_mask = (low_sun_inc_angle_mask | (~ backslope_mask))
+
+    return shadow_mask
+
+
+def _get_binary_representation(diagnostic_layer_decimal, nbits=6):
     """
     Return the binary representation of the diagnostic layer in decimal
     representation.
@@ -2528,6 +2987,9 @@ def _binary_repr(diagnostic_layer_decimal):
        ----------
        diagnostic_layer_decimal: np.ndarray
               Diagnostic layer in decimal representation
+       nbits: int
+              Number of bits. Default: 6 (number of bits of
+              interpreted_dswx_band_dict 5 plus 1)
 
        Returns
        -------
@@ -2535,7 +2997,6 @@ def _binary_repr(diagnostic_layer_decimal):
               Diagnostic layer in binary representation
     """
 
-    nbits = 6
     diagnostic_layer_binary = np.zeros_like(diagnostic_layer_decimal,
                                             dtype=np.uint16)
 
@@ -2547,10 +3008,31 @@ def _binary_repr(diagnostic_layer_decimal):
     return diagnostic_layer_binary
 
 
+def _crop_2d_array_all_sides(input_2d_array, margin):
+    """
+    Crops 2-D array by margin on top, bottom, left, and right.
+
+       Parameters
+       ----------
+       input_2d_array: np.ndarray
+              2-D array to be cropped
+       margin: int
+              The amount to crop arr from all four sides
+
+       Returns
+       -------
+       cropped_2d_array: np.ndarray
+              Cropped 2-D array
+    """
+    cropped_2d_array = input_2d_array[margin:-margin, margin:-margin]
+    return cropped_2d_array
+
+
 def generate_dswx_layers(input_list,
                          output_file = None,
                          hls_thresholds = None,
                          dem_file=None,
+                         dem_description=None,
                          output_interpreted_band=None,
                          output_rgb_file=None,
                          output_infrared_rgb_file=None,
@@ -2563,11 +3045,21 @@ def generate_dswx_layers(input_list,
                          output_shadow_layer=None,
                          output_cloud_mask=None,
                          output_dem_layer=None,
+                         output_browse_image=None,
+                         browse_image_height=None,
+                         browse_image_width=None,
                          landcover_file=None,
+                         landcover_description=None,
                          worldcover_file=None,
+                         worldcover_description=None,
                          flag_offset_and_scale_inputs=False,
                          scratch_dir='.',
                          product_id=None,
+                         product_version=SOFTWARE_VERSION,
+                         flag_use_otsu_terrain_masking=None,
+                         min_slope_angle=None,
+                         max_sun_local_inc_angle=None,
+                         mask_adjacent_to_cloud_mode=None,
                          flag_debug=False):
     """Compute the DSWx-HLS product
 
@@ -2581,6 +3073,8 @@ def generate_dswx_layers(input_list,
               HLS reflectance thresholds for generating DSWx-HLS products
        dem_file: str (optional)
               DEM filename
+       dem_description: str (optional)
+              DEM description
        output_interpreted_band: str (optional)
               Output interpreted band filename
        output_rgb_file: str (optional)
@@ -2605,31 +3099,82 @@ def generate_dswx_layers(input_list,
               Output cloud/cloud-shadow mask filename
        output_dem_layer: str (optional)
               Output elevation layer filename
+       output_browse_image: str (optional)
+              Output browse image PNG filename
+       browse_image_height: int (optional)
+              Height in pixels of the browse image PNG
+       browse_image_width: int (optional)
+              Width in pixels of the browse image PNG
        landcover_file: str (optional)
               Copernicus Global Land Service (CGLS) Land Cover Layer file
+       landcover_description: str (optional)
+              Copernicus Global Land Service (CGLS) Land Cover Layer description
        worldcover_file: str (optional)
               ESA WorldCover map filename
+       worldcover_description: str (optional)
+              ESA WorldCover map description
        flag_offset_and_scale_inputs: bool (optional)
               Flag indicating if DSWx-HLS should be offsetted and scaled
        scratch_dir: str (optional)
-              Temporary directory
+              Directory for temporary files
        product_id: str (optional)
               Product ID that will be saved in the output' product's
               metadata
+       product_version: str (optional)
+              Product version that will be saved in the output' product's
+              metadata
+       flag_use_otsu_terrain_masking: bool (optional)
+              Flag to indicate whether the terrain masking should be computed
+              with the Otsu threshold method
+       min_slope_angle: float (optional)
+              Minimum slope angle
+       max_sun_local_inc_angle: float (optional)
+              Maximum local-incidence angle
        flag_debug: bool (optional)
               Flag to indicate if execution is for debug purposes. If so,
               only a subset of the image will be loaded into memory
+       mask_adjacent_to_cloud_mode: str (optional)
+              Define how areas adjacent to cloud/cloud-shadow should be handled.
+              Options: "mask", "ignore", and "cover"
 
        Returns
        -------
        success : bool
               Flag success indicating if execution was successful
     """
-    if hls_thresholds is None:
-        hls_thresholds = parse_runconfig_file()
 
+    flag_read_runconfig_constants = (hls_thresholds is None or
+                                     flag_use_otsu_terrain_masking is None or
+                                     min_slope_angle is None or
+                                     max_sun_local_inc_angle is None or
+                                     mask_adjacent_to_cloud_mode is None or
+                                     browse_image_height is None or
+                                     browse_image_width is None)
+
+    if flag_read_runconfig_constants:
+        runconfig_constants = parse_runconfig_file()
+        if hls_thresholds is None:
+            hls_thresholds = runconfig_constants.hls_thresholds
+        if flag_use_otsu_terrain_masking is None:
+            flag_use_otsu_terrain_masking = runconfig_constants.flag_use_otsu_terrain_masking
+        if min_slope_angle is None:
+            min_slope_angle = runconfig_constants.min_slope_angle
+        if max_sun_local_inc_angle is None:
+            max_sun_local_inc_angle = runconfig_constants.max_sun_local_inc_angle
+        if mask_adjacent_to_cloud_mode is None:
+            mask_adjacent_to_cloud_mode = runconfig_constants.mask_adjacent_to_cloud_mode
+        if browse_image_height is None:
+            browse_image_height = runconfig_constants.browse_image_height
+        if browse_image_width is None:
+            browse_image_width = runconfig_constants.browse_image_width
+        
     if scratch_dir is None:
         scratch_dir = '.'
+
+    if product_id is None and output_file:
+        product_id = os.path.splitext(os.path.basename(output_file))[0]
+    elif product_id is None:
+        product_id = 'dswx_hls'
 
     logger.info('input parameters:')
     logger.info('    file(s):')
@@ -2639,6 +3184,19 @@ def generate_dswx_layers(input_list,
         logger.info(f'    output multi-band file: {output_file}')
     logger.info(f'    DEM file: {dem_file}')
     logger.info(f'    scratch directory: {scratch_dir}')
+    logger.info(f'product parameters:')
+    logger.info(f'    product ID: {product_id}')
+    logger.info(f'    product version: {product_version}')
+    logger.info(f'    software version: {SOFTWARE_VERSION}')
+    logger.info(f'processing parameters:')
+    logger.info(f'    flag_use_otsu_terrain_masking: {flag_use_otsu_terrain_masking}')
+    logger.info(f'    min_slope_angle: {min_slope_angle}')
+    logger.info(f'    max_sun_local_inc_angle: {max_sun_local_inc_angle}')
+    logger.info(f'    mask_adjacent_to_cloud_mode: {mask_adjacent_to_cloud_mode}')
+    if output_browse_image:
+        logger.info(f'browse image:')
+        logger.info(f'    browse_image_height: {browse_image_height}')
+        logger.info(f'    browse_image_width: {browse_image_width}')
 
     os.makedirs(scratch_dir, exist_ok=True)
 
@@ -2651,12 +3209,7 @@ def generate_dswx_layers(input_list,
     dem = None
     shadow_layer = None
 
-    if product_id is None and output_file:
-        product_id = os.path.splitext(os.path.basename(output_file))[0]
-    elif product_id is None:
-        product_id = 'dswx_hls'
-
-    dswx_metadata_dict = _get_dswx_metadata_dict(product_id)
+    dswx_metadata_dict = _get_dswx_metadata_dict(product_id, product_version)
 
     version = None
     if not isinstance(input_list, list) or len(input_list) == 1:
@@ -2681,9 +3234,15 @@ def generate_dswx_layers(input_list,
         version = '2.0'
 
     hls_dataset_name = image_dict['hls_dataset_name']
-    _populate_dswx_metadata_datasets(dswx_metadata_dict, hls_dataset_name,
-        dem_file=dem_file, landcover_file=landcover_file,
-        worldcover_file=worldcover_file)
+    _populate_dswx_metadata_datasets(
+        dswx_metadata_dict,
+        hls_dataset_name,
+        dem_file=dem_file,
+        dem_description=dem_description,
+        landcover_file=landcover_file,
+        landcover_description=landcover_description,
+        worldcover_file=worldcover_file,
+        worldcover_description=worldcover_description)
 
     spacecraft_name = dswx_metadata_dict['SPACECRAFT_NAME']
     logger.info(f'processing HLS {spacecraft_name[0]}30 dataset v.{version}')
@@ -2726,21 +3285,34 @@ def generate_dswx_layers(input_list,
             dir=scratch_dir, suffix='.tif').name
         if temp_files_list is not None:
             temp_files_list.append(dem_cropped_file)
-        dem_with_margin = _relocate(dem_file, geotransform, projection,
+        dem_with_margin = _warp(dem_file, geotransform, projection,
                                     length, width, scratch_dir,
                                     resample_algorithm='cubic',
                                     relocated_file=dem_cropped_file,
                                     margin_in_pixels=DEM_MARGIN_IN_PIXELS,
                                     temp_files_list=temp_files_list)
 
-        hillshade = _compute_hillshade(dem_cropped_file, scratch_dir,
-                                       sun_azimuth_angle, sun_elevation_angle,
-                                       temp_files_list = temp_files_list)
-        shadow_layer_with_margin = _compute_otsu_threshold(hillshade, is_normalized = True)
+        if flag_use_otsu_terrain_masking:
+            # shadow masking with Otsu threshold method
+            hillshade = _compute_hillshade(
+                dem_cropped_file, scratch_dir, sun_azimuth_angle,
+                sun_elevation_angle, temp_files_list = temp_files_list)
+            shadow_layer_with_margin = _compute_otsu_threshold(
+                hillshade, is_normalized = True)
+        else:
+            # new OPERA shadow masking
+            shadow_layer_with_margin = _compute_opera_shadow_layer(
+                dem_with_margin, sun_azimuth_angle, sun_elevation_angle,
+                min_slope_angle = min_slope_angle,
+                max_sun_local_inc_angle = max_sun_local_inc_angle)
+
+        # remove extra margin from shadow_layer
+        shadow_layer = _crop_2d_array_all_sides(shadow_layer_with_margin,
+                                                DEM_MARGIN_IN_PIXELS)
+        del shadow_layer_with_margin
 
         # remove extra margin from DEM
-        dem = dem_with_margin[DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS,
-                              DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS]
+        dem = _crop_2d_array_all_sides(dem_with_margin, DEM_MARGIN_IN_PIXELS)
         del dem_with_margin
         if output_dem_layer is not None:
            _save_array(dem, output_dem_layer,
@@ -2753,11 +3325,6 @@ def generate_dswx_layers(input_list,
         if not output_file:
             del dem
 
-        # remove extra margin from shadow_layer
-        shadow_layer = shadow_layer_with_margin[
-            DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS,
-            DEM_MARGIN_IN_PIXELS:-DEM_MARGIN_IN_PIXELS]
-        del shadow_layer_with_margin
 
         if output_shadow_layer:
             binary_mask_ctable = _get_binary_mask_ctable()
@@ -2777,11 +3344,11 @@ def generate_dswx_layers(input_list,
             length, width, dswx_metadata_dict = dswx_metadata_dict,
             output_files_list=build_vrt_list, temp_files_list=temp_files_list)
 
-    # Set invalid pixels to fill value (255)
+    # Set array of invalid pixels
     if not flag_offset_and_scale_inputs:
-        invalid_ind = np.where(blue < -5000)
+        invalid_ind = np.where(blue == image_dict['fill_data'])
     else:
-        invalid_ind = np.where(blue < -0.5)
+        invalid_ind = np.where(np.isnan(blue))
 
     if output_rgb_file:
         _save_output_rgb_file(red, green, blue, output_rgb_file,
@@ -2812,7 +3379,7 @@ def generate_dswx_layers(input_list,
     interpreted_dswx_band = generate_interpreted_layer(
         diagnostic_layer_decimal)
     
-    diagnostic_layer = _binary_repr(diagnostic_layer_decimal)
+    diagnostic_layer = _get_binary_representation(diagnostic_layer_decimal)
     del diagnostic_layer_decimal
 
     if output_diagnostic_layer:
@@ -2826,7 +3393,7 @@ def generate_dswx_layers(input_list,
 
 
     if invalid_ind is not None:
-        interpreted_dswx_band[invalid_ind] = 255
+        interpreted_dswx_band[invalid_ind] = UINT8_FILL_VALUE
 
     if output_non_masked_dswx:
         save_dswx_product(interpreted_dswx_band,
@@ -2839,7 +3406,8 @@ def generate_dswx_layers(input_list,
                           output_files_list=build_vrt_list)
 
     landcover_shadow_masked_dswx = _apply_landcover_and_shadow_masks(
-        interpreted_dswx_band, nir, landcover_mask, shadow_layer)
+        interpreted_dswx_band, nir, landcover_mask, shadow_layer,
+        hls_thresholds)
 
     if output_shadow_masked_dswx is not None:
         save_dswx_product(landcover_shadow_masked_dswx,
@@ -2852,12 +3420,13 @@ def generate_dswx_layers(input_list,
                           output_files_list=build_vrt_list)
 
     cloud, masked_dswx_band = _compute_mask_and_filter_interpreted_layer(
-        landcover_shadow_masked_dswx, qa)
+        landcover_shadow_masked_dswx, qa,
+        mask_adjacent_to_cloud_mode)
 
     if invalid_ind is not None:
-        # Set invalid pixels to mask fill value (255)
-        cloud[invalid_ind] = 255
-        masked_dswx_band[invalid_ind] = 255
+        # Set invalid pixels to mask fill value
+        cloud[invalid_ind] = UINT8_FILL_VALUE
+        masked_dswx_band[invalid_ind] = UINT8_FILL_VALUE
 
     if output_interpreted_band:
         save_dswx_product(masked_dswx_band,
@@ -2869,6 +3438,46 @@ def generate_dswx_layers(input_list,
                           scratch_dir=scratch_dir,
                           output_files_list=build_vrt_list)
 
+    # Output the WTR layer as the browse image
+    # Note: The browse image will be always be saved as a separate png file;
+    # it will not included in the combined `output_file`.
+    if output_browse_image:
+
+        # If the `output_interpreted_band` was generated,
+        # convert that to the browse image
+        if output_interpreted_band:
+            src_geotiff_filename = output_interpreted_band
+        else:
+            # If the `output_interpreted_band` geotiff was not generated,
+            # we'll need to make it as a temporary file, and then convert
+            # that to the browse image.
+
+            # Create the source image as a geotiff
+            # Reason: gdal.Create() cannot currently create .png files, so we
+            # must start from a GeoTiff, etc.
+            # Source: https://gis.stackexchange.com/questions/132298/gdal-c-api-how-to-create-png-or-jpeg-from-scratch
+            src_geotiff_filename = os.path.join(scratch_dir,"dswx_tmp.tif")
+            save_dswx_product(masked_dswx_band,
+                            src_geotiff_filename,
+                            dswx_metadata_dict,
+                            geotransform,
+                            projection,
+                            scratch_dir=scratch_dir)
+
+            # add the temp file to the list to be removed at the end
+            temp_files_list += [src_geotiff_filename]
+
+        # Convert the geotiff to a PNG to create the browse image
+        geotiff2png(src_geotiff_filename=src_geotiff_filename,
+                dest_png_filename=output_browse_image,
+                output_height=browse_image_height,
+                output_width=browse_image_width,
+                logger=logger
+                )
+        
+        # add the browse image to the output files list
+        output_files_list += [output_browse_image]
+        
     if output_cloud_mask:
         save_cloud_mask(cloud, output_cloud_mask, dswx_metadata_dict, geotransform,
                         projection,
@@ -2897,7 +3506,7 @@ def generate_dswx_layers(input_list,
                     description=band_description_dict['CONF'],
                     output_files_list=build_vrt_list,
                     ctable=confidence_layer_ctable,
-                    no_data_value=255)
+                    no_data_value=UINT8_FILL_VALUE)
 
     # save output_file as GeoTIFF
     if output_file and not output_file.endswith('.vrt'):
@@ -2928,7 +3537,7 @@ def generate_dswx_layers(input_list,
     for filename in temp_files_list:
         if not os.path.isfile(filename):
             continue
-        # os.remove(filename)
+        os.remove(filename)
         logger.info(f'    {filename}')
 
     logger.info('output files:')

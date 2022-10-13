@@ -10,14 +10,23 @@ runconfig:
             input_file_path:
        
         dynamic_ancillary_file_group:
-            # Digital elevation model
+            # Digital elevation model file
             dem_file:
+
+            # Digital elevation model source description
+            dem_description:
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer file
             landcover_file:
 
+            # Copernicus Global Land Service (CGLS) Land Cover Layer description
+            landcover_description:
+
             # ESA WorldCover map file
             worldcover_file:
+
+            # ESA WorldCover map description
+            worldcover_description:
 
         primary_executable:
             product_type: DSWX_HLS
@@ -32,13 +41,28 @@ runconfig:
             # SAS writes DSWx-HLS products as a set of GeoTIFF layers
             # All files are saved within the output_directory following
             # the scheme:
-            # {output_dir}/{product_id}_v{version}_B{layer_number}_{layer_name}.tif
-            # where version is automatically assigned by the SAS according to
-            # the product version that it generates.
-            # If the field product_id is left empty, the prefix "dswx_hls"
-            # will be used instead
+            # {output_dir}/{product_id}_v{product_version}_B{layer_number}_{layer_name}.tif
+            # The default value for `product_id` is "dswx_hls".
+            # The default value for `product_version` is the PROTEUS software version.
+            # `layer_number` and `layer_name` are automatically set by the DSWx-HLS SAS
+            # The PGE should update `product_id` and `product_version`
+            # according to the DSWx-HLS product specs.
             output_dir:
             product_id:
+            product_version:
+
+        processing:
+            # Use terrain-masking based on the Otsu method
+            flag_use_otsu_terrain_masking: False
+
+            # Minimum slope angle in degrees for terrain masking
+            min_slope_angle: -5
+
+            # Maximum sun local-incidence angle in degrees for terrain masking
+            max_sun_local_inc_angle: 40
+
+            # Define how areas adjacent to cloud/cloud-shadow should be handled
+            mask_adjacent_to_cloud_mode: 'mask'
 
             save_wtr: True    # Layer 1 - WTR
             save_bwtr: True   # Layer 2 - BWTR
@@ -57,11 +81,27 @@ runconfig:
             # SWIR-1, NIR, and Red reflectance color composition
             save_infrared_rgb: False
 
+        # Settings for saving browse image PNG of the WTR layer.
+        browse_image_group:
+
+            # Save a browse image PNG of the WTR layer.
+            save_browse: True
+
+            # Setting `browse_image_height` and `browse_image_width` equal
+            # will maintain this original HLS and DSWx-HLS aspect ratio
+            # of 3660 pixels x 3660 pixels.
+            # If these fields are left empty, 1024 x 1024 will be used.
+
+            # Height in pixels
+            browse_image_height: 1024
+
+            # Width in pixels
+            browse_image_width: 1024
 
         hls_thresholds:
 
             # Modified Normalized Difference Wetness Index (MNDWI) Threshold
-            wigt: 0.0124
+            wigt: 0.124
 
             # Automated Water Extent Shadow Threshold
             awgt: 0.0
@@ -92,3 +132,6 @@ runconfig:
 
             # Partial Surface Water Test-2 SWIR2 Threshold
             pswt_2_swir2: 1000
+
+            # Land Cover Mask based test Near Infrared
+            lcmask_nir: 1200
