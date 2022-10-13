@@ -673,10 +673,10 @@ def _compare_dswx_hls_metadata(metadata_1, metadata_2):
                      f'* the metadata key {k1} is present in'
                      ' but it is not present in input 2')
                  break
-            if k1 == 'PROCESSING_DATETIME':
-                # Processing datetimes are expected to be different from
-                # input 1 and 2
-                continue
+            # Exclude metadata fields that are not required to be the same
+            if k1 in ['PROCESSING_DATETIME', 'DEM_SOURCE', 'LANDCOVER_SOURCE',
+                      'WORLDCOVER_SOURCE']:
+                 continue
             if metadata_2[k1] != v1:
                  flag_same_metadata = False
                  metadata_error_message = (
