@@ -1,5 +1,5 @@
 FROM ubuntu:20.04
-FROM python:3.8 
+FROM python:3.9
 
 # Set default UID and GID
 ENV USER_ID 1000
