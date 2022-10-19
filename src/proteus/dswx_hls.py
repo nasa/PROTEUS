@@ -76,7 +76,7 @@ s30_v2_band_dict = {'blue': 'B02',
                     'qa': 'Fmask'}
 
 DIAGNOSTIC_LAYER_NO_DATA_DECIMAL = 0b100000
-DIAGNOSTIC_LAYER_NO_DATA_BINARY_REPR = 100000
+DIAGNOSTIC_LAYER_NO_DATA_BINARY_REPR = 65535
 
 interpreted_dswx_band_dict = {
     0b00000 : 0,  # (Not Water)
@@ -3003,7 +3003,12 @@ def _get_binary_representation(diagnostic_layer_decimal, nbits=6):
     for i in range(nbits):
         diagnostic_layer_decimal, bit_array = \
             np.divmod(diagnostic_layer_decimal, 2)
-        diagnostic_layer_binary += bit_array * (10 ** i)
+        if i < 5:
+            diagnostic_layer_binary += bit_array * (10 ** i)
+        else:
+            # UInt16 max value is 65535
+            diagnostic_layer_binary[bit_array] = \
+                DIAGNOSTIC_LAYER_NO_DATA_BINARY_REPR
 
     return diagnostic_layer_binary
 
