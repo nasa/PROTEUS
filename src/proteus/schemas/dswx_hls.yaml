@@ -62,6 +62,9 @@ runconfig:
             # Maximum sun local-incidence angle in degrees for terrain masking
             max_sun_local_inc_angle: num(min=-180, max=180, required=False)
 
+            # Apply cast shadow masking
+            apply_cast_shadow_masking: bool(required=False)
+
             # Define how areas adjacent to cloud/cloud-shadow should be handled
             mask_adjacent_to_cloud_mode: enum('mask', 'ignore', 'cover', required=False)
 

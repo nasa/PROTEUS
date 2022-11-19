@@ -12,6 +12,7 @@ from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32
 from osgeo import gdal, osr
 from scipy.ndimage import binary_dilation
+import scipy
 
 from proteus.core import save_as_cog
 
@@ -319,6 +320,8 @@ class RunConfigConstants:
            Minimum slope angle
     max_sun_local_inc_angle: float
            Maximum local-incidence angle
+    apply_cast_shadow_masking: bool
+           Apply cast shadow masking
     mask_adjacent_to_cloud_mode: str
            Define how areas adjacent to cloud/cloud-shadow should be handled.
            Options: "mask", "ignore", and "cover"
@@ -332,6 +335,7 @@ class RunConfigConstants:
         self.flag_use_otsu_terrain_masking = None
         self.min_slope_angle = None
         self.max_sun_local_inc_angle = None
+        self.apply_cast_shadow_masking = None
         self.mask_adjacent_to_cloud_mode = None
         self.browse_image_height = None
         self.browse_image_width = None
@@ -530,6 +534,12 @@ def get_dswx_hls_cli_parser():
                         dest='max_sun_local_inc_angle',
                         type=float,
                         help='Maximum local-incidence angle')
+
+    parser.add_argument('--apply-cast-shadow-masking',
+                        dest='apply_cast_shadow_masking',
+                        action='store_true',
+                        default=None,
+                        help='Apply cast shadow masking')
 
     parser.add_argument('--mask-adjacent-to-cloud-mode',
                         dest='mask_adjacent_to_cloud_mode',
@@ -2916,6 +2926,7 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
 
 def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
                                 min_slope_angle, max_sun_local_inc_angle,
+                                apply_cast_shadow_masking,
                                 pixel_spacing_x = 30, pixel_spacing_y = 30):
     """Compute hillshade using new OPERA shadow masking
 
@@ -2933,6 +2944,8 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
               Minimum slope angle
        max_sun_local_inc_angle: float
               Maximum local-incidence angle
+       apply_cast_shadow_masking: bool
+              Apply cast shadow masking
        pixel_spacing_x: float (optional)
               Pixel spacing in the X direction
        pixel_spacing_y: float (optional)
@@ -2947,11 +2960,17 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
     sun_zenith_degrees = 90 - sun_elevation_angle
     sun_zenith = np.radians(sun_zenith_degrees)
 
+    # vector coordinates: (x, y, z)
     target_to_sun_unit_vector = [np.sin(sun_azimuth) * np.sin(sun_zenith),
                                  np.cos(sun_azimuth) * np.sin(sun_zenith),
                                  np.cos(sun_zenith)]
     
+    # numpy computes the gradient as (y, x)
     gradient_h = np.gradient(dem)
+
+    # The terrain normal vector is calculated as:
+    # N = [-dh/dx, -dh/dy, 1] where dh/dx is the west-east slope
+    # and dh/dy is the south-north slope wrt to the DEM grid
     terrain_normal_vector = [-gradient_h[1] / pixel_spacing_x,
                              -gradient_h[0] / - abs(pixel_spacing_y),
                              1]
@@ -2974,6 +2993,52 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
     backslope_mask = directional_slope_angle <= min_slope_angle
     low_sun_inc_angle_mask = sun_inc_angle_degrees <= max_sun_local_inc_angle
     shadow_mask = (low_sun_inc_angle_mask | (~ backslope_mask))
+
+
+    if apply_cast_shadow_masking:
+
+        # approx_sun_distance_to_earth_km = 1.50e8
+        # 1.5e8 meters rather than 1.5e8 km
+        fake_sun_distance_to_earth = 1.50e6
+        target_to_sun_unit_vector = np.asarray(target_to_sun_unit_vector, dtype=np.double)
+        sun_position = fake_sun_distance_to_earth * target_to_sun_unit_vector
+        length = dem.shape[0]
+        width = dem.shape[1]
+        y_dist_vect = np.linspace(- length // 2, length // 2 - 1, length) * -abs(pixel_spacing_y)
+        x_dist_vect = np.linspace(- width // 2, width // 2 - 1, width) * pixel_spacing_x
+        x_dist, y_dist = np.meshgrid(x_dist_vect, y_dist_vect)
+        distance_from_sun = np.sqrt((sun_position[0] - x_dist) ** 2 +
+                                    (sun_position[1] - y_dist) ** 2 +
+                                    (sun_position[2] - dem) ** 2)
+
+        sun_inc_angle = np.degrees(np.arccos(np.absolute(sun_position[2] - dem) / distance_from_sun))
+
+        n_shadow_pixels = None
+        cast_shadow = None
+        shift_factor = 0
+ 
+        # max shift_factor is 500m
+        CAST_SHADOW_LONGEST_DIST = 500
+
+        while (n_shadow_pixels is None or (n_shadow_pixels > 0 and shift_factor < CAST_SHADOW_LONGEST_DIST)):
+            shift_factor += 5
+
+            positive_shift = [shift_factor * np.cos(sun_azimuth),
+                              - shift_factor * np.sin(sun_azimuth)]
+
+            sun_inc_angle_positive_shift = scipy.ndimage.shift(sun_inc_angle, positive_shift)
+
+            # cast_shadow values: 1: shadow 0: non-zero
+            new_cast_shadow = sun_inc_angle < sun_inc_angle_positive_shift
+
+            if cast_shadow is None:
+                cast_shadow = new_cast_shadow
+            else:
+                cast_shadow |= new_cast_shadow
+
+            n_shadow_pixels = np.count_nonzero(new_cast_shadow)
+
+        shadow_mask = (shadow_mask & (~cast_shadow))
 
     return shadow_mask
 
@@ -3064,6 +3129,7 @@ def generate_dswx_layers(input_list,
                          flag_use_otsu_terrain_masking=None,
                          min_slope_angle=None,
                          max_sun_local_inc_angle=None,
+                         apply_cast_shadow_masking=None,
                          mask_adjacent_to_cloud_mode=None,
                          flag_debug=False):
     """Compute the DSWx-HLS product
@@ -3135,6 +3201,8 @@ def generate_dswx_layers(input_list,
               Minimum slope angle
        max_sun_local_inc_angle: float (optional)
               Maximum local-incidence angle
+       apply_cast_shadow_masking: bool
+              Apply cast shadow masking
        flag_debug: bool (optional)
               Flag to indicate if execution is for debug purposes. If so,
               only a subset of the image will be loaded into memory
@@ -3148,13 +3216,15 @@ def generate_dswx_layers(input_list,
               Flag success indicating if execution was successful
     """
 
-    flag_read_runconfig_constants = (hls_thresholds is None or
-                                     flag_use_otsu_terrain_masking is None or
-                                     min_slope_angle is None or
-                                     max_sun_local_inc_angle is None or
-                                     mask_adjacent_to_cloud_mode is None or
-                                     browse_image_height is None or
-                                     browse_image_width is None)
+    flag_read_runconfig_constants = \
+        any([p is None for p in [hls_thresholds,
+                                 flag_use_otsu_terrain_masking,
+                                 min_slope_angle,
+                                 max_sun_local_inc_angle,
+                                 apply_cast_shadow_masking,
+                                 mask_adjacent_to_cloud_mode,
+                                 browse_image_height,
+                                 browse_image_width]])
 
     if flag_read_runconfig_constants:
         runconfig_constants = parse_runconfig_file()
@@ -3166,6 +3236,8 @@ def generate_dswx_layers(input_list,
             min_slope_angle = runconfig_constants.min_slope_angle
         if max_sun_local_inc_angle is None:
             max_sun_local_inc_angle = runconfig_constants.max_sun_local_inc_angle
+        if apply_cast_shadow_masking is None:
+            apply_cast_shadow_masking = runconfig_constants.apply_cast_shadow_masking
         if mask_adjacent_to_cloud_mode is None:
             mask_adjacent_to_cloud_mode = runconfig_constants.mask_adjacent_to_cloud_mode
         if browse_image_height is None:
@@ -3194,10 +3266,16 @@ def generate_dswx_layers(input_list,
     logger.info(f'    product version: {product_version}')
     logger.info(f'    software version: {SOFTWARE_VERSION}')
     logger.info(f'processing parameters:')
-    logger.info(f'    flag_use_otsu_terrain_masking: {flag_use_otsu_terrain_masking}')
-    logger.info(f'    min_slope_angle: {min_slope_angle}')
-    logger.info(f'    max_sun_local_inc_angle: {max_sun_local_inc_angle}')
-    logger.info(f'    mask_adjacent_to_cloud_mode: {mask_adjacent_to_cloud_mode}')
+    if flag_use_otsu_terrain_masking:
+        terrain_masking_algorighm = 'Otsu'
+    else:
+        terrain_masking_algorighm = 'sun local incidence angle'
+    if not flag_use_otsu_terrain_masking:
+        logger.info(f'    terrain masking algorithm: {terrain_masking_algorighm}')
+        logger.info(f'        min. slope angle: {min_slope_angle}')
+        logger.info(f'        max. sun local inc. angle: {max_sun_local_inc_angle}')
+        logger.info(f'        apply cast shadow masking: {apply_cast_shadow_masking}')
+    logger.info(f'        mask adjacent cloud/cloud-shadow mode: {mask_adjacent_to_cloud_mode}')
     if output_browse_image:
         logger.info(f'browse image:')
         logger.info(f'    browse_image_height: {browse_image_height}')
@@ -3308,8 +3386,8 @@ def generate_dswx_layers(input_list,
             # new OPERA shadow masking
             shadow_layer_with_margin = _compute_opera_shadow_layer(
                 dem_with_margin, sun_azimuth_angle, sun_elevation_angle,
-                min_slope_angle = min_slope_angle,
-                max_sun_local_inc_angle = max_sun_local_inc_angle)
+                min_slope_angle, max_sun_local_inc_angle,
+                apply_cast_shadow_masking)
 
         # remove extra margin from shadow_layer
         shadow_layer = _crop_2d_array_all_sides(shadow_layer_with_margin,
