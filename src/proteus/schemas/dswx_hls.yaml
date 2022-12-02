@@ -116,6 +116,9 @@ runconfig:
             # Width in pixels
             browse_image_width: int(min=1, required=False)
 
+            # Flag to not mask the snow in the browse image
+            flag_no_snow_mask_browse: bool(required=False)
+
         hls_thresholds: include('hls_thresholds_options', required=False)
 
 ---

@@ -98,6 +98,9 @@ runconfig:
             # Width in pixels
             browse_image_width: 1024
 
+            # Flag to not mask the snow in the browse image
+            flag_no_snow_mask_browse: False
+
         hls_thresholds:
 
             # Modified Normalized Difference Wetness Index (MNDWI) Threshold
