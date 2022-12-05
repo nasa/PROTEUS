@@ -865,9 +865,10 @@ def create_landcover_mask(copernicus_landcover_file,
     logger.info(f'copernicus landcover 100 m file: {copernicus_landcover_file}')
     logger.info(f'worldcover 10 m file: {worldcover_file}')
 
-    # Reproject Copernicus land cover
-    copernicus_landcover_reprojected_file = os.path.join(
-        scratch_dir, 'copernicus_reprojected.tif')
+    # Reproject Copernicus land cover    
+    copernicus_landcover_reprojected_file = tempfile.NamedTemporaryFile(
+        suffix='copernicus_reprojected', dir=scratch_dir, suffix='.tif').name
+
     copernicus_landcover_array = _warp(copernicus_landcover_file,
         geotransform, projection,
         length, width, scratch_dir, resample_algorithm='nearest',
@@ -881,8 +882,9 @@ def create_landcover_mask(copernicus_landcover_file,
     geotransform_up_3[5] = geotransform[5] / 3  # dy / 3
     length_up_3 = 3 * length
     width_up_3 = 3 * width
-    worldcover_reprojected_up_3_file = os.path.join(
-        scratch_dir, 'worldcover_reprojected_up_3.tif')
+    worldcover_reprojected_up_3_file = tempfile.NamedTemporaryFile(
+        suffix='worldcover_reprojected_up_3',
+        dir=scratch_dir, suffix='.tif').name
     worldcover_array_up_3 = _warp(worldcover_file, geotransform_up_3,
         projection, length_up_3, width_up_3, scratch_dir,
         resample_algorithm='nearest',
