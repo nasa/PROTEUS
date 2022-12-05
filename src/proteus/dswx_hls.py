@@ -511,6 +511,7 @@ def get_dswx_hls_cli_parser():
     parser.add_argument('--no-snow-mask-browse',
                         dest='flag_no_snow_mask_browse',
                         action='store_true',
+                        default=None,
                         help=('Flag to not mask the snow in the browse image'))
 
     parser.add_argument('--offset-and-scale-inputs',
@@ -1167,12 +1168,12 @@ def _get_wtr2_translucent_clouds_ctable(
 
     Returns
     -------
-    wtr2_clouds_ctable : GDAL ColorTable object
+    out_ctable : GDAL ColorTable object
         GDAL color table for WTR-2 w/ tranluscent clouds browse image.
     """
 
     # Get original color table for the surface water interpreted layer.
-    wtr2_clouds_ctable = _get_interpreted_dswx_ctable(
+    out_ctable = _get_interpreted_dswx_ctable(
             flag_collapse_wtr_classes=flag_collapse_wtr_classes)
 
     # Add Translucent clouds
@@ -1180,39 +1181,46 @@ def _get_wtr2_translucent_clouds_ctable(
     # Base color to use for clouds is light grey. This RGB value
     # will be applied to existing color entries with alpha=`alpha`
     # translucency.
-    cloud_color = (160, 160, 160)
+    cloud_rgb = (160, 160, 160)
 
     # Not Water with cloud/cloud-shadow
-    rgb_vals = get_transparency_rgb_vals(cloud_color, wtr2_clouds_ctable.GetColorEntry(WTR_NOT_WATER), alpha)
-    wtr2_clouds_ctable.SetColorEntry(NOT_WATER_AND_CLOUD, rgb_vals)
+    base_rgb = out_ctable.GetColorEntry(WTR_NOT_WATER)
+    rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
+    out_ctable.SetColorEntry(NOT_WATER_AND_CLOUD, rgb_vals)
 
     if flag_collapse_wtr_classes:
         # Open Water with cloud/cloud-shadow
-        rgb_vals = get_transparency_rgb_vals(cloud_color, wtr2_clouds_ctable.GetColorEntry(WTR_COLLAPSED_OPEN_WATER), alpha)
-        wtr2_clouds_ctable.SetColorEntry(OPEN_WATER_AND_CLOUD, rgb_vals)
+        base_rgb = out_ctable.GetColorEntry(WTR_COLLAPSED_OPEN_WATER)
+        rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
+        out_ctable.SetColorEntry(OPEN_WATER_AND_CLOUD, rgb_vals)
         
         # Partial Surface Water with cloud/cloud shadow
-        rgb_vals = get_transparency_rgb_vals(cloud_color, wtr2_clouds_ctable.GetColorEntry(WTR_COLLAPSED_PARTIAL_SURFACE_WATER), alpha)
-        wtr2_clouds_ctable.SetColorEntry(PARTIAL_WATER_AND_CLOUD, rgb_vals)
+        base_rgb = out_ctable.GetColorEntry(WTR_COLLAPSED_PARTIAL_SURFACE_WATER)
+        rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
+        out_ctable.SetColorEntry(PARTIAL_WATER_AND_CLOUD, rgb_vals)
 
     else:  # four water classes
         # Open Water with cloud/cloud-shadow - High Confidence
-        rgb_vals = get_transparency_rgb_vals(cloud_color, wtr2_clouds_ctable.GetColorEntry(WTR_UNCOLLAPSED_HIGH_CONF_WATER), alpha)
-        wtr2_clouds_ctable.SetColorEntry(OPEN_WATER_HIGH_CONF_AND_CLOUD, rgb_vals)
+        base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_HIGH_CONF_WATER)
+        rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
+        out_ctable.SetColorEntry(OPEN_WATER_HIGH_CONF_AND_CLOUD, rgb_vals)
 
         # Open Water with cloud/cloud-shadow - Moderate Confidence
-        rgb_vals = get_transparency_rgb_vals(cloud_color, wtr2_clouds_ctable.GetColorEntry(WTR_UNCOLLAPSED_MODERATE_CONF_WATER), alpha)
-        wtr2_clouds_ctable.SetColorEntry(OPEN_WATER_MOD_CONF_AND_CLOUD, rgb_vals)
+        base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_MODERATE_CONF_WATER)
+        rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
+        out_ctable.SetColorEntry(OPEN_WATER_MOD_CONF_AND_CLOUD, rgb_vals)
 
         # Partial Surface Water with cloud/cloud shadow - High Confidence
-        rgb_vals = get_transparency_rgb_vals(cloud_color, wtr2_clouds_ctable.GetColorEntry(WTR_UNCOLLAPSED_POTENTIAL_WETLAND), alpha)
-        wtr2_clouds_ctable.SetColorEntry(PARTIAL_WATER_HIGH_CONF_AND_CLOUD, rgb_vals)
+        base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_POTENTIAL_WETLAND)
+        rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
+        out_ctable.SetColorEntry(PARTIAL_WATER_HIGH_CONF_AND_CLOUD, rgb_vals)
 
         # Partial Surface Water with cloud/cloud shadow - Aggressive
-        rgb_vals = get_transparency_rgb_vals(cloud_color, wtr2_clouds_ctable.GetColorEntry(WTR_UNCOLLAPSED_LOW_CONF_WATER), alpha)
-        wtr2_clouds_ctable.SetColorEntry(PARTIAL_WATER_AGGRESSIVE_AND_CLOUD, rgb_vals)
+        base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_LOW_CONF_WATER)
+        rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
+        out_ctable.SetColorEntry(PARTIAL_WATER_AGGRESSIVE_AND_CLOUD, rgb_vals)
 
-    return wtr2_clouds_ctable
+    return out_ctable
 
 
 def get_transparency_rgb_vals(top_rgb, bottom_rgb, alpha):
@@ -1243,7 +1251,8 @@ def get_transparency_rgb_vals(top_rgb, bottom_rgb, alpha):
     if alpha < 0 or alpha > 1:
         raise ValueError("alpha must be in range [0, 1].")
 
-    new_rgb = [int((alpha * a) + ((1 - alpha) * b)) for a, b in zip(top_rgb, bottom_rgb)]
+    new_rgb = [int((alpha * a) + ((1 - alpha) * b)) 
+                        for a, b in zip(top_rgb, bottom_rgb)]
 
     return tuple(new_rgb)
 
@@ -2480,7 +2489,7 @@ def _save_output_rgb_file(red, green, blue, output_file,
     logger.info(f'file saved: {output_file}')
 
 
-def _compute_wtr2_with_translucent_clouds_array(
+def _compute_wtr2_translucent_clouds_array(
         unmasked_interpreted_water_layer,
         cloud_layer,
         flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
@@ -2508,8 +2517,9 @@ def _compute_wtr2_with_translucent_clouds_array(
     
     Returns
     -------
-    wtr2_clouds_layer : numpy.ndarray
-        Interpreted water layer with "translucent" clouds
+    wtr2_clouds : numpy.ndarray
+        Interpreted water layer with "translucent" clouds and optional snow
+        mask.
 
     Notes
     -----
@@ -2531,52 +2541,52 @@ def _compute_wtr2_with_translucent_clouds_array(
     """
 
     # Create a copy of the unmasked_interpreted_water_layer.
-    wtr2_clouds_layer = unmasked_interpreted_water_layer.copy()
+    wtr2_clouds = unmasked_interpreted_water_layer.copy()
 
     if flag_collapse_wtr_classes:
-        wtr2_clouds_layer = _collapse_wtr_classes(wtr2_clouds_layer)
+        wtr2_clouds = _collapse_wtr_classes(wtr2_clouds)
 
     # Mask the pixels with only snow
     if not flag_no_snow_mask:
         snow_idx = (cloud_layer == 2)
-        wtr2_clouds_layer[snow_idx] = WTR_CLOUD_MASKED_SNOW
+        wtr2_clouds[snow_idx] = WTR_CLOUD_MASKED_SNOW
 
     # Mask the pixels with cloud and/or cloud shadow
     cloud_idx = ((cloud_layer == 1) | 
+                (cloud_layer == 3) |
                 (cloud_layer == 4) |
                 (cloud_layer == 5) |
-                (cloud_layer == 3) |
                 (cloud_layer == 6) |
                 (cloud_layer == 7))
 
     # NOT_WATER is the same value in both the collapsed and
     # uncollapsed WTR layer
-    ind = ((wtr2_clouds_layer == WTR_NOT_WATER) & cloud_idx)
-    wtr2_clouds_layer[ind] = NOT_WATER_AND_CLOUD
+    ind = ((wtr2_clouds == WTR_NOT_WATER) & cloud_idx)
+    wtr2_clouds[ind] = NOT_WATER_AND_CLOUD
 
     # Mask the Open Water and Partial Surface Water pixels
     if flag_collapse_wtr_classes:
-        ind = ((wtr2_clouds_layer == WTR_COLLAPSED_OPEN_WATER) & cloud_idx)
-        wtr2_clouds_layer[ind] = OPEN_WATER_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_COLLAPSED_OPEN_WATER) & cloud_idx)
+        wtr2_clouds[ind] = OPEN_WATER_AND_CLOUD
 
-        ind = ((wtr2_clouds_layer == WTR_COLLAPSED_PARTIAL_SURFACE_WATER) & cloud_idx)
-        wtr2_clouds_layer[ind] = PARTIAL_WATER_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_COLLAPSED_PARTIAL_SURFACE_WATER) & cloud_idx)
+        wtr2_clouds[ind] = PARTIAL_WATER_AND_CLOUD
 
     else:
         # keep all 4 water classes
-        ind = ((wtr2_clouds_layer == WTR_UNCOLLAPSED_HIGH_CONF_WATER) & cloud_idx)
-        wtr2_clouds_layer[ind] = OPEN_WATER_HIGH_CONF_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_HIGH_CONF_WATER) & cloud_idx)
+        wtr2_clouds[ind] = OPEN_WATER_HIGH_CONF_AND_CLOUD
 
-        ind = ((wtr2_clouds_layer == WTR_UNCOLLAPSED_MODERATE_CONF_WATER) & cloud_idx)
-        wtr2_clouds_layer[ind] = OPEN_WATER_MOD_CONF_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_MODERATE_CONF_WATER) & cloud_idx)
+        wtr2_clouds[ind] = OPEN_WATER_MOD_CONF_AND_CLOUD
 
-        ind = ((wtr2_clouds_layer == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) & cloud_idx)
-        wtr2_clouds_layer[ind] = PARTIAL_WATER_HIGH_CONF_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) & cloud_idx)
+        wtr2_clouds[ind] = PARTIAL_WATER_HIGH_CONF_AND_CLOUD
 
-        ind = ((wtr2_clouds_layer == WTR_UNCOLLAPSED_LOW_CONF_WATER) & cloud_idx)
-        wtr2_clouds_layer[ind] = PARTIAL_WATER_AGGRESSIVE_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_LOW_CONF_WATER) & cloud_idx)
+        wtr2_clouds[ind] = PARTIAL_WATER_AGGRESSIVE_AND_CLOUD
         
-    return wtr2_clouds_layer
+    return wtr2_clouds
 
 
 def get_projection_proj4(projection):
@@ -2763,44 +2773,44 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     else:
         runconfig = default_runconfig
 
-    runconfig_constants = RunConfigConstants()
+    runcfg_consts = RunConfigConstants()
     processing_group = runconfig['runconfig']['groups']['processing']
     browse_image_group = runconfig['runconfig']['groups']['browse_image_group']
     hls_thresholds_user = runconfig['runconfig']['groups']['hls_thresholds']
 
     # copy some processing parameters from runconfig dictionary
-    runconfig_constants_dict = runconfig_constants.__dict__
+    runcfg_consts_dict = runcfg_consts.__dict__
     for key in processing_group.keys():
-        if key not in runconfig_constants_dict.keys():
+        if key not in runcfg_consts_dict.keys():
             continue
-        runconfig_constants.__setattr__(key, processing_group[key])
+        runcfg_consts.__setattr__(key, processing_group[key])
 
     # copy browse image parameters from runconfig dictionary
     for key in browse_image_group.keys():
-        if key not in runconfig_constants_dict.keys():
+        if key not in runcfg_consts_dict.keys():
             continue
-        runconfig_constants.__setattr__(key, browse_image_group[key])
+        runcfg_consts.__setattr__(key, browse_image_group[key])
 
     # copy HLS thresholds from runconfig dictionary
     if hls_thresholds_user is not None:
         logger.info('HLS thresholds:')
         for key in hls_thresholds_user.keys():
             logger.info(f'     {key}: {hls_thresholds_user[key]}')
-            runconfig_constants.hls_thresholds.__setattr__(key, hls_thresholds_user[key])
+            runcfg_consts.hls_thresholds.__setattr__(key, hls_thresholds_user[key])
 
     if args is None:
-        return runconfig_constants
+        return runcfg_consts
 
-    # Update args with runconfig_constants attributes
-    for key in runconfig_constants_dict.keys():
+    # Update args with runcfg_consts attributes
+    for key in runcfg_consts_dict.keys():
         try:
             user_attr = getattr(args, key)
         except AttributeError:
             continue
         if user_attr is not None:
             continue
-        setattr(args, key, getattr(runconfig_constants, key))
- 
+        setattr(args, key, getattr(runcfg_consts, key))
+
     input_file_path = runconfig['runconfig']['groups']['input_file_group'][
         'input_file_path']
 
@@ -2860,7 +2870,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
     # If user runconfig was not provided, return
     if user_runconfig_file is None:
-        return runconfig_constants
+        return runcfg_consts
 
     # save layers
     for i, (layer_name, args_name) in \
@@ -2906,15 +2916,15 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         # If a browse image filename was provided via CLI, it takes
         # precendence over the default filename.
         if cli_browse_fname is not None:
-            logger.warning(f'command line {cli_arg_name} "{cli_browse_fname}" has'
-                           f' precedence over default {cli_arg_name}'
+            logger.warning(f'command line {cli_arg_name} "{cli_browse_fname}"'
+                           f' has precedence over default {cli_arg_name}'
                            f' "{default_browse_fname}".')
             # `args` already contains the correct filename; no need to update.
         else:
             # use the default browse filename
             setattr(args, cli_arg_name, default_browse_fname)
 
-    return runconfig_constants
+    return runcfg_consts
 
 
 def _get_dswx_metadata_dict(product_id, product_version):
@@ -3381,23 +3391,23 @@ def generate_dswx_layers(input_list,
                                      flag_no_snow_mask_browse is None)
 
     if flag_read_runconfig_constants:
-        runconfig_constants = parse_runconfig_file()
+        runcfg_consts = parse_runconfig_file()
         if hls_thresholds is None:
-            hls_thresholds = runconfig_constants.hls_thresholds
+            hls_thresholds = runcfg_consts.hls_thresholds
         if flag_use_otsu_terrain_masking is None:
-            flag_use_otsu_terrain_masking = runconfig_constants.flag_use_otsu_terrain_masking
+            flag_use_otsu_terrain_masking = runcfg_consts.flag_use_otsu_terrain_masking
         if min_slope_angle is None:
-            min_slope_angle = runconfig_constants.min_slope_angle
+            min_slope_angle = runcfg_consts.min_slope_angle
         if max_sun_local_inc_angle is None:
-            max_sun_local_inc_angle = runconfig_constants.max_sun_local_inc_angle
+            max_sun_local_inc_angle = runcfg_consts.max_sun_local_inc_angle
         if mask_adjacent_to_cloud_mode is None:
-            mask_adjacent_to_cloud_mode = runconfig_constants.mask_adjacent_to_cloud_mode
+            mask_adjacent_to_cloud_mode = runcfg_consts.mask_adjacent_to_cloud_mode
         if browse_image_height is None:
-            browse_image_height = runconfig_constants.browse_image_height
+            browse_image_height = runcfg_consts.browse_image_height
         if browse_image_width is None:
-            browse_image_width = runconfig_constants.browse_image_width
+            browse_image_width = runcfg_consts.browse_image_width
         if flag_no_snow_mask_browse is None:
-            flag_no_snow_mask_browse = runconfig_constants.flag_no_snow_mask_browse
+            flag_no_snow_mask_browse = runcfg_consts.flag_no_snow_mask_browse
         
     if scratch_dir is None:
         scratch_dir = '.'
@@ -3680,41 +3690,43 @@ def generate_dswx_layers(input_list,
         # Reason: gdal.Create() cannot currently create .png files, so we
         # must start from a GeoTiff, etc.
         # Source: https://gis.stackexchange.com/questions/132298/gdal-c-api-how-to-create-png-or-jpeg-from-scratch
-        wtr2_with_translucent_clouds = _compute_wtr2_with_translucent_clouds_array(
-                    unmasked_interpreted_water_layer=landcover_shadow_masked_dswx,  # WTR-2
-                    cloud_layer=cloud,
-                    flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
-                    flag_no_snow_mask=flag_no_snow_mask_browse)
+        wtr2_translucent_clouds = _compute_wtr2_translucent_clouds_array(
+            # WTR-2 layer
+            unmasked_interpreted_water_layer=landcover_shadow_masked_dswx,
+            # CLOUD layer
+            cloud_layer=cloud,
+            flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
+            flag_no_snow_mask=flag_no_snow_mask_browse)
 
         # Form color table
-        # Note: there is no need to account for `flag_no_snow_mask_browse` here.
-        # If `flag_no_snow_mask_browse` is False, then snow pixels would be set to
-        # `WTR_CLOUD_MASKED_SNOW` in _compute_wtr2_with_translucent_clouds_array(),
+        # Note: No need to account for `flag_no_snow_mask_browse` here. If 
+        # `flag_no_snow_mask_browse` is False, then snow pixels would be set to
+        # `WTR_CLOUD_MASKED_SNOW` in _compute_wtr2_translucent_clouds_array(),
         # and thus will appear as opaque snow.
         # If `flag_no_snow_mask_browse` is True, then no pixels would be set to
         # `WTR_CLOUD_MASKED_SNOW`, and thus no pixels would be colored as snow.
-        wtr2_with_translucent_clouds_ctable = _get_wtr2_translucent_clouds_ctable(
+        wtr2_translucent_clouds_ctable = _get_wtr2_translucent_clouds_ctable(
             alpha=0.35,
             flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES)
 
         # Save to intermediary .tif temp file to scratch directory
-        tmp_filename = "dswx_wtr2_trans_clouds_tmp.tif"
-        wtr2_with_trans_clouds_tmp_filename = os.path.join(scratch_dir, tmp_filename)
+        wtr2_trans_clouds_tmp_filename = tempfile.NamedTemporaryFile(
+                                           dir=scratch_dir, suffix='.tif').name
         # add the temp file to the list to be removed at the end
-        temp_files_list += [wtr2_with_trans_clouds_tmp_filename]
+        temp_files_list += [wtr2_trans_clouds_tmp_filename]
 
-        _save_array(input_array=wtr2_with_translucent_clouds,
-                    output_file=wtr2_with_trans_clouds_tmp_filename,
+        _save_array(input_array=wtr2_translucent_clouds,
+                    output_file=wtr2_trans_clouds_tmp_filename,
                     dswx_metadata_dict=dswx_metadata_dict,
                     geotransform=geotransform,
                     projection=projection,
                     scratch_dir=scratch_dir,
                     output_dtype=gdal.GDT_Byte,  # unsigned int 8
-                    ctable=wtr2_with_translucent_clouds_ctable,
+                    ctable=wtr2_translucent_clouds_ctable,
                     no_data_value=UINT8_FILL_VALUE)
 
         # Convert the geotiff to a resized PNG to create the browse image
-        geotiff2png(src_geotiff_filename=wtr2_with_trans_clouds_tmp_filename,
+        geotiff2png(src_geotiff_filename=wtr2_trans_clouds_tmp_filename,
                 dest_png_filename=output_browse_image,
                 output_height=browse_image_height,
                 output_width=browse_image_width,
