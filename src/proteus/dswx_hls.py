@@ -3581,7 +3581,6 @@ def generate_dswx_layers(input_list,
         invalid_ind = np.where(blue == image_dict['fill_data'])
     else:
         invalid_ind = np.where(np.isnan(blue))
-    
     if output_rgb_file:
         _save_output_rgb_file(red, green, blue, output_rgb_file,
                               offset_dict, scale_dict,
