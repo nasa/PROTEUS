@@ -53,6 +53,10 @@ runconfig:
             product_version: num(required=False)
 
         processing:
+
+            # Check if ancillary input cover entirely output products
+            check_ancillary_inputs_coverage: bool(required=False)
+
             # Use terrain-masking based on the Otsu method
             flag_use_otsu_terrain_masking: bool(required=False)
 
