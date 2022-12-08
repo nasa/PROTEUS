@@ -125,8 +125,8 @@ WTR_COLLAPSED_OPEN_WATER = 1
 WTR_COLLAPSED_PARTIAL_SURFACE_WATER = 2
 WTR_UNCOLLAPSED_HIGH_CONF_WATER = 1
 WTR_UNCOLLAPSED_MODERATE_CONF_WATER = 2
-WTR_UNCOLLAPSED_POTENTIAL_WETLAND = 3
-WTR_UNCOLLAPSED_LOW_CONF_WATER = 4
+WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE = 3
+WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE = 4
 
 FIRST_UNCOLLAPSED_WATER_CLASS = 1
 LAST_UNCOLLAPSED_WATER_CLASS = 4
@@ -151,8 +151,8 @@ USGS DSWe:
 
 1. High-confidence water;
 2. Moderate-confidence water;
-3. Potential wetland;
-4. Low-confidence water or wetland.
+3. Partial surface water conservative (previous potential wetland);
+4. Partial surface water aggressive (previous low-confidence water or wetland).
 
 These classes are collapsed into 2 classes when DSWx-HLS
 WTR layers are saved:
@@ -163,8 +163,10 @@ collapse_wtr_classes_dict = {
     WTR_NOT_WATER: WTR_NOT_WATER,
     WTR_UNCOLLAPSED_HIGH_CONF_WATER: WTR_COLLAPSED_OPEN_WATER,
     WTR_UNCOLLAPSED_MODERATE_CONF_WATER: WTR_COLLAPSED_OPEN_WATER,
-    WTR_UNCOLLAPSED_POTENTIAL_WETLAND: WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
-    WTR_UNCOLLAPSED_LOW_CONF_WATER: WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
+    WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE: \
+        WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
+    WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE: \
+        WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
     WTR_CLOUD_MASKED_SNOW: WTR_CLOUD_MASKED_SNOW,
     WTR_CLOUD_MASKED: WTR_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
@@ -191,8 +193,8 @@ wtr_confidence_non_collapsed_dict = {
     WTR_NOT_WATER: CONF_NOT_WATER,
     WTR_UNCOLLAPSED_HIGH_CONF_WATER: 95,
     WTR_UNCOLLAPSED_MODERATE_CONF_WATER: 80,
-    WTR_UNCOLLAPSED_POTENTIAL_WETLAND: 70,
-    WTR_UNCOLLAPSED_LOW_CONF_WATER: 60,
+    WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE: 70,
+    WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE: 60,
     WTR_CLOUD_MASKED_SNOW: CONF_CLOUD_MASKED_SNOW,
     WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
@@ -1107,16 +1109,20 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
     to_mask_ind = np.where(
         _is_landcover_class_evergreen(landcover_mask) &
         (nir > hls_thresholds.lcmask_nir) &
-         ((interpreted_layer == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) |
-          (interpreted_layer == WTR_UNCOLLAPSED_LOW_CONF_WATER)))
+         ((interpreted_layer ==
+            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE) |
+          (interpreted_layer ==
+            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE)))
     landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     # Check landcover (low intensity developed)
     to_mask_ind = np.where(
         _is_landcover_class_low_intensity_developed(landcover_mask) &
         (nir > hls_thresholds.lcmask_nir) &
-         ((interpreted_layer == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) |
-          (interpreted_layer == WTR_UNCOLLAPSED_LOW_CONF_WATER)))
+         ((interpreted_layer ==
+            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE) |
+          (interpreted_layer ==
+            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE)))
     landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
 
     # Check landcover (high intensity developed)
@@ -1167,12 +1173,12 @@ def _get_interpreted_dswx_ctable(
         # Light blue - Water (moderate conf.)
         dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_MODERATE_CONF_WATER,
                                   (0, 127, 255))
-        # Dark green - Potential wetland
-        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_POTENTIAL_WETLAND,
-                                  (0, 127, 0))
-        # Green - Low confidence water or wetland
-        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_LOW_CONF_WATER,
-                                  (0, 255, 0))
+        # Dark green - Partial surface water conservative
+        dswx_ctable.SetColorEntry(
+            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE, (0, 127, 0))
+        # Green - Partial surface water aggressive
+        dswx_ctable.SetColorEntry(
+            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE, (0, 255, 0))
 
     # Gray - QA masked (Cloud/cloud-shadow)
     dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
