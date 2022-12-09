@@ -144,11 +144,11 @@ CONF_CLOUD_MASKED_SNOW = 253
 CONF_CLOUD_MASKED = 254
 
 # Browse image:
-# Intermediary values for the WTR-2 w/ Transluscent clouds browse image
-# Note: These values are only for internal use by the code
-# to set the colortables. The output file is a .png 
-# which will only contain the final RGB color values,
-# but not these intermediary values.
+# Data values for the WTR-2 w/ Transluscent clouds browse image geotiff
+# Note: These values are not noted in the Product Spec, but they will be
+# used for setting the colortables values in the geotiff. The output
+# browse image .png file will only contain the final RGB color values,
+# but not these data values.
 # These values can be set to anything, so long as they are unique
 # from the classification values in the constants above.
 NOT_WATER_AND_CLOUD = 11
@@ -3709,14 +3709,14 @@ def generate_dswx_layers(input_list,
             alpha=0.35,
             flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES)
 
-        # Save to intermediary .tif temp file to scratch directory
-        wtr2_trans_clouds_tmp_filename = tempfile.NamedTemporaryFile(
-                                           dir=scratch_dir, suffix='.tif').name
-        # add the temp file to the list to be removed at the end
-        temp_files_list += [wtr2_trans_clouds_tmp_filename]
+        # Save geotiff high-res browse image to output directory
+        browse_image_geotiff_filename = \
+                    output_browse_image.replace('.png', '.tif')
+        # add the browse image GEOTIFF to the output files list
+        output_files_list += [browse_image_geotiff_filename]
 
         _save_array(input_array=wtr2_translucent_clouds,
-                    output_file=wtr2_trans_clouds_tmp_filename,
+                    output_file=browse_image_geotiff_filename,
                     dswx_metadata_dict=dswx_metadata_dict,
                     geotransform=geotransform,
                     projection=projection,
@@ -3725,15 +3725,15 @@ def generate_dswx_layers(input_list,
                     ctable=wtr2_translucent_clouds_ctable,
                     no_data_value=UINT8_FILL_VALUE)
 
-        # Convert the geotiff to a resized PNG to create the browse image
-        geotiff2png(src_geotiff_filename=wtr2_trans_clouds_tmp_filename,
+        # Convert the geotiff to a resized PNG to create the browse image PNG
+        geotiff2png(src_geotiff_filename=browse_image_geotiff_filename,
                 dest_png_filename=output_browse_image,
                 output_height=browse_image_height,
                 output_width=browse_image_width,
                 logger=logger
                 )
 
-        # add the browse image to the output files list
+        # add the browse image PNG to the output files list
         output_files_list += [output_browse_image]
 
     if output_cloud_mask:

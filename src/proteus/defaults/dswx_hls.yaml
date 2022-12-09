@@ -81,21 +81,21 @@ runconfig:
             # SWIR-1, NIR, and Red reflectance color composition
             save_infrared_rgb: False
 
-        # Settings for saving browse image PNG of the WTR layer.
         browse_image_group:
 
-            # Save a browse image PNG of the WTR layer.
+            # Save a full-res Cloud-Optimized GEOTIFF DSWx-HLS browse image and
+            # a modified-resolution PNG of the browse image for DSWx-HLS
             save_browse: True
 
             # Setting `browse_image_height` and `browse_image_width` equal
             # will maintain this original HLS and DSWx-HLS aspect ratio
-            # of 3660 pixels x 3660 pixels.
-            # If these fields are left empty, 1024 x 1024 will be used.
+            # of 3660 pixels x 3660 pixels for the PNG browse image.
+            # If these fields are left empty, 3660 x 3660 will be used.
 
-            # Height in pixels
+            # Height in pixels for the PNG browse image
             browse_image_height: 1024
 
-            # Width in pixels
+            # Width in pixels for the PNG browse image
             browse_image_width: 1024
 
             # Flag to not mask the snow in the browse image
