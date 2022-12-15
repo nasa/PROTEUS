@@ -98,8 +98,11 @@ runconfig:
             # Width in pixels for the PNG browse image
             browse_image_width: 1024
 
-            # Flag to not mask the snow in the browse image
-            flag_no_snow_mask_browse: False
+            # Flag to include the Partial Surface Water Aggressive class
+            # in the browse image. Default is False, meaning that this class
+            # will not be displayed in the browse; these pixels will 
+            # appear as Not Water.
+            include_psw_aggressive_in_browse: False
 
         hls_thresholds:
 
