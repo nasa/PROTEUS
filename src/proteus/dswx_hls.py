@@ -818,7 +818,7 @@ def create_landcover_mask(copernicus_landcover_file,
 
     # Reproject Copernicus land cover    
     copernicus_landcover_reprojected_file = tempfile.NamedTemporaryFile(
-        suffix='copernicus_reprojected', dir=scratch_dir, suffix='.tif').name
+        dir=scratch_dir, suffix='.tif').name
 
     copernicus_landcover_array = _warp(copernicus_landcover_file,
         geotransform, projection,
@@ -834,7 +834,6 @@ def create_landcover_mask(copernicus_landcover_file,
     length_up_3 = 3 * length
     width_up_3 = 3 * width
     worldcover_reprojected_up_3_file = tempfile.NamedTemporaryFile(
-        suffix='worldcover_reprojected_up_3',
         dir=scratch_dir, suffix='.tif').name
     worldcover_array_up_3 = _warp(worldcover_file, geotransform_up_3,
         projection, length_up_3, width_up_3, scratch_dir,
