@@ -50,7 +50,7 @@ l30_v1_band_dict = {'blue': 'band02',
                     'nir': 'band05',
                     'swir1': 'band06',
                     'swir2': 'band07',
-                    'qa': 'QA'}
+                    'fmask': 'QA'}
 
 s30_v1_band_dict = {'blue': 'band02',
                     'green': 'band03',
@@ -58,7 +58,7 @@ s30_v1_band_dict = {'blue': 'band02',
                     'nir': 'band8A',
                     'swir1': 'band11',
                     'swir2': 'band12',
-                    'qa': 'QA'}
+                    'fmask': 'QA'}
 
 l30_v2_band_dict = {'blue': 'B02',
                     'green': 'B03',
@@ -66,7 +66,7 @@ l30_v2_band_dict = {'blue': 'B02',
                     'nir': 'B05',
                     'swir1': 'B06',
                     'swir2': 'B07',
-                    'qa': 'Fmask'}
+                    'fmask': 'Fmask'}
 
 s30_v2_band_dict = {'blue': 'B02',
                     'green': 'B03',
@@ -74,7 +74,7 @@ s30_v2_band_dict = {'blue': 'B02',
                     'nir': 'B8A',
                     'swir1': 'B11',
                     'swir2': 'B12',
-                    'qa': 'Fmask'}
+                    'fmask': 'Fmask'}
 
 DIAGNOSTIC_LAYER_NO_DATA_DECIMAL = 0b100000
 DIAGNOSTIC_LAYER_NO_DATA_BINARY_REPR = 65535
@@ -1128,10 +1128,10 @@ def _get_interpreted_dswx_ctable(
         dswx_ctable.SetColorEntry(
             WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE, (0, 255, 0))
 
-    # Gray - QA masked (Cloud/cloud-shadow)
+    # Gray - CLOUD masked (Cloud/cloud-shadow)
     dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
 
-    # Cyan - QA masked (Snow)
+    # Cyan - CLOUD masked (Snow)
     dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0, 255, 255))
 
     # Black - Fill value
@@ -1317,11 +1317,11 @@ def _get_binary_water_layer(interpreted_water_layer):
     for class_value in range(1, 5):
         binary_water_layer[interpreted_water_layer == class_value] = BWTR_WATER
 
-    # Q/A masked (cloud/snow)
+    # CLOUD masked (cloud/snow)
     binary_water_layer[interpreted_water_layer == WTR_CLOUD_MASKED_SNOW] = \
         WTR_CLOUD_MASKED_SNOW
 
-    # Q/A masked (cloud/cloud-shadow)
+    # CLOUD masked (cloud/cloud-shadow)
     binary_water_layer[interpreted_water_layer == WTR_CLOUD_MASKED] = \
         WTR_CLOUD_MASKED
 
@@ -1437,7 +1437,7 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
 
 
 def _compute_mask_and_filter_interpreted_layer(
-        unmasked_interpreted_water_layer, qa_band,
+        unmasked_interpreted_water_layer, fmask,
         mask_adjacent_to_cloud_mode):
     """Compute cloud/cloud-shadow mask and filter interpreted water layer
 
@@ -1445,8 +1445,8 @@ def _compute_mask_and_filter_interpreted_layer(
        ----------
        unmasked_interpreted_water_layer: numpy.ndarray
               Cloud-unmasked interpreted water layer
-       qa_band: numpy ndarray
-              HLS Q/A band
+       fmask: numpy ndarray
+              HLS FMask
        mask_adjacent_to_cloud_mode: str
               Define how areas adjacent to cloud/cloud-shadow should be handled.
               Options: "mask", "ignore", and "cover"
@@ -1461,7 +1461,7 @@ def _compute_mask_and_filter_interpreted_layer(
     mask = np.zeros(shape, dtype = np.uint8)
 
     '''
-    QA band - Landsat 8
+    HLS FMask
     BITS:
     0 - Cirrus (reserved but not used)
     1 - Cloud (*1)
@@ -1489,26 +1489,26 @@ def _compute_mask_and_filter_interpreted_layer(
     logger.info(f'mask adjacent to cloud/cloud-shadow mode:'
                 f' {mask_adjacent_to_cloud_mode}')
  
-    # Check QA cloud shadow bit (3) => bit 0
-    mask[np.bitwise_and(qa_band, 2**3) == 2**3] = 1
+    # Check FMask cloud shadow bit (3) => bit 0
+    mask[np.bitwise_and(fmask, 2**3) == 2**3] = 1
 
     if mask_adjacent_to_cloud_mode == 'mask':
-        # Check QA adjacent to cloud/shadow bit (2) => bit 0
-       mask[np.bitwise_and(qa_band, 2**2) == 2**2] = 1
+        # Check FMask adjacent to cloud/shadow bit (2) => bit 0
+       mask[np.bitwise_and(fmask, 2**2) == 2**2] = 1
 
-    # Check QA cloud bit (1) => bit 2
-    mask[np.bitwise_and(qa_band, 2**1) == 2**1] += 4
+    # Check FMask cloud bit (1) => bit 2
+    mask[np.bitwise_and(fmask, 2**1) == 2**1] += 4
 
     # If cloud (1) or cloud shadow (3), mark WTR as WTR_CLOUD_MASKED
     masked_interpreted_water_layer[mask != 0] = WTR_CLOUD_MASKED
 
-    # Check QA snow bit (4) => bit 1
-    snow_mask = np.bitwise_and(qa_band, 2**4) == 2**4
+    # Check FMask snow bit (4) => bit 1
+    snow_mask = np.bitwise_and(fmask, 2**4) == 2**4
 
     # Cover areas marked as adjacent to cloud/shadow
     if mask_adjacent_to_cloud_mode == 'cover':
         # Dilate snow mask over areas adjacent to cloud/shadow
-        adjacent_to_cloud_mask = np.bitwise_and(qa_band, 2**2) == 2**2
+        adjacent_to_cloud_mask = np.bitwise_and(fmask, 2**2) == 2**2
         areas_to_dilate = (adjacent_to_cloud_mask) & (mask == 0)
 
         snow_mask = binary_dilation(snow_mask, iterations=10,
@@ -1586,7 +1586,7 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             hls_dataset_name = hls_dataset_name.replace(f'.{band_suffix}', '')
         image_dict['hls_dataset_name'] = hls_dataset_name
 
-    if key == 'qa':
+    if key == 'fmask':
         if flag_debug:
             logger.info('reading in debug mode')
             image_dict[key] = layer_gdal_dataset.ReadAsArray(
@@ -1851,9 +1851,9 @@ def _get_binary_water_ctable():
     binary_water_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 255))
     # Blue - Water
     binary_water_ctable.SetColorEntry(BWTR_WATER, (0, 0, 255))
-    # Cyan - QA masked (snow)
+    # Cyan - CLOUD masked (snow)
     binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0, 255, 255))
-    # Gray - QA masked (cloud/cloud-shadow)
+    # Gray - CLOUD masked (cloud/cloud-shadow)
     binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
     # Black (transparent) - Fill value
     binary_water_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
@@ -1883,11 +1883,11 @@ def _get_confidence_layer_ctable():
     # White - Not water
     confidence_layer_ctable.SetColorEntry(CONF_NOT_WATER, (255, 255, 255))
 
-    # Cyan - QA masked (snow)
+    # Cyan - CLOUD masked (snow)
     confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED_SNOW,
                                           (0, 255, 255))
 
-    # Gray - QA masked (cloud/cloud-shadow)
+    # Gray - CLOUD masked (cloud/cloud-shadow)
     confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED, (127, 127, 127))
 
     # Black - Fill value
@@ -3342,7 +3342,7 @@ def generate_dswx_layers(input_list,
     nir = image_dict['nir']
     swir1 = image_dict['swir1']
     swir2 = image_dict['swir2']
-    qa = image_dict['qa']
+    fmask = image_dict['fmask']
 
     geotransform = image_dict['geotransform']
     projection = image_dict['projection']
@@ -3510,7 +3510,7 @@ def generate_dswx_layers(input_list,
                           output_files_list=build_vrt_list)
 
     cloud, masked_dswx_band = _compute_mask_and_filter_interpreted_layer(
-        landcover_shadow_masked_dswx, qa,
+        landcover_shadow_masked_dswx, fmask,
         mask_adjacent_to_cloud_mode)
 
     if invalid_ind is not None:
