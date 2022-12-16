@@ -3346,8 +3346,6 @@ def generate_dswx_layers(input_list,
     fmask = image_dict['fmask']
     fill_value = image_dict['fill_value']
     fmask_fill_value = image_dict['fmask_fill_value']
-    print('*** fill_value:', fill_value)
-    print('*** fmask_fill_value:', fmask_fill_value)
 
     geotransform = image_dict['geotransform']
     projection = image_dict['projection']
