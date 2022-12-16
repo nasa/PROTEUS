@@ -112,7 +112,8 @@ interpreted_dswx_band_dict = {
     0b10000 : 4,
     0b10001 : 4,
     0b10010 : 4,
-    0b10100 : 4
+    0b10100 : 4,
+    DIAGNOSTIC_LAYER_NO_DATA_DECIMAL: UINT8_FILL_VALUE
 }
 
 
@@ -1733,7 +1734,7 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
                 xoff=0, yoff=0, xsize=1000, ysize=1000)
         else:
             image_dict[key] = layer_gdal_dataset.ReadAsArray()
-        image_dict['fmask_fill_value'] = metadata['_FillValue']
+        image_dict['fmask_fill_value'] = int(metadata['_FillValue'])
         return True
 
     offset = 0.0
@@ -3624,10 +3625,10 @@ def generate_dswx_layers(input_list,
 
     # Set array of invalid pixels
     if not flag_offset_and_scale_inputs:
-        invalid_ind = np.where((blue == fill_value) &
+        invalid_ind = np.where((blue == fill_value) |
                                (fmask == fmask_fill_value))
     else:
-        invalid_ind = np.where((np.isnan(blue)) &
+        invalid_ind = np.where((np.isnan(blue)) |
                                (fmask == fmask_fill_value))
 
     if output_rgb_file:
@@ -3653,12 +3654,10 @@ def generate_dswx_layers(input_list,
 
     diagnostic_layer_decimal = _compute_diagnostic_tests(
         blue, green, red, nir, swir1, swir2, hls_thresholds)
- 
     diagnostic_layer_decimal[invalid_ind] = DIAGNOSTIC_LAYER_NO_DATA_DECIMAL
 
     interpreted_dswx_band = generate_interpreted_layer(
         diagnostic_layer_decimal)
-    
     diagnostic_layer = _get_binary_representation(diagnostic_layer_decimal)
     del diagnostic_layer_decimal
 
