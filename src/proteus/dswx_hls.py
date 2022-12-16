@@ -667,7 +667,8 @@ def compare_dswx_hls_products(file_1, file_2):
         image_1 = gdal_band_1.ReadAsArray()
         image_2 = gdal_band_2.ReadAsArray()
         flag_bands_are_equal = np.allclose(
-            image_1, image_2, atol=COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE)
+            image_1, image_2, atol=COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE,
+            equal_nan=True)
         flag_bands_are_equal_str = _get_prefix_str(flag_bands_are_equal,
                                                    flag_all_ok)
         print(f'{flag_bands_are_equal_str}     Band {b} -'

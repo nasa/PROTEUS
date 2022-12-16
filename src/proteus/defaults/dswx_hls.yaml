@@ -53,7 +53,7 @@ runconfig:
 
         processing:
 
-            # Check if ancillary input cover entirely output products
+            # Check if ancillary inputs cover entirely the output product
             check_ancillary_inputs_coverage: True
 
             # Use terrain-masking based on the Otsu method
