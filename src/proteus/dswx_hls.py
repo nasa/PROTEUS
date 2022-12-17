@@ -3263,7 +3263,6 @@ def _get_binary_representation(diagnostic_layer_decimal, nbits=6):
 
     diagnostic_layer_binary = np.zeros_like(diagnostic_layer_decimal,
                                             dtype=np.uint16)
-
     for i in range(nbits):
         diagnostic_layer_decimal, bit_array = \
             np.divmod(diagnostic_layer_decimal, 2)
@@ -3271,7 +3270,7 @@ def _get_binary_representation(diagnostic_layer_decimal, nbits=6):
             diagnostic_layer_binary += bit_array * (10 ** i)
         else:
             # UInt16 max value is 65535
-            diagnostic_layer_binary[bit_array] = \
+            diagnostic_layer_binary[np.where(bit_array)] = \
                 DIAGNOSTIC_LAYER_NO_DATA_BINARY_REPR
 
     return diagnostic_layer_binary
