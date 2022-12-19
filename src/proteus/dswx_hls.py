@@ -1777,8 +1777,9 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
 
         # HLS Sentinel metadata contain attribute SPACECRAFT_NAME
         if 'SPACECRAFT_NAME' in metadata:
-            spacecraft_name = metadata['SPACECRAFT_NAME'].upper()
-            if 'SENTINEL' not in spacecraft_name and 'LANDSAT' not in spacecraft_name:
+            spacecraft_name = metadata['SPACECRAFT_NAME']
+            if ('SENTINEL' not in spacecraft_name.upper() and
+                    'LANDSAT' not in spacecraft_name.upper()):
                 logger.info(f'ERROR the platform "{spacecraft_name}" is not supported')
                 return False
 
@@ -3003,7 +3004,7 @@ def _get_dswx_metadata_dict(product_id, product_version):
 
     # save datetime 'YYYY-MM-DD HH:MM:SS'
     dswx_metadata_dict['PROCESSING_DATETIME'] = \
-        datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
 
     return dswx_metadata_dict
 
