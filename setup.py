@@ -2,7 +2,23 @@ import os
 from setuptools import setup
 from setuptools import Command
 
-__version__ = version = VERSION = '0.1'
+
+def _get_version():
+    """Returns the PROTEUS software version
+
+       Returns
+       -------
+       version : str
+            PROTEUS software version
+    """
+
+    version_file = 'src/proteus/version.py'
+    version = open(version_file).read().split('=')[1]
+    version = version.replace("'", '').replace('"', '').strip()
+    
+    return version
+
+__version__ = version = VERSION = _get_version()
 
 
 class CleanCommand(Command):

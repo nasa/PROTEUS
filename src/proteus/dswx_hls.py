@@ -15,8 +15,7 @@ from scipy.ndimage import binary_dilation
 import scipy
 
 from proteus.core import save_as_cog
-
-SOFTWARE_VERSION = '0.5.2'
+from proteus.version import VERSION as SOFTWARE_VERSION
 
 '''
 Internally, DSWx-HLS SAS stores 4 water classes. The flag below enables or
@@ -3319,6 +3318,7 @@ def generate_dswx_layers(input_list,
     elif product_id is None:
         product_id = 'dswx_hls'
 
+    logger.info(f'PROTEUS software version: {SOFTWARE_VERSION}')
     logger.info('input parameters:')
     logger.info('    file(s):')
     for input_file in input_list:
