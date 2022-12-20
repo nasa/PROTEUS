@@ -90,7 +90,9 @@ def test_workflow():
         flag_use_otsu_terrain_masking=args.flag_use_otsu_terrain_masking,
         min_slope_angle = args.min_slope_angle,
         max_sun_local_inc_angle=args.max_sun_local_inc_angle,
+        apply_cast_shadow_masking=args.apply_cast_shadow_masking,
         mask_adjacent_to_cloud_mode=args.mask_adjacent_to_cloud_mode,
+        copernicus_forest_classes=args.copernicus_forest_classes,
         flag_debug=args.flag_debug)
 
     ref_files = glob.glob(os.path.join(ref_dir, '*'))

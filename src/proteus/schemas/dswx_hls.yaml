@@ -53,6 +53,10 @@ runconfig:
             product_version: num(required=False)
 
         processing:
+
+            # Check if ancillary inputs cover entirely the output product
+            check_ancillary_inputs_coverage: bool(required=False)
+
             # Use terrain-masking based on the Otsu method
             flag_use_otsu_terrain_masking: bool(required=False)
 
@@ -62,8 +66,14 @@ runconfig:
             # Maximum sun local-incidence angle in degrees for terrain masking
             max_sun_local_inc_angle: num(min=-180, max=180, required=False)
 
+            # Apply cast shadow masking
+            apply_cast_shadow_masking: bool(required=False)
+
             # Define how areas adjacent to cloud/cloud-shadow should be handled
             mask_adjacent_to_cloud_mode: enum('mask', 'ignore', 'cover', required=False)
+
+            # Copernicus CGLS Land Cover 100m forest classes
+            copernicus_forest_classes: list(int(), min=0, required=False)
 
             # Layer 1 - WTR
             save_wtr: bool(required=False)
