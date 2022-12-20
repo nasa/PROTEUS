@@ -68,6 +68,7 @@ def main():
         browse_image_height=args.browse_image_height,
         browse_image_width=args.browse_image_width,
         include_psw_aggressive_in_browse=args.include_psw_aggressive_in_browse,
+        snow_in_browse=args.snow_in_browse,
         landcover_file=args.landcover_file,
         landcover_description=args.landcover_description,
         worldcover_file=args.worldcover_file,

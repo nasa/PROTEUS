@@ -151,14 +151,21 @@ CONF_CLOUD_MASKED = 254
 # but not these data values.
 # These values can be set to anything, so long as they are unique
 # from the classification values in the constants above.
-NOT_WATER_AND_WEATHER = 11
-OPEN_WATER_AND_WEATHER = 13
-PARTIAL_WATER_AND_WEATHER = 15
+NOT_WATER_AND_CLOUD = 11
+NOT_WATER_AND_SNOW = 12
+OPEN_WATER_AND_CLOUD = 21
+OPEN_WATER_AND_SNOW = 22
+PARTIAL_WATER_AND_CLOUD = 31
+PARTIAL_WATER_AND_SNOW = 32
 
-OPEN_WATER_HIGH_CONF_AND_WEATHER = 21
-OPEN_WATER_MOD_CONF_AND_WEATHER = 22
-PARTIAL_WATER_HIGH_CONF_AND_WEATHER = 23
-PARTIAL_WATER_AGGRESSIVE_AND_WEATHER = 24
+OPEN_WATER_HIGH_CONF_AND_CLOUD = 41
+OPEN_WATER_HIGH_CONF_AND_SNOW = 42
+OPEN_WATER_MOD_CONF_AND_CLOUD = 51
+OPEN_WATER_MOD_CONF_AND_SNOW = 52
+PARTIAL_WATER_HIGH_CONF_AND_CLOUD = 61
+PARTIAL_WATER_HIGH_CONF_AND_SNOW = 62
+PARTIAL_WATER_AGGRESSIVE_AND_CLOUD = 71
+PARTIAL_WATER_AGGRESSIVE_AND_SNOW = 72
 
 '''
 Internally, DSWx-HLS has 4 water classes derived from
@@ -347,6 +354,14 @@ class RunConfigConstants:
             True to include the Partial Surface Water Aggressive class
             in the browse image. False to not display this class, which means
             that they will be considered Not Water.
+    snow_in_browse: str
+            Define how snow appears in the browse image.
+            Options are: 'cyan', 'translucent', 'nodata'
+              'cyan'          : snow will be opaque cyan
+              'translucent'   : snow will be translucent gray, same as clouds
+              'nodata'        : snow pixels will be marked as not having
+                                valid data, and will be fully transparent
+
     """
     def __init__(self):
         self.hls_thresholds = HlsThresholds()
@@ -357,6 +372,7 @@ class RunConfigConstants:
         self.browse_image_height = None
         self.browse_image_width = None
         self.include_psw_aggressive_in_browse = None
+        self.snow_in_browse = None
 
 
 def get_dswx_hls_cli_parser():
@@ -515,6 +531,14 @@ def get_dswx_hls_cli_parser():
                         default=None,
                         help=('Flag to include Partial Surface Water '
                                 'Aggressive class in the browse image'))
+
+    parser.add_argument('--snow-in-browse',
+                        dest='snow_in_browse',
+                        type=str,
+                        choices=['cyan', 'translucent', 'nodata'],
+                        default=None,
+                        help=('How snow will be displayed in the browse image. '
+                                "Options are: 'cyan', 'translucent', 'nodata'"))
 
     parser.add_argument('--offset-and-scale-inputs',
                         dest='flag_offset_and_scale_inputs',
@@ -1154,7 +1178,7 @@ def _get_interpreted_dswx_ctable(
 def _get_wtr2_translucent_clouds_ctable(
         flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
         alpha=0.5,
-        remove_snow_from_colortable=True):
+        snow_color='translucent'):
     """
     Create and return GDAL RGB color table for DSWx-HLS
     WTR-2 w/ tranluscent clouds browse image.
@@ -1176,6 +1200,14 @@ def _get_wtr2_translucent_clouds_ctable(
         (0,0,0,255), which (in practice) means that it will be treated as
         like the other unassigned data values in colortable.
         Defaults to True.
+    snow_color : str
+        How to color the snow in the color table. Options are:
+            'cyan'          : snow will be opaque cyan
+            'translucent'   : snow will be translucent gray, same as clouds
+            'nodata'        : snow pixels will be marked as not having
+                              valid data, and will be fully transparent
+            
+    
 
     Returns
     -------
@@ -1183,52 +1215,107 @@ def _get_wtr2_translucent_clouds_ctable(
         GDAL color table for WTR-2 w/ tranluscent clouds browse image.
     """
 
+    if snow_color not in ('cyan', 'translucent', 'nodata'):
+        raise ValueError(f'snow_color is {snow_color}, but must be '
+                          "one of 'cyan', 'translucent', or 'nodata'")
+
     # Get original color table for the surface water interpreted layer.
     out_ctable = _get_interpreted_dswx_ctable(
             flag_collapse_wtr_classes=flag_collapse_wtr_classes)
 
-    # "Remove" snow entry from colortable.
-    if remove_snow_from_colortable:
-        out_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0,0,0,255))
+    # For housekeeping reasons, "remove" original snow entry from colortable.
+    out_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0,0,0,255))
+
+    # Not Water with cloud/cloud-shadow - light gray
+    cloud_only_gray = (213, 213, 213)
+    cyan = (0, 255, 255)
+    no_data = (0, 0, 0, 255)
 
     if flag_collapse_wtr_classes:
-        # Not Water with cloud/cloud-shadow - light gray
-        out_ctable.SetColorEntry(NOT_WATER_AND_WEATHER, (213, 213, 213))
+        out_ctable.SetColorEntry(NOT_WATER_AND_CLOUD, cloud_only_gray)
 
         # Open Water with cloud/cloud-shadow - dark blue w/ gray
-        out_ctable.SetColorEntry(OPEN_WATER_AND_WEATHER, (124, 124, 213))
+        dark_blue_with_gray = (124, 124, 213)
+        out_ctable.SetColorEntry(OPEN_WATER_AND_CLOUD, dark_blue_with_gray)
         
         # Partial Surface Water with cloud/cloud shadow - light blue w/ gray
-        out_ctable.SetColorEntry(PARTIAL_WATER_AND_WEATHER, (187, 198, 209))
+        light_blue_with_gray = (187, 198, 209)
+        out_ctable.SetColorEntry(PARTIAL_WATER_AND_CLOUD, light_blue_with_gray)
+
+        if snow_color == 'cyan':
+            out_ctable.SetColorEntry(NOT_WATER_AND_SNOW, cyan)
+            out_ctable.SetColorEntry(OPEN_WATER_AND_SNOW, cyan)
+            out_ctable.SetColorEntry(PARTIAL_WATER_AND_SNOW, cyan)
+        elif snow_color == 'translucent':
+            out_ctable.SetColorEntry(NOT_WATER_AND_SNOW, cloud_only_gray)
+            out_ctable.SetColorEntry(OPEN_WATER_AND_SNOW, dark_blue_with_gray)
+            out_ctable.SetColorEntry(PARTIAL_WATER_AND_SNOW, light_blue_with_gray)
+        elif snow_color == 'nodata':
+            # These pixels should already be set to UINT8_FILL_VALUE,
+            # which will be handled by the standard interpreted dwsx colorable
+            pass
 
     else:  # four water classes
-        # Base color to use for clouds is middle gray.
-        cloud_rgb = (160, 160, 160)
+        # Use the inverse of get_transparency_rgb_vals() to compute
+        # the base color for clouds
+        cloud_tone = (cloud_only_gray[0] - ((1 - alpha) * 255)) / alpha
+        cloud_rgb = (cloud_tone, cloud_tone, cloud_tone)
 
         # Not Water with cloud/cloud-shadow
         base_rgb = out_ctable.GetColorEntry(WTR_NOT_WATER)
         rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
-        out_ctable.SetColorEntry(NOT_WATER_AND_WEATHER, rgb_vals)
+        out_ctable.SetColorEntry(NOT_WATER_AND_CLOUD, rgb_vals)
 
         # Open Water with cloud/cloud-shadow - High Confidence
         base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_HIGH_CONF_WATER)
         rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
-        out_ctable.SetColorEntry(OPEN_WATER_HIGH_CONF_AND_WEATHER, rgb_vals)
+        out_ctable.SetColorEntry(OPEN_WATER_HIGH_CONF_AND_CLOUD, rgb_vals)
 
         # Open Water with cloud/cloud-shadow - Moderate Confidence
         base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_MODERATE_CONF_WATER)
         rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
-        out_ctable.SetColorEntry(OPEN_WATER_MOD_CONF_AND_WEATHER, rgb_vals)
+        out_ctable.SetColorEntry(OPEN_WATER_MOD_CONF_AND_CLOUD, rgb_vals)
 
         # Partial Surface Water with cloud/cloud shadow - High Confidence
         base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_POTENTIAL_WETLAND)
         rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
-        out_ctable.SetColorEntry(PARTIAL_WATER_HIGH_CONF_AND_WEATHER, rgb_vals)
+        out_ctable.SetColorEntry(PARTIAL_WATER_HIGH_CONF_AND_CLOUD, rgb_vals)
 
         # Partial Surface Water with cloud/cloud shadow - Aggressive
         base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_LOW_CONF_WATER)
         rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
-        out_ctable.SetColorEntry(PARTIAL_WATER_AGGRESSIVE_AND_WEATHER, rgb_vals)
+        out_ctable.SetColorEntry(PARTIAL_WATER_AGGRESSIVE_AND_CLOUD, rgb_vals)
+
+        if snow_color == 'cyan':
+            out_ctable.SetColorEntry(NOT_WATER_AND_SNOW, cyan)
+            out_ctable.SetColorEntry(OPEN_WATER_HIGH_CONF_AND_SNOW, cyan)
+            out_ctable.SetColorEntry(OPEN_WATER_MOD_CONF_AND_SNOW, cyan)
+            out_ctable.SetColorEntry(PARTIAL_WATER_HIGH_CONF_AND_SNOW, cyan)
+            out_ctable.SetColorEntry(PARTIAL_WATER_AGGRESSIVE_AND_SNOW, cyan)
+
+        elif snow_color == 'translucent':
+            out_ctable.SetColorEntry(NOT_WATER_AND_SNOW, cloud_only_gray)
+
+            base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_HIGH_CONF_WATER)
+            rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
+            out_ctable.SetColorEntry(OPEN_WATER_HIGH_CONF_AND_SNOW, rgb_vals)
+
+            base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_MODERATE_CONF_WATER)
+            rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
+            out_ctable.SetColorEntry(OPEN_WATER_MOD_CONF_AND_SNOW, rgb_vals)
+
+            base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_POTENTIAL_WETLAND)
+            rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
+            out_ctable.SetColorEntry(PARTIAL_WATER_HIGH_CONF_AND_SNOW, rgb_vals)
+
+            base_rgb = out_ctable.GetColorEntry(WTR_UNCOLLAPSED_LOW_CONF_WATER)
+            rgb_vals = get_transparency_rgb_vals(cloud_rgb, base_rgb, alpha)
+            out_ctable.SetColorEntry(PARTIAL_WATER_AGGRESSIVE_AND_SNOW, rgb_vals)
+
+        elif snow_color == 'nodata':
+            # These pixels should already be set to UINT8_FILL_VALUE,
+            # which will be handled by the standard interpreted dwsx colorable
+            pass
 
     return out_ctable
 
@@ -2503,11 +2590,12 @@ def _compute_wtr2_translucent_clouds_array(
         unmasked_interpreted_water_layer,
         cloud_layer,
         flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
-        include_psw_aggressive=False):
+        include_psw_aggressive=False,
+        set_snow_to_nodata=False):
     """
     Generate a version of the WTR-2 layer where the
-    pixels marked with cloud or snow in the CLOUD layer
-    appear to have translucent gray on top.
+    pixels marked with cloud and snow in the CLOUD layer
+    are designated with unique values per dswx_hls.py constants (see notes).
 
     Parameters
     ----------
@@ -2525,11 +2613,45 @@ def _compute_wtr2_translucent_clouds_array(
         display them as Not Water. Default is False.
         If `flag_collapse_wtr_classes` is False, then `include_psw_aggressive`
         will be ignored and PWS-Agg will be displayed.
+    set_snow_to_nodata : bool
+        How to code the snow pixels. Defaults to False. Options are:
+            True : snow pixels will be marked with UINT8_FILL_VALUE
+            False : snow will be marked per *_AND_SNOW constants
     
     Returns
     -------
     wtr2_clouds : numpy.ndarray
-        Interpreted water layer with "translucent" clouds and snow.
+        Interpreted water layer with clouds and snow marked. Pixel values
+        correspond to these constants:
+
+            UINT8_FILL_VALUE
+
+            WTR_NOT_WATER
+            NOT_WATER_AND_CLOUD
+            NOT_WATER_AND_SNOW (*)
+
+            if `flag_collapse_wtr_classes`:
+                WTR_COLLAPSED_OPEN_WATER
+                WTR_COLLAPSED_PARTIAL_SURFACE_WATER
+                OPEN_WATER_AND_CLOUD
+                OPEN_WATER_AND_SNOW (*)
+                PARTIAL_WATER_AND_CLOUD
+                PARTIAL_WATER_AND_SNOW (*)
+            else:
+                WTR_UNCOLLAPSED_HIGH_CONF_WATER
+                WTR_UNCOLLAPSED_MODERATE_CONF_WATER
+                WTR_UNCOLLAPSED_POTENTIAL_WETLAND
+                WTR_UNCOLLAPSED_LOW_CONF_WATER
+                OPEN_WATER_HIGH_CONF_AND_CLOUD
+                OPEN_WATER_HIGH_CONF_AND_SNOW (*)
+                OPEN_WATER_MOD_CONF_AND_CLOUD
+                OPEN_WATER_MOD_CONF_AND_SNOW (*)
+                PARTIAL_WATER_HIGH_CONF_AND_CLOUD
+                PARTIAL_WATER_HIGH_CONF_AND_SNOW (*)
+                PARTIAL_WATER_AGGRESSIVE_AND_CLOUD
+                PARTIAL_WATER_AGGRESSIVE_AND_SNOW (*)
+
+        (*) These will be included per `set_snow_to_nodata` flag
 
     Notes
     -----
@@ -2543,6 +2665,11 @@ def _compute_wtr2_translucent_clouds_array(
     6: Cloud and snow/ice
     7: Cloud, cloud shadow, and snow/ice
     255: Fill value (no data)
+
+    For determining pixel coloration, cloud has precedence over
+    all other classes. Only color a pixel as snow if it's not 
+    cloud/cloud-shadow/adjacent masked. (e.g. a pixel with a
+    value of 6 in the CLOUD layer would be colored as cloud.)
     """
 
     # Create a copy of the unmasked_interpreted_water_layer.
@@ -2556,10 +2683,6 @@ def _compute_wtr2_translucent_clouds_array(
     if flag_collapse_wtr_classes:
         wtr2_clouds = _collapse_wtr_classes(wtr2_clouds)
 
-    # Mask the pixels with "weather".
-    # "Weather" is any form of cloud, cloud shadow, ice, etc.,
-    # which are noted in the function's docstring.
-
     # Sanity check that the CLOUD layer only contains the expected values
     actual_values_in_cloud = set(np.unique(cloud_layer).flatten())
     expected_values_in_cloud = {0,1,2,3,4,5,6,7,255}
@@ -2567,36 +2690,59 @@ def _compute_wtr2_translucent_clouds_array(
             f'CLOUD layer contains values {actual_values_in_cloud}, ' + \
             f'but should only contain values in {expected_values_in_cloud}'
 
-    weather_idx = ~((cloud_layer == 0) |              # not "Not masked"
-                (cloud_layer == UINT8_FILL_VALUE))    # not "Fill value"
+    # Get snow pixels
+    snow_idx = (cloud_layer == 2)
+
+    # Get cloud pixels
+    cloud_idx = ~((cloud_layer == 0) |               # not "Not masked"
+                (cloud_layer == UINT8_FILL_VALUE) |  # not "Fill value"
+                snow_idx)                            # not "Snow/ice"
 
     # NOT_WATER is the same value in both the collapsed and
     # uncollapsed WTR layer
-    ind = ((wtr2_clouds == WTR_NOT_WATER) & weather_idx)
-    wtr2_clouds[ind] = NOT_WATER_AND_WEATHER
+    ind = ((wtr2_clouds == WTR_NOT_WATER) & cloud_idx)
+    wtr2_clouds[ind] = NOT_WATER_AND_CLOUD
+
+    ind = ((wtr2_clouds == WTR_NOT_WATER) & snow_idx)
+    wtr2_clouds[ind] = NOT_WATER_AND_SNOW
 
     # Mask the Open Water and Partial Surface Water pixels
     if flag_collapse_wtr_classes:
-        ind = ((wtr2_clouds == WTR_COLLAPSED_OPEN_WATER) & weather_idx)
-        wtr2_clouds[ind] = OPEN_WATER_AND_WEATHER
+        ind = ((wtr2_clouds == WTR_COLLAPSED_OPEN_WATER) & cloud_idx)
+        wtr2_clouds[ind] = OPEN_WATER_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_COLLAPSED_OPEN_WATER) & snow_idx)
+        wtr2_clouds[ind] = OPEN_WATER_AND_SNOW
 
-        ind = ((wtr2_clouds == WTR_COLLAPSED_PARTIAL_SURFACE_WATER) & weather_idx)
-        wtr2_clouds[ind] = PARTIAL_WATER_AND_WEATHER
+        ind = ((wtr2_clouds == WTR_COLLAPSED_PARTIAL_SURFACE_WATER) & cloud_idx)
+        wtr2_clouds[ind] = PARTIAL_WATER_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_COLLAPSED_PARTIAL_SURFACE_WATER) & snow_idx)
+        wtr2_clouds[ind] = PARTIAL_WATER_AND_SNOW
 
     else:
         # keep all 4 water classes
-        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_HIGH_CONF_WATER) & weather_idx)
-        wtr2_clouds[ind] = OPEN_WATER_HIGH_CONF_AND_WEATHER
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_HIGH_CONF_WATER) & cloud_idx)
+        wtr2_clouds[ind] = OPEN_WATER_HIGH_CONF_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_HIGH_CONF_WATER) & snow_idx)
+        wtr2_clouds[ind] = OPEN_WATER_HIGH_CONF_AND_SNOW
 
-        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_MODERATE_CONF_WATER) & weather_idx)
-        wtr2_clouds[ind] = OPEN_WATER_MOD_CONF_AND_WEATHER
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_MODERATE_CONF_WATER) & cloud_idx)
+        wtr2_clouds[ind] = OPEN_WATER_MOD_CONF_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_MODERATE_CONF_WATER) & snow_idx)
+        wtr2_clouds[ind] = OPEN_WATER_MOD_CONF_AND_SNOW
 
-        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) & weather_idx)
-        wtr2_clouds[ind] = PARTIAL_WATER_HIGH_CONF_AND_WEATHER
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) & cloud_idx)
+        wtr2_clouds[ind] = PARTIAL_WATER_HIGH_CONF_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_POTENTIAL_WETLAND) & snow_idx)
+        wtr2_clouds[ind] = PARTIAL_WATER_HIGH_CONF_AND_SNOW
 
-        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_LOW_CONF_WATER) & weather_idx)
-        wtr2_clouds[ind] = PARTIAL_WATER_AGGRESSIVE_AND_WEATHER
-        
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_LOW_CONF_WATER) & cloud_idx)
+        wtr2_clouds[ind] = PARTIAL_WATER_AGGRESSIVE_AND_CLOUD
+        ind = ((wtr2_clouds == WTR_UNCOLLAPSED_LOW_CONF_WATER) & snow_idx)
+        wtr2_clouds[ind] = PARTIAL_WATER_AGGRESSIVE_AND_SNOW
+
+    if set_snow_to_nodata:
+        wtr2_clouds[snow_idx] = UINT8_FILL_VALUE
+
     return wtr2_clouds
 
 
@@ -3294,6 +3440,7 @@ def generate_dswx_layers(input_list,
                          browse_image_height=None,
                          browse_image_width=None,
                          include_psw_aggressive_in_browse=None,
+                         snow_in_browse=None,
                          landcover_file=None,
                          landcover_description=None,
                          worldcover_file=None,
@@ -3354,6 +3501,9 @@ def generate_dswx_layers(input_list,
        include_psw_aggressive_in_browse: bool (optional)
               Flag to include the Partial Surface Water Aggressive (PSW-Agg)
               class in the browse image. True to display PSW-Agg.
+       snow_in_browse: str (optional)
+              Define how snow should appear in the browse image.
+              Options: 'cyan', 'translucent', and 'nodata'
        landcover_file: str (optional)
               Copernicus Global Land Service (CGLS) Land Cover Layer file
        landcover_description: str (optional)
@@ -3399,7 +3549,8 @@ def generate_dswx_layers(input_list,
                                      mask_adjacent_to_cloud_mode is None or
                                      browse_image_height is None or
                                      browse_image_width is None or
-                                     include_psw_aggressive_in_browse is None)
+                                     include_psw_aggressive_in_browse is None or
+                                     snow_in_browse is None)
 
     if flag_read_runconfig_constants:
         runcfg_consts = parse_runconfig_file()
@@ -3420,6 +3571,8 @@ def generate_dswx_layers(input_list,
         if include_psw_aggressive_in_browse is None:
             include_psw_aggressive_in_browse = \
                 runcfg_consts.include_psw_aggressive_in_browse
+        if snow_in_browse is None:
+            snow_in_browse = runcfg_consts.snow_in_browse
         
     if scratch_dir is None:
         scratch_dir = '.'
@@ -3451,6 +3604,7 @@ def generate_dswx_layers(input_list,
         logger.info(f'    browse_image_height: {browse_image_height}')
         logger.info(f'    browse_image_width: {browse_image_width}')
         logger.info(f'    include_psw_aggressive_in_browse: {include_psw_aggressive_in_browse}')
+        logger.info(f'    snow_in_browse: {snow_in_browse}')
 
     os.makedirs(scratch_dir, exist_ok=True)
 
@@ -3709,13 +3863,14 @@ def generate_dswx_layers(input_list,
             # CLOUD layer
             cloud_layer=cloud,
             flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
-            include_psw_aggressive=include_psw_aggressive_in_browse)
+            include_psw_aggressive=include_psw_aggressive_in_browse,
+            set_snow_to_nodata=(snow_in_browse == 'nodata'))
 
         # Form color table
         wtr2_translucent_clouds_ctable = _get_wtr2_translucent_clouds_ctable(
             flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
             alpha=0.35,
-            remove_snow_from_colortable=True)
+            snow_color=snow_in_browse)
 
         # Save geotiff high-res browse image to output directory
         browse_image_geotiff_filename = \

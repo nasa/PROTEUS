@@ -90,7 +90,7 @@ runconfig:
             # Setting `browse_image_height` and `browse_image_width` equal
             # will maintain this original HLS and DSWx-HLS aspect ratio
             # of 3660 pixels x 3660 pixels for the PNG browse image.
-            # If these fields are left empty, 3660 x 3660 will be used.
+            # If these fields are left empty, 1024 x 1024 will be used.
 
             # Height in pixels for the PNG browse image
             browse_image_height: 1024
@@ -103,6 +103,15 @@ runconfig:
             # will not be displayed in the browse; these pixels will 
             # appear as Not Water.
             include_psw_aggressive_in_browse: False
+
+            # Define how snow appears in the browse image.
+            # Defaults to 'translucent'.
+            # Options are: 'cyan', 'translucent', 'nodata'
+            #   'cyan'          : snow will be opaque cyan
+            #   'translucent'   : snow will be translucent gray, same as clouds
+            #   'nodata'        : snow pixels will be marked as not having
+            #                     valid data, and will be fully transparent
+            snow_in_browse: 'translucent'
 
         hls_thresholds:
 
