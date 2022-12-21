@@ -104,6 +104,14 @@ runconfig:
             # appear as Not Water.
             include_psw_aggressive_in_browse: False
 
+            # Define how Not Water (e.g. land) appears in the browse image.
+            # Defaults to 'white'.
+            # Options are: 'white', 'nodata'
+            #   'white'         : Not Water pixels will be white
+            #   'nodata'        : Not Water pixels will be marked as not having
+            #                     valid data, and will be fully transparent
+            not_water_in_browse: 'white'
+
             # Define how cloud appears in the browse image.
             # Defaults to 'gray'.
             # Options are: 'gray', 'nodata'
