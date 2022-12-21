@@ -375,7 +375,8 @@ def get_dswx_hls_cli_parser():
     parser.add_argument('input_list',
                         type=str,
                         nargs='+',
-                        help='Input YAML run configuration file or HLS product file(s)')
+                        help='Input YAML run configuration file or HLS product '
+                             'file(s)')
 
     parser.add_argument('--dem',
                         dest='dem_file',
@@ -536,8 +537,8 @@ def get_dswx_hls_cli_parser():
                         type=str,
                         choices=['gray', 'nodata'],
                         default=None,
-                        help=('How cloud will be displayed in the browse image. '
-                                "Options are: 'gray' and 'nodata'"))
+                        help=('How cloud will be displayed in the browse image.'
+                                " Options are: 'gray' and 'nodata'"))
 
     parser.add_argument('--snow-in-browse',
                         dest='snow_in_browse',
@@ -2749,43 +2750,44 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     else:
         runconfig = default_runconfig
 
-    runcfg_consts = RunConfigConstants()
+    runconfig_constants = RunConfigConstants()
     processing_group = runconfig['runconfig']['groups']['processing']
     browse_image_group = runconfig['runconfig']['groups']['browse_image_group']
     hls_thresholds_user = runconfig['runconfig']['groups']['hls_thresholds']
 
     # copy some processing parameters from runconfig dictionary
-    runcfg_consts_dict = runcfg_consts.__dict__
+    runconfig_constants_dict = runconfig_constants.__dict__
     for key in processing_group.keys():
-        if key not in runcfg_consts_dict.keys():
+        if key not in runconfig_constants_dict.keys():
             continue
-        runcfg_consts.__setattr__(key, processing_group[key])
+        runconfig_constants.__setattr__(key, processing_group[key])
 
     # copy browse image parameters from runconfig dictionary
     for key in browse_image_group.keys():
-        if key not in runcfg_consts_dict.keys():
+        if key not in runconfig_constants_dict.keys():
             continue
-        runcfg_consts.__setattr__(key, browse_image_group[key])
+        runconfig_constants.__setattr__(key, browse_image_group[key])
 
     # copy HLS thresholds from runconfig dictionary
     if hls_thresholds_user is not None:
         logger.info('HLS thresholds:')
         for key in hls_thresholds_user.keys():
             logger.info(f'     {key}: {hls_thresholds_user[key]}')
-            runcfg_consts.hls_thresholds.__setattr__(key, hls_thresholds_user[key])
+            runconfig_constants.hls_thresholds.__setattr__(key, 
+                                                hls_thresholds_user[key])
 
     if args is None:
-        return runcfg_consts
+        return runconfig_constants
 
-    # Update args with runcfg_consts attributes
-    for key in runcfg_consts_dict.keys():
+    # Update args with runconfig_constants attributes
+    for key in runconfig_constants_dict.keys():
         try:
             user_attr = getattr(args, key)
         except AttributeError:
             continue
         if user_attr is not None:
             continue
-        setattr(args, key, getattr(runcfg_consts, key))
+        setattr(args, key, getattr(runconfig_constants, key))
 
     input_file_path = runconfig['runconfig']['groups']['input_file_group'][
         'input_file_path']
@@ -2846,7 +2848,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
     # If user runconfig was not provided, return
     if user_runconfig_file is None:
-        return runcfg_consts
+        return runconfig_constants
 
     # save layers
     for i, (layer_name, args_name) in \
@@ -2900,7 +2902,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
             # use the default browse filename
             setattr(args, cli_arg_name, default_browse_fname)
 
-    return runcfg_consts
+    return runconfig_constants
 
 
 def _get_dswx_metadata_dict(product_id, product_version):
@@ -3368,7 +3370,7 @@ def generate_dswx_layers(input_list,
        success : bool
               Flag success indicating if execution was successful
     """
-
+    
     flag_read_runconfig_constants = (hls_thresholds is None or
                                      flag_use_otsu_terrain_masking is None or
                                      min_slope_angle is None or
@@ -3382,30 +3384,33 @@ def generate_dswx_layers(input_list,
                                      snow_in_browse is None)
 
     if flag_read_runconfig_constants:
-        runcfg_consts = parse_runconfig_file()
+        runconfig_constants = parse_runconfig_file()
         if hls_thresholds is None:
-            hls_thresholds = runcfg_consts.hls_thresholds
+            hls_thresholds = runconfig_constants.hls_thresholds
         if flag_use_otsu_terrain_masking is None:
-            flag_use_otsu_terrain_masking = runcfg_consts.flag_use_otsu_terrain_masking
+            flag_use_otsu_terrain_masking = \
+                runconfig_constants.flag_use_otsu_terrain_masking
         if min_slope_angle is None:
-            min_slope_angle = runcfg_consts.min_slope_angle
+            min_slope_angle = runconfig_constants.min_slope_angle
         if max_sun_local_inc_angle is None:
-            max_sun_local_inc_angle = runcfg_consts.max_sun_local_inc_angle
+            max_sun_local_inc_angle = \
+                runconfig_constants.max_sun_local_inc_angle
         if mask_adjacent_to_cloud_mode is None:
-            mask_adjacent_to_cloud_mode = runcfg_consts.mask_adjacent_to_cloud_mode
+            mask_adjacent_to_cloud_mode = \
+                runconfig_constants.mask_adjacent_to_cloud_mode
         if browse_image_height is None:
-            browse_image_height = runcfg_consts.browse_image_height
+            browse_image_height = runconfig_constants.browse_image_height
         if browse_image_width is None:
-            browse_image_width = runcfg_consts.browse_image_width
+            browse_image_width = runconfig_constants.browse_image_width
         if include_psw_aggressive_in_browse is None:
             include_psw_aggressive_in_browse = \
-                runcfg_consts.include_psw_aggressive_in_browse
-        if not_water_in_browse in None:
-            not_water_in_browse = runcfg_consts.not_water_in_browse
+                runconfig_constants.include_psw_aggressive_in_browse
+        if not_water_in_browse is None:
+            not_water_in_browse = runconfig_constants.not_water_in_browse
         if cloud_in_browse is None:
-            cloud_in_browse = runcfg_consts.cloud_in_browse
+            cloud_in_browse = runconfig_constants.cloud_in_browse
         if snow_in_browse is None:
-            snow_in_browse = runcfg_consts.snow_in_browse
+            snow_in_browse = runconfig_constants.snow_in_browse
         
     if scratch_dir is None:
         scratch_dir = '.'
