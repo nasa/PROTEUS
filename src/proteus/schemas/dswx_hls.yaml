@@ -123,14 +123,22 @@ runconfig:
             # appear as Not Water.
             include_psw_aggressive_in_browse: bool(required=False)
 
+            # Define how cloud appears in the browse image.
+            # Defaults to 'gray'.
+            # Options are: 'gray', 'nodata'
+            #   'gray'          : cloud pixels will be opaque gray
+            #   'nodata'        : cloud pixels will be marked as not having
+            #                     valid data, and will be fully transparent
+            cloud_in_browse: enum('gray', 'nodata', required=False)
+
             # Define how snow appears in the browse image.
-            # Defaults to 'translucent'.
-            # Options are: 'cyan', 'translucent', 'nodata'
+            # Defaults to 'cyan'.
+            # Options are: 'cyan', 'gray', 'nodata'
             #   'cyan'          : snow will be opaque cyan
-            #   'translucent'   : snow will be translucent gray, same as clouds
+            #   'gray'          : snow will be opaque gray
             #   'nodata'        : snow pixels will be marked as not having
             #                     valid data, and will be fully transparent
-            snow_in_browse: enum('cyan', 'translucent', 'nodata', required=False)
+            snow_in_browse: enum('cyan', 'gray', 'nodata', required=False)
 
         hls_thresholds: include('hls_thresholds_options', required=False)
 
