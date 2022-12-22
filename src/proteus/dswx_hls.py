@@ -2057,38 +2057,6 @@ def _get_confidence_layer_ctable():
     return confidence_layer_ctable
 
 
-def _get_diagnostic_layer_ctable(diagnostic_layer):
-    """
-       Get diagnostic layer RGB color table
-
-       Returns
-       -------
-       diagnostic_layer_ctable : gdal.ColorTable
-              Diagnostic layer color table
-    """
-    # create color table
-    diagnostic_layer_ctable = gdal.ColorTable()
-
-    n_bits = 5
-    unique_elements = np.unique(diagnostic_layer)
-    for element in unique_elements:
-        n_positive_tests = 0
-        element_floor = element
-        for i in range(n_bits):
-            element_floor, remainder = np.divmod(element_floor, 10)
-            n_positive_tests += remainder
-        positive_tests_255 = int(float(n_positive_tests) * 255 // 5)
-
-        diagnostic_layer_ctable.SetColorEntry(
-            int(element), (255 - positive_tests_255,
-                           255 - positive_tests_255,
-                           255))
-
-    # Transparent black - Fill value
-    diagnostic_layer_ctable.SetColorEntry(DIAGNOSTIC_LAYER_NO_DATA_BINARY_REPR,
-                                          (0, 0, 0, 255))
-    return diagnostic_layer_ctable
-
 
 def _collapse_wtr_classes(interpreted_layer):
     """
@@ -3723,15 +3691,12 @@ def generate_dswx_layers(input_list,
     del diagnostic_layer_decimal
 
     if output_diagnostic_layer:
-        diagnostic_layer_ctable = _get_diagnostic_layer_ctable(
-            diagnostic_layer)
         _save_array(diagnostic_layer, output_diagnostic_layer,
                     dswx_metadata_dict, geotransform, projection,
                     description=band_description_dict['DIAG'],
                     scratch_dir=scratch_dir,
                     output_files_list=build_vrt_list,
                     output_dtype=gdal.GDT_UInt16,
-                    ctable=diagnostic_layer_ctable,
                     no_data_value=DIAGNOSTIC_LAYER_NO_DATA_BINARY_REPR)
 
 
