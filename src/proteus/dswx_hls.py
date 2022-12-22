@@ -1247,21 +1247,25 @@ def _get_browse_ctable(
         # So, "remove" original snow entry from colortable.
         out_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, FILL_VALUE_RGBA)
     else:
-        # Snow color was already set to cyan in `_get_interpreted_dswx_ctable`.
-        # Perform sanity check in case of changes.
-        assert out_ctable.GetColorEntry(WTR_CLOUD_MASKED_SNOW) in \
-                ((0,255,255), (0,255,255,255)), "Color for snow has changed."
+        # Snow color will remain the same as in WTR
+        pass
 
     if cloud_color == 'nodata':
         # The no-data fill RGBA was set by `_get_interpreted_dswx_ctable`.
         # So, "remove" original snow entry from colortable.
         # Make sure to do this step after parsing the gray color for snow.
         out_ctable.SetColorEntry(WTR_CLOUD_MASKED, FILL_VALUE_RGBA)
+    else:
+        # Cloud color will remain the same as in WTR
+        pass
 
     if not_water_color == 'nodata':
         # The no-data fill RGBA was set by `_get_interpreted_dswx_ctable`.
         # So, "remove" original Not Water entry from colortable.
         out_ctable.SetColorEntry(WTR_NOT_WATER, FILL_VALUE_RGBA)
+    else:
+        # Not Water color will remain the same as in WTR
+        pass
 
     return out_ctable
 
@@ -2522,8 +2526,6 @@ def _compute_browse_array(
         True to include Partial Surface Water Aggressive class (PSW-Agg)
         in output layer. False to not display these pixels as PSW and instead
         display them as Not Water. Default is False.
-        If `flag_collapse_wtr_classes` is False, then `include_psw_aggressive`
-        will be ignored and PWS-Agg will be displayed.
     set_not_water_to_nodata : bool
         How to code the Not Water pixels. Defaults to False. Options are:
             True : Not Water pixels will be marked with UINT8_FILL_VALUE
@@ -2547,7 +2549,7 @@ def _compute_browse_array(
     browse_arr = masked_interpreted_water_layer.copy()
 
     # Discard the Partial Surface Water Aggressive class
-    if not include_psw_aggressive and flag_collapse_wtr_classes:
+    if not include_psw_aggressive:
         browse_arr[browse_arr == WTR_UNCOLLAPSED_LOW_CONF_WATER] = \
                                                             WTR_NOT_WATER
 
@@ -3433,15 +3435,18 @@ def generate_dswx_layers(input_list,
     logger.info(f'    product version: {product_version}')
     logger.info(f'    software version: {SOFTWARE_VERSION}')
     logger.info(f'processing parameters:')
-    logger.info(f'    flag_use_otsu_terrain_masking: {flag_use_otsu_terrain_masking}')
+    logger.info(f'    flag_use_otsu_terrain_masking: '
+                                f'{flag_use_otsu_terrain_masking}')
     logger.info(f'    min_slope_angle: {min_slope_angle}')
     logger.info(f'    max_sun_local_inc_angle: {max_sun_local_inc_angle}')
-    logger.info(f'    mask_adjacent_to_cloud_mode: {mask_adjacent_to_cloud_mode}')
+    logger.info(f'    mask_adjacent_to_cloud_mode: '
+                                f'{mask_adjacent_to_cloud_mode}')
     if output_browse_image:
         logger.info(f'browse image:')
         logger.info(f'    browse_image_height: {browse_image_height}')
         logger.info(f'    browse_image_width: {browse_image_width}')
-        logger.info(f'    include_psw_aggressive_in_browse: {include_psw_aggressive_in_browse}')
+        logger.info('    include_psw_aggressive_in_browse: '
+                                f'{include_psw_aggressive_in_browse}')
         logger.info(f'    not_water_in_browse: {not_water_in_browse}')
         logger.info(f'    cloud_in_browse: {cloud_in_browse}')
         logger.info(f'    snow_in_browse: {snow_in_browse}')
