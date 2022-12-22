@@ -1477,7 +1477,7 @@ def _get_binary_water_layer(interpreted_water_layer):
     for class_value in range(1, 5):
         binary_water_layer[interpreted_water_layer == class_value] = BWTR_WATER
 
-    # CLOUD masked (cloud/snow)
+    # CLOUD masked (snow/ice only)
     binary_water_layer[interpreted_water_layer == WTR_CLOUD_MASKED_SNOW] = \
         WTR_CLOUD_MASKED_SNOW
 
