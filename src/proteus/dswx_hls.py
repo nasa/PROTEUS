@@ -327,10 +327,10 @@ class RunConfigConstants:
             Height in pixels of the browse image PNG
     browse_image_width: int
             Width in pixels of the browse image PNG
-    include_psw_aggressive_in_browse: bool
-            True to include the Partial Surface Water Aggressive class
-            in the browse image. False to not display this class, which means
-            that they will be considered Not Water.
+    exclude_psw_aggressive_in_browse: bool
+            True to exclude the Partial Surface Water Aggressive class
+            in the browse image, which means that they will be considered
+            Not Water. False to not display this class.
     not_water_in_browse: str
             Define how Not Water (e.g. land) appears in the browse image.
             Options are: 'white' and 'nodata'
@@ -360,7 +360,7 @@ class RunConfigConstants:
         self.mask_adjacent_to_cloud_mode = None
         self.browse_image_height = None
         self.browse_image_width = None
-        self.include_psw_aggressive_in_browse = None
+        self.exclude_psw_aggressive_in_browse = None
         self.not_water_in_browse = None
         self.cloud_in_browse = None
         self.snow_in_browse = None
@@ -517,11 +517,11 @@ def get_dswx_hls_cli_parser():
                         type=int,
                         help='Width in pixels for browse image PNG')
 
-    parser.add_argument('--include-psw-aggressive-browse',
-                        dest='include_psw_aggressive_in_browse',
+    parser.add_argument('--exclude-psw-aggressive-in-browse',
+                        dest='exclude_psw_aggressive_in_browse',
                         action='store_true',
                         default=None,
-                        help=('Flag to include Partial Surface Water '
+                        help=('Flag to exclude Partial Surface Water '
                                 'Aggressive class in the browse image'))
 
     parser.add_argument('--not-water-in-browse',
@@ -2505,7 +2505,7 @@ def _save_output_rgb_file(red, green, blue, output_file,
 def _compute_browse_array(
         masked_interpreted_water_layer,
         flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
-        include_psw_aggressive=False,
+        exclude_psw_aggressive=False,
         set_not_water_to_nodata=False,
         set_cloud_to_nodata=False,
         set_snow_to_nodata=False):
@@ -2522,10 +2522,10 @@ def _compute_browse_array(
     flag_collapse_wtr_classes : bool
         Collapse interpreted layer water classes following standard
         DSWx-HLS product water classes
-    include_psw_aggressive : bool
-        True to include Partial Surface Water Aggressive class (PSW-Agg)
-        in output layer. False to not display these pixels as PSW and instead
-        display them as Not Water. Default is False.
+    exclude_psw_aggressive : bool
+        True to exclude Partial Surface Water Aggressive class (PSW-Agg)
+        in output layer and instead display them as Not Water. 
+        False to display these pixels as PSW. Default is False.
     set_not_water_to_nodata : bool
         How to code the Not Water pixels. Defaults to False. Options are:
             True : Not Water pixels will be marked with UINT8_FILL_VALUE
@@ -2549,7 +2549,7 @@ def _compute_browse_array(
     browse_arr = masked_interpreted_water_layer.copy()
 
     # Discard the Partial Surface Water Aggressive class
-    if not include_psw_aggressive:
+    if exclude_psw_aggressive:
         browse_arr[browse_arr == WTR_UNCOLLAPSED_LOW_CONF_WATER] = \
                                                             WTR_NOT_WATER
 
@@ -3262,7 +3262,7 @@ def generate_dswx_layers(input_list,
                          output_browse_image=None,
                          browse_image_height=None,
                          browse_image_width=None,
-                         include_psw_aggressive_in_browse=None,
+                         exclude_psw_aggressive_in_browse=None,
                          not_water_in_browse=None,
                          cloud_in_browse=None,
                          snow_in_browse=None,
@@ -3323,9 +3323,9 @@ def generate_dswx_layers(input_list,
               Height in pixels of the browse image PNG
        browse_image_width: int (optional)
               Width in pixels of the browse image PNG
-       include_psw_aggressive_in_browse: bool (optional)
-              Flag to include the Partial Surface Water Aggressive (PSW-Agg)
-              class in the browse image. True to display PSW-Agg.
+       exclude_psw_aggressive_in_browse: bool (optional)
+              Flag to exclude the Partial Surface Water Aggressive (PSW-Agg)
+              class in the browse image. False to display PSW-Agg.
        not_water_in_browse: str (optional)
               Define how Not Water (e.g. land) appears in the browse image.
               Options: 'white' and 'nodata'
@@ -3380,7 +3380,7 @@ def generate_dswx_layers(input_list,
                                      mask_adjacent_to_cloud_mode is None or
                                      browse_image_height is None or
                                      browse_image_width is None or
-                                     include_psw_aggressive_in_browse is None or
+                                     exclude_psw_aggressive_in_browse is None or
                                      not_water_in_browse is None or
                                      cloud_in_browse is None or
                                      snow_in_browse is None)
@@ -3404,9 +3404,9 @@ def generate_dswx_layers(input_list,
             browse_image_height = runconfig_constants.browse_image_height
         if browse_image_width is None:
             browse_image_width = runconfig_constants.browse_image_width
-        if include_psw_aggressive_in_browse is None:
-            include_psw_aggressive_in_browse = \
-                runconfig_constants.include_psw_aggressive_in_browse
+        if exclude_psw_aggressive_in_browse is None:
+            exclude_psw_aggressive_in_browse = \
+                runconfig_constants.exclude_psw_aggressive_in_browse
         if not_water_in_browse is None:
             not_water_in_browse = runconfig_constants.not_water_in_browse
         if cloud_in_browse is None:
@@ -3445,8 +3445,8 @@ def generate_dswx_layers(input_list,
         logger.info(f'browse image:')
         logger.info(f'    browse_image_height: {browse_image_height}')
         logger.info(f'    browse_image_width: {browse_image_width}')
-        logger.info('    include_psw_aggressive_in_browse: '
-                                f'{include_psw_aggressive_in_browse}')
+        logger.info('    exclude_psw_aggressive_in_browse: '
+                                f'{exclude_psw_aggressive_in_browse}')
         logger.info(f'    not_water_in_browse: {not_water_in_browse}')
         logger.info(f'    cloud_in_browse: {cloud_in_browse}')
         logger.info(f'    snow_in_browse: {snow_in_browse}')
@@ -3705,7 +3705,7 @@ def generate_dswx_layers(input_list,
         browse_arr = _compute_browse_array(
             masked_interpreted_water_layer=masked_dswx_band,  # WTR layer
             flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
-            include_psw_aggressive=include_psw_aggressive_in_browse,
+            exclude_psw_aggressive=exclude_psw_aggressive_in_browse,
             set_not_water_to_nodata=(not_water_in_browse == 'nodata'),
             set_cloud_to_nodata=(cloud_in_browse == 'nodata'),
             set_snow_to_nodata=(snow_in_browse == 'nodata'))

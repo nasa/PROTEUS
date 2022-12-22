@@ -117,11 +117,11 @@ runconfig:
             # Width in pixels for the PNG browse image
             browse_image_width: int(min=1, required=False)
 
-            # Flag to include the Partial Surface Water Aggressive class
-            # in the browse image. Default is False, meaning that this class
-            # will not be displayed in the browse; these pixels will 
-            # appear as Not Water.
-            include_psw_aggressive_in_browse: bool(required=False)
+            # Flag to exclude the Partial Surface Water Aggressive (PSW-Agg)
+            # class in the browse image. If True, PSW-Agg pixels will 
+            # appear as Not Water. If False, this class will be displayed
+            # in the browse image, same as in WTR. Default is False.
+            exclude_psw_aggressive_in_browse: bool(required=False)
 
             # Define how Not Water (e.g. land) appears in the browse image.
             # Defaults to 'white'.
