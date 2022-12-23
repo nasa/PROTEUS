@@ -3553,15 +3553,32 @@ def generate_dswx_layers(input_list,
     if check_ancillary_inputs_coverage and not dem_file:
         error_msg = f'ERROR DEM file not provided'
         logger.error(error_msg)
+        raise ValueError(error_msg)
+    elif (check_ancillary_inputs_coverage and
+            not os.path.isfile(dem_file)):
+        error_msg = f'ERROR DEM file not found: {dem_file}'
+        logger.error(error_msg)
         raise FileNotFoundError(error_msg)
 
     if check_ancillary_inputs_coverage and not landcover_file:
         error_msg = f'ERROR Copernicus CGLS land cover 100m file not provided'
         logger.error(error_msg)
+        raise ValueError(error_msg)
+    elif (check_ancillary_inputs_coverage and
+            not os.path.isfile(landcover_file)):
+        error_msg = (f'ERROR Copernicus CGLS land cover 100m file not found:'
+                    f' {landcover_file}')
+        logger.error(error_msg)
         raise FileNotFoundError(error_msg)
 
     if check_ancillary_inputs_coverage and not worldcover_file:
         error_msg = f'ERROR WorldCover 10m file not provided'
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    elif (check_ancillary_inputs_coverage and
+            not os.path.isfile(worldcover_file)):
+        error_msg = (f'ERROR WorldCover 10m file not found:'
+                     f' {worldcover_file}')
         logger.error(error_msg)
         raise FileNotFoundError(error_msg)
 
