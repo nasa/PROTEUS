@@ -5,7 +5,8 @@ from setuptools import Command
 
 
 def _get_version():
-    """Returns the PROTEUS software version
+    """Returns the PROTEUS software version from the
+    file `src/proteus/version.py`
 
        Returns
        -------
