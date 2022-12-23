@@ -2604,8 +2604,9 @@ def _compute_browse_array(
 
     # Discard the Partial Surface Water Aggressive class
     if exclude_psw_aggressive:
-        browse_arr[browse_arr == WTR_UNCOLLAPSED_LOW_CONF_WATER] = \
-                                                            WTR_NOT_WATER
+        browse_arr[
+            browse_arr == WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE] = \
+                WTR_NOT_WATER
 
     if flag_collapse_wtr_classes:
         browse_arr = _collapse_wtr_classes(browse_arr)
