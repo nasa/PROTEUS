@@ -1584,7 +1584,7 @@ def _compute_mask_and_filter_interpreted_layer(
        unmasked_interpreted_water_layer: numpy.ndarray
               Cloud-unmasked interpreted water layer
        fmask: numpy ndarray
-              HLS FMask
+              HLS Fmask
        mask_adjacent_to_cloud_mode: str
               Define how areas adjacent to cloud/cloud-shadow should be handled.
               Options: "mask", "ignore", and "cover"
@@ -1599,7 +1599,7 @@ def _compute_mask_and_filter_interpreted_layer(
     mask = np.zeros(shape, dtype = np.uint8)
 
     '''
-    HLS FMask
+    HLS Fmask
     BITS:
     0 - Cirrus (reserved but not used)
     1 - Cloud (*1)
@@ -1627,20 +1627,20 @@ def _compute_mask_and_filter_interpreted_layer(
     logger.info(f'mask adjacent to cloud/cloud-shadow mode:'
                 f' {mask_adjacent_to_cloud_mode}')
  
-    # Check FMask cloud shadow bit (3) => bit 0
+    # Check Fmask cloud shadow bit (3) => bit 0
     mask[np.bitwise_and(fmask, 2**3) == 2**3] = 1
 
     if mask_adjacent_to_cloud_mode == 'mask':
-        # Check FMask adjacent to cloud/shadow bit (2) => bit 0
+        # Check Fmask adjacent to cloud/shadow bit (2) => bit 0
        mask[np.bitwise_and(fmask, 2**2) == 2**2] = 1
 
-    # Check FMask cloud bit (1) => bit 2
+    # Check Fmask cloud bit (1) => bit 2
     mask[np.bitwise_and(fmask, 2**1) == 2**1] += 4
 
     # If cloud (1) or cloud shadow (3), mark WTR as WTR_CLOUD_MASKED
     masked_interpreted_water_layer[mask != 0] = WTR_CLOUD_MASKED
 
-    # Check FMask snow bit (4) => bit 1
+    # Check Fmask snow bit (4) => bit 1
     snow_mask = np.bitwise_and(fmask, 2**4) == 2**4
 
     # Cover areas marked as adjacent to cloud/shadow
@@ -1716,13 +1716,15 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
     if layer_gdal_dataset is None:
         return None
     band = layer_gdal_dataset.GetRasterBand(1)
-    fill_data = band.GetNoDataValue()
+    fill_value = band.GetNoDataValue()
  
     if 'hls_dataset_name' not in image_dict.keys():
         hls_dataset_name = os.path.splitext(os.path.basename(filename))[0]
         if band_suffix:
             hls_dataset_name = hls_dataset_name.replace(f'.{band_suffix}', '')
         image_dict['hls_dataset_name'] = hls_dataset_name
+
+    metadata = layer_gdal_dataset.GetMetadata()
 
     if key == 'fmask':
         if flag_debug:
@@ -1731,12 +1733,11 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
                 xoff=0, yoff=0, xsize=1000, ysize=1000)
         else:
             image_dict[key] = layer_gdal_dataset.ReadAsArray()
+        image_dict['fmask_fill_value'] = metadata['_FillValue']
         return True
 
     offset = 0.0
     scale_factor = 1.
-
-    metadata = layer_gdal_dataset.GetMetadata()
 
     if 'SPACECRAFT_NAME' not in dswx_metadata_dict.keys():
         for k, v in metadata.items():
@@ -1808,12 +1809,12 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
     else:
         image = layer_gdal_dataset.ReadAsArray()
 
-    if fill_data is None and '_FillValue' in metadata.keys():
-        fill_data = float(metadata['_FillValue'])
-    elif fill_data is None:
-        fill_data = -9999
+    if fill_value is None and '_FillValue' in metadata.keys():
+        fill_value = float(metadata['_FillValue'])
+    elif fill_value is None:
+        fill_value = -9999
 
-    invalid_ind = np.where(image == fill_data)
+    invalid_ind = np.where(image == fill_value)
     if FLAG_CLIP_NEGATIVE_REFLECTANCE:
         image = np.clip(image, 1, None)
     if flag_offset_and_scale_inputs:
@@ -1821,7 +1822,7 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
                                 offset)
         image[invalid_ind] == np.nan
     elif FLAG_CLIP_NEGATIVE_REFLECTANCE:
-        image[invalid_ind] = fill_data
+        image[invalid_ind] = fill_value
 
     image_dict[key] = image
 
@@ -1830,7 +1831,7 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
             layer_gdal_dataset.GetGeoTransform()
         image_dict['projection'] = \
             layer_gdal_dataset.GetProjection()
-        image_dict['fill_data'] = fill_data
+        image_dict['fill_value'] = fill_value
         image_dict['length'] = image_dict[key].shape[0]
         image_dict['width'] = image_dict[key].shape[1]
 
@@ -3529,6 +3530,10 @@ def generate_dswx_layers(input_list,
     swir1 = image_dict['swir1']
     swir2 = image_dict['swir2']
     fmask = image_dict['fmask']
+    fill_value = image_dict['fill_value']
+    fmask_fill_value = image_dict['fmask_fill_value']
+    print('*** fill_value:', fill_value)
+    print('*** fmask_fill_value:', fmask_fill_value)
 
     geotransform = image_dict['geotransform']
     projection = image_dict['projection']
@@ -3621,9 +3626,12 @@ def generate_dswx_layers(input_list,
 
     # Set array of invalid pixels
     if not flag_offset_and_scale_inputs:
-        invalid_ind = np.where(blue == image_dict['fill_data'])
+        invalid_ind = np.where((blue == fill_value) &
+                               (fmask == fmask_fill_value))
     else:
-        invalid_ind = np.where(np.isnan(blue))
+        invalid_ind = np.where((np.isnan(blue)) &
+                               (fmask == fmask_fill_value))
+
     if output_rgb_file:
         _save_output_rgb_file(red, green, blue, output_rgb_file,
                               offset_dict, scale_dict,
