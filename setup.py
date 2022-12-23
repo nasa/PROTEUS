@@ -27,8 +27,9 @@ def _get_version():
 
     # Check that the version file contains properly formatted text string
     if p is None:
-        raise ValueError(f'Version file {version_file} not properly formatted.'
-                     " It should contain text matching e.g. VERSION = '2.3.4'")
+        raise ValueError(
+            f'Version file {version_file} not properly formatted.'
+            " It should contain text matching e.g. VERSION = '2.3.4'")
 
     # Extract just the numeric version number from the string
     p = re.search("\d+([.]\d+)*", p.group(0))
