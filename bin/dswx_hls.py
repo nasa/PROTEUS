@@ -79,6 +79,7 @@ def main():
         scratch_dir=args.scratch_dir,
         product_id=args.product_id,
         product_version=args.product_version,
+        check_ancillary_inputs_coverage=args.check_ancillary_inputs_coverage,
         flag_use_otsu_terrain_masking=args.flag_use_otsu_terrain_masking,
         min_slope_angle = args.min_slope_angle,
         max_sun_local_inc_angle=args.max_sun_local_inc_angle,

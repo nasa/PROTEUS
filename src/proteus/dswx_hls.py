@@ -328,6 +328,8 @@ class RunConfigConstants:
     ----------
     hls_thresholds : HlsThresholds
         HLS reflectance thresholds for generating DSWx-HLS products
+    check_ancillary_inputs_coverage: bool
+        Check if ancillary inputs cover entirely the output product
     flag_use_otsu_terrain_masking: bool
            Flag to indicate whether the terrain masking should be computed
            with the Otsu threshold method
@@ -372,6 +374,7 @@ class RunConfigConstants:
     def __init__(self):
         self.hls_thresholds = HlsThresholds()
         self.flag_use_otsu_terrain_masking = None
+        self.check_ancillary_inputs_coverage = None
         self.min_slope_angle = None
         self.max_sun_local_inc_angle = None
         self.mask_adjacent_to_cloud_mode = None
@@ -591,6 +594,13 @@ def get_dswx_hls_cli_parser():
                         type=str,
                         help='Product version that will be saved in the output'
                         "product's metadata")
+
+    parser.add_argument('--check-ancillary-inputs-coverage',
+                        dest='check_ancillary_inputs_coverage',
+                        action='store_true',
+                        default=None,
+                        help=('Check if ancillary inputs cover entirely'
+                              ' the output product'))
 
     parser.add_argument('--use-otsu-terrain-masking',
                         dest='flag_use_otsu_terrain_masking',
@@ -3330,6 +3340,7 @@ def generate_dswx_layers(input_list,
                          scratch_dir='.',
                          product_id=None,
                          product_version=SOFTWARE_VERSION,
+                         check_ancillary_inputs_coverage=None,
                          flag_use_otsu_terrain_masking=None,
                          min_slope_angle=None,
                          max_sun_local_inc_angle=None,
@@ -3410,6 +3421,8 @@ def generate_dswx_layers(input_list,
        product_version: str (optional)
               Product version that will be saved in the output' product's
               metadata
+       check_ancillary_inputs_coverage: bool (optional)
+              Check if ancillary inputs cover entirely the output product
        flag_use_otsu_terrain_masking: bool (optional)
               Flag to indicate whether the terrain masking should be computed
               with the Otsu threshold method
@@ -3432,6 +3445,7 @@ def generate_dswx_layers(input_list,
 
     flag_read_runconfig_constants = \
         any([p is None for p in [hls_thresholds,
+                                 check_ancillary_inputs_coverage,
                                  flag_use_otsu_terrain_masking,
                                  min_slope_angle,
                                  max_sun_local_inc_angle,
@@ -3448,6 +3462,9 @@ def generate_dswx_layers(input_list,
         runconfig_constants = parse_runconfig_file()
         if hls_thresholds is None:
             hls_thresholds = runconfig_constants.hls_thresholds
+        if check_ancillary_inputs_coverage is None:
+            check_ancillary_inputs_coverage = \
+                runconfig_constants.check_ancillary_inputs_coverage
         if flag_use_otsu_terrain_masking is None:
             flag_use_otsu_terrain_masking = \
                 runconfig_constants.flag_use_otsu_terrain_masking
@@ -3484,27 +3501,33 @@ def generate_dswx_layers(input_list,
         product_id = 'dswx_hls'
 
     logger.info(f'PROTEUS software version: {SOFTWARE_VERSION}')
-    logger.info('input parameters:')
-    logger.info('    file(s):')
+    logger.info('input files:')
+    logger.info('    HLS product file(s):')
     for input_file in input_list:
         logger.info(f'        {input_file}')
     if output_file:
         logger.info(f'    output multi-band file: {output_file}')
     logger.info(f'    DEM file: {dem_file}')
-    logger.info(f'    scratch directory: {scratch_dir}')
+    logger.info(f'    Copernicus CGLS land cover 100m file: {landcover_file}')
+    logger.info(f'    WorldCover 10m file: {worldcover_file}')
+
     logger.info(f'product parameters:')
     logger.info(f'    product ID: {product_id}')
     logger.info(f'    product version: {product_version}')
     logger.info(f'    software version: {SOFTWARE_VERSION}')
     logger.info(f'processing parameters:')
+    logger.info(f'    scratch directory: {scratch_dir}')
+    logger.info(f'    check ancillary coverage:'
+                f'{check_ancillary_inputs_coverage}')
+
     if flag_use_otsu_terrain_masking:
-        terrain_masking_algorighm = 'Otsu'
+        terrain_masking_algorithm = 'Otsu'
         terrain_masking_parameters_str = ' (unused)'
     else:
-        terrain_masking_algorighm = 'Sun local incidence angle'
+        terrain_masking_algorithm = 'Sun local incidence angle'
         terrain_masking_parameters_str = ''
 
-    logger.info(f'    terrain masking algorithm: {terrain_masking_algorighm}')
+    logger.info(f'    terrain masking algorithm: {terrain_masking_algorithm}')
     logger.info(f'        min. slope angle: {min_slope_angle}'
                 f' {terrain_masking_parameters_str}')
     logger.info(f'        max. sun local inc. angle: {max_sun_local_inc_angle}'
@@ -3520,6 +3543,21 @@ def generate_dswx_layers(input_list,
         logger.info(f'    not_water_in_browse: {not_water_in_browse}')
         logger.info(f'    cloud_in_browse: {cloud_in_browse}')
         logger.info(f'    snow_in_browse: {snow_in_browse}')
+
+    if check_ancillary_inputs_coverage and not dem_file:
+        error_msg = f'ERROR DEM file not provided'
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
+
+    if check_ancillary_inputs_coverage and not landcover_file:
+        error_msg = f'ERROR Copernicus CGLS land cover 100m file not provided'
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
+
+    if check_ancillary_inputs_coverage and not worldcover_file:
+        error_msg = f'ERROR WorldCover 10m file not provided'
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
 
     os.makedirs(scratch_dir, exist_ok=True)
 
