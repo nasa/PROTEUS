@@ -3502,6 +3502,7 @@ def generate_dswx_layers(input_list,
     elif product_id is None:
         product_id = 'dswx_hls'
 
+    logger.info(f'PROTEUS software version: {SOFTWARE_VERSION}')
     logger.info('input parameters:')
     logger.info('    file(s):')
     for input_file in input_list:
