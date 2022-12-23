@@ -9,13 +9,13 @@ import yamale
 import datetime
 from collections import OrderedDict
 from ruamel.yaml import YAML as ruamel_yaml
-from osgeo.gdalconst import GDT_Float32
+from osgeo.gdalconst import GDT_Float32, GDT_Byte
 from osgeo import gdal, osr
 from scipy.ndimage import binary_dilation
 
 from proteus.core import save_as_cog
 
-SOFTWARE_VERSION = '0.5'
+SOFTWARE_VERSION = '0.5.1'
 
 '''
 Internally, DSWx-HLS SAS stores 4 water classes. The flag below enables or
@@ -34,6 +34,7 @@ landcover_mask_type = 'standard'
 COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE = 1e-6
 
 UINT8_FILL_VALUE = 255
+FILL_VALUE_RGBA = (0, 0, 0, 255)
 
 '''
 Extra margin to accomodate use of any interpolation method and other
@@ -326,6 +327,30 @@ class RunConfigConstants:
             Height in pixels of the browse image PNG
     browse_image_width: int
             Width in pixels of the browse image PNG
+    exclude_psw_aggressive_in_browse: bool
+            True to exclude the Partial Surface Water Aggressive class
+            in the browse image, which means that they will be considered
+            Not Water. False to not display this class.
+    not_water_in_browse: str
+            Define how Not Water (e.g. land) appears in the browse image.
+            Options are: 'white' and 'nodata'
+                'white'         : Not Water pixels will be white
+                'nodata'        : Not Water pixels will be marked as not having
+                                  valid data, and will be fully transparent
+    cloud_in_browse: str
+            Define how cloud appears in the browse image.
+            Options are: 'gray' and 'nodata'
+                'gray'          : cloud pixels will be opaque gray
+                'nodata'        : cloud pixels will be marked as not having
+                                  valid data, and will be fully transparent
+    snow_in_browse: str
+            Define how snow appears in the browse image.
+            Options are: 'cyan', 'gray', 'nodata'
+              'cyan'          : snow will be opaque cyan
+              'gray'          : snow will be opaque gray
+              'nodata'        : snow pixels will be marked as not having
+                                valid data, and will be fully transparent
+
     """
     def __init__(self):
         self.hls_thresholds = HlsThresholds()
@@ -335,7 +360,10 @@ class RunConfigConstants:
         self.mask_adjacent_to_cloud_mode = None
         self.browse_image_height = None
         self.browse_image_width = None
- 
+        self.exclude_psw_aggressive_in_browse = None
+        self.not_water_in_browse = None
+        self.cloud_in_browse = None
+        self.snow_in_browse = None
 
 
 def get_dswx_hls_cli_parser():
@@ -347,7 +375,8 @@ def get_dswx_hls_cli_parser():
     parser.add_argument('input_list',
                         type=str,
                         nargs='+',
-                        help='Input YAML run configuration file or HLS product file(s)')
+                        help='Input YAML run configuration file or HLS product '
+                             'file(s)')
 
     parser.add_argument('--dem',
                         dest='dem_file',
@@ -487,6 +516,37 @@ def get_dswx_hls_cli_parser():
                         dest='browse_image_width',
                         type=int,
                         help='Width in pixels for browse image PNG')
+
+    parser.add_argument('--exclude-psw-aggressive-in-browse',
+                        dest='exclude_psw_aggressive_in_browse',
+                        action='store_true',
+                        default=None,
+                        help=('Flag to exclude Partial Surface Water '
+                                'Aggressive class in the browse image'))
+
+    parser.add_argument('--not-water-in-browse',
+                        dest='not_water_in_browse',
+                        type=str,
+                        choices=['white', 'nodata'],
+                        default=None,
+                        help=('How Not Water (e.g. land) is displayed in the '
+                                "browse image. Options: 'white' and 'nodata'"))
+
+    parser.add_argument('--cloud-in-browse',
+                        dest='cloud_in_browse',
+                        type=str,
+                        choices=['gray', 'nodata'],
+                        default=None,
+                        help=('How cloud will be displayed in the browse image.'
+                                " Options are: 'gray' and 'nodata'"))
+
+    parser.add_argument('--snow-in-browse',
+                        dest='snow_in_browse',
+                        type=str,
+                        choices=['cyan', 'gray', 'nodata'],
+                        default=None,
+                        help=('How snow will be displayed in the browse image. '
+                                "Options are: 'cyan', 'gray', 'nodata'"))
 
     parser.add_argument('--offset-and-scale-inputs',
                         dest='flag_offset_and_scale_inputs',
@@ -1094,9 +1154,9 @@ def _get_interpreted_dswx_ctable(
         # Blue - Open water
         dswx_ctable.SetColorEntry(WTR_COLLAPSED_OPEN_WATER,
                                   (0, 0, 255)) 
-        # Green - Partial surface water
+        # Light Blue - Partial surface water
         dswx_ctable.SetColorEntry(WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
-                                  (0, 255, 0))
+                                  (180, 213, 244))
     else:
         # Blue - Water (high confidence)
         dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_HIGH_CONF_WATER,
@@ -1118,9 +1178,96 @@ def _get_interpreted_dswx_ctable(
     dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0, 255, 255))
 
     # Black - Fill value
-    dswx_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
+    dswx_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
 
     return dswx_ctable
+
+
+def _get_browse_ctable(
+        flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
+        not_water_color='white',
+        cloud_color='gray',
+        snow_color='cyan'):
+    """
+    Create and return GDAL RGB color table for DSWx-HLS
+    browse image.
+
+    Parameters
+    ----------
+    flag_collapse_wtr_classes : bool
+        Flag that indicates if interpreted layer contains
+        collapsed classes following the standard DSWx-HLS product
+        water classes
+    not_water_color : str
+        How to color Not Water in the color table. Defaults to 'white'.
+        Options are:
+            'white'         : Not Water will be white
+            'nodata'        : Not Water pixels will be marked as not having
+                              valid data, and will be fully transparent
+    cloud_color : str
+        How to color cloud in the color table. Defaults to 'gray'. Options are:
+            'cyan'          : cloud will be opaque cyan
+            'nodata'        : cloud pixels will be marked as not having
+                              valid data, and will be fully transparent
+    snow_color : str
+        How to color snow in the color table. Defaults to 'cyan'. Options are:
+            'cyan'          : snow will be opaque cyan
+            'gray'          : snow will be opaque gray
+            'nodata'        : snow pixels will be marked as not having
+                              valid data, and will be fully transparent
+
+    Returns
+    -------
+    out_ctable : GDAL ColorTable
+        GDAL color table for the browse image.
+    """
+
+    if not_water_color not in ('white', 'nodata'):
+        raise ValueError(f'not_water_color is {not_water_color}, but must be '
+                          "one of 'white' or 'nodata'")
+
+    if cloud_color not in ('gray', 'nodata'):
+        raise ValueError(f'cloud_color is {cloud_color}, but must be '
+                          "one of 'gray' or 'nodata'")
+
+    if snow_color not in ('cyan', 'gray', 'nodata'):
+        raise ValueError(f'snow_color is {snow_color}, but must be '
+                          "one of 'cyan', 'gray', or 'nodata'")
+
+    # Get original color table for the surface water interpreted layer.
+    out_ctable = _get_interpreted_dswx_ctable(
+            flag_collapse_wtr_classes=flag_collapse_wtr_classes)
+
+    if snow_color == 'gray':
+        # The gray for snow should match the gray of the clouds
+        cloud_gray = out_ctable.GetColorEntry(WTR_CLOUD_MASKED)
+        out_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, cloud_gray)
+    elif snow_color == 'nodata':
+        # The no-data fill RGBA was set by `_get_interpreted_dswx_ctable`.
+        # So, "remove" original snow entry from colortable.
+        out_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, FILL_VALUE_RGBA)
+    else:
+        # Snow color will remain the same as in WTR
+        pass
+
+    if cloud_color == 'nodata':
+        # The no-data fill RGBA was set by `_get_interpreted_dswx_ctable`.
+        # So, "remove" original snow entry from colortable.
+        # Make sure to do this step after parsing the gray color for snow.
+        out_ctable.SetColorEntry(WTR_CLOUD_MASKED, FILL_VALUE_RGBA)
+    else:
+        # Cloud color will remain the same as in WTR
+        pass
+
+    if not_water_color == 'nodata':
+        # The no-data fill RGBA was set by `_get_interpreted_dswx_ctable`.
+        # So, "remove" original Not Water entry from colortable.
+        out_ctable.SetColorEntry(WTR_NOT_WATER, FILL_VALUE_RGBA)
+    else:
+        # Not Water color will remain the same as in WTR
+        pass
+
+    return out_ctable
 
 
 def _get_cloud_mask_ctable():
@@ -1156,7 +1303,7 @@ def _get_cloud_mask_ctable():
     # Light blue - Cloud, cloud shadow, and snow/ice
     mask_ctable.SetColorEntry(7, (127, 127, 255))
     # Black - Fill value
-    mask_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
+    mask_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
     return mask_ctable
 
 
@@ -1816,7 +1963,7 @@ def _get_binary_mask_ctable():
     # Not masked
     binary_mask_ctable.SetColorEntry(SHAD_NOT_MASKED, (255, 255, 255))
     # Black - Fill value
-    binary_mask_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
+    binary_mask_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
     return binary_mask_ctable
 
 
@@ -1839,7 +1986,7 @@ def _get_binary_water_ctable():
     # Gray - QA masked (cloud/cloud-shadow)
     binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
     # Black (transparent) - Fill value
-    binary_water_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
+    binary_water_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
     return binary_water_ctable
 
 
@@ -1874,7 +2021,7 @@ def _get_confidence_layer_ctable():
     confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED, (127, 127, 127))
 
     # Black - Fill value
-    confidence_layer_ctable.SetColorEntry(UINT8_FILL_VALUE, (0, 0, 0, 255))
+    confidence_layer_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
     return confidence_layer_ctable
 
 def _collapse_wtr_classes(interpreted_layer):
@@ -2355,6 +2502,72 @@ def _save_output_rgb_file(red, green, blue, output_file,
     logger.info(f'file saved: {output_file}')
 
 
+def _compute_browse_array(
+        masked_interpreted_water_layer,
+        flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
+        exclude_psw_aggressive=False,
+        set_not_water_to_nodata=False,
+        set_cloud_to_nodata=False,
+        set_snow_to_nodata=False):
+    """
+    Generate a version of the WTR-2 layer where the
+    pixels marked with cloud and snow in the CLOUD layer
+    are designated with unique values per dswx_hls.py constants (see notes).
+
+    Parameters
+    ----------
+    masked_interpreted_water_layer : numpy.ndarray
+        CLOUD-masked interpreted water layer
+        (i.e. the DSWx-HLS WTR layer)
+    flag_collapse_wtr_classes : bool
+        Collapse interpreted layer water classes following standard
+        DSWx-HLS product water classes
+    exclude_psw_aggressive : bool
+        True to exclude Partial Surface Water Aggressive class (PSW-Agg)
+        in output layer and instead display them as Not Water. 
+        False to display these pixels as PSW. Default is False.
+    set_not_water_to_nodata : bool
+        How to code the Not Water pixels. Defaults to False. Options are:
+            True : Not Water pixels will be marked with UINT8_FILL_VALUE
+            False : Not Water will remain WTR_NOT_WATER
+    set_cloud_to_nodata : bool
+        How to code the cloud pixels. Defaults to False. Options are:
+            True : cloud pixels will be marked with UINT8_FILL_VALUE
+            False : cloud will remain WTR_CLOUD_MASKED
+    set_snow_to_nodata : bool
+        How to code the snow pixels. Defaults to False. Options are:
+            True : snow pixels will be marked with UINT8_FILL_VALUE
+            False : snow will remain WTR_CLOUD_MASKED_SNOW
+    
+    Returns
+    -------
+    browse_arr : numpy.ndarray
+        Interpreted water layer adjusted for the input parameters provided.
+    """
+
+    # Create a copy of the masked_interpreted_water_layer.
+    browse_arr = masked_interpreted_water_layer.copy()
+
+    # Discard the Partial Surface Water Aggressive class
+    if exclude_psw_aggressive:
+        browse_arr[browse_arr == WTR_UNCOLLAPSED_LOW_CONF_WATER] = \
+                                                            WTR_NOT_WATER
+
+    if flag_collapse_wtr_classes:
+        browse_arr = _collapse_wtr_classes(browse_arr)
+
+    if set_not_water_to_nodata:
+        browse_arr[browse_arr == WTR_NOT_WATER] = UINT8_FILL_VALUE
+
+    if set_cloud_to_nodata:
+        browse_arr[browse_arr == WTR_CLOUD_MASKED] = UINT8_FILL_VALUE
+
+    if set_snow_to_nodata:
+        browse_arr[browse_arr == WTR_CLOUD_MASKED_SNOW] = UINT8_FILL_VALUE
+
+    return browse_arr
+
+
 def get_projection_proj4(projection):
     """Return projection in proj4 format
 
@@ -2562,7 +2775,8 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         logger.info('HLS thresholds:')
         for key in hls_thresholds_user.keys():
             logger.info(f'     {key}: {hls_thresholds_user[key]}')
-            runconfig_constants.hls_thresholds.__setattr__(key, hls_thresholds_user[key])
+            runconfig_constants.hls_thresholds.__setattr__(key, 
+                                                hls_thresholds_user[key])
 
     if args is None:
         return runconfig_constants
@@ -2576,7 +2790,7 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         if user_attr is not None:
             continue
         setattr(args, key, getattr(runconfig_constants, key))
- 
+
     input_file_path = runconfig['runconfig']['groups']['input_file_group'][
         'input_file_path']
 
@@ -2675,15 +2889,15 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         cli_browse_fname = getattr(args, cli_arg_name)
 
         # Construct the default browse image filename per the runconfig
-        product_basename = (f'{product_id}_v{product_version}.png')
+        product_basename = (f'{product_id}_v{product_version}_BROWSE.png')
         default_browse_fname = os.path.join(output_directory,
                                             product_basename)
 
         # If a browse image filename was provided via CLI, it takes
         # precendence over the default filename.
         if cli_browse_fname is not None:
-            logger.warning(f'command line {cli_arg_name} "{cli_browse_fname}" has'
-                           f' precedence over default {cli_arg_name}'
+            logger.warning(f'command line {cli_arg_name} "{cli_browse_fname}"'
+                           f' has precedence over default {cli_arg_name}'
                            f' "{default_browse_fname}".')
             # `args` already contains the correct filename; no need to update.
         else:
@@ -3048,6 +3262,10 @@ def generate_dswx_layers(input_list,
                          output_browse_image=None,
                          browse_image_height=None,
                          browse_image_width=None,
+                         exclude_psw_aggressive_in_browse=None,
+                         not_water_in_browse=None,
+                         cloud_in_browse=None,
+                         snow_in_browse=None,
                          landcover_file=None,
                          landcover_description=None,
                          worldcover_file=None,
@@ -3105,6 +3323,18 @@ def generate_dswx_layers(input_list,
               Height in pixels of the browse image PNG
        browse_image_width: int (optional)
               Width in pixels of the browse image PNG
+       exclude_psw_aggressive_in_browse: bool (optional)
+              Flag to exclude the Partial Surface Water Aggressive (PSW-Agg)
+              class in the browse image. False to display PSW-Agg.
+       not_water_in_browse: str (optional)
+              Define how Not Water (e.g. land) appears in the browse image.
+              Options: 'white' and 'nodata'
+       cloud_in_browse: str (optional)
+              Define how cloud appears in the browse image.
+              Options: 'gray' and 'nodata'
+       snow_in_browse: str (optional)
+              Define how snow appears in the browse image.
+              Options: 'cyan', 'gray', and 'nodata'
        landcover_file: str (optional)
               Copernicus Global Land Service (CGLS) Land Cover Layer file
        landcover_description: str (optional)
@@ -3142,31 +3372,47 @@ def generate_dswx_layers(input_list,
        success : bool
               Flag success indicating if execution was successful
     """
-
+    
     flag_read_runconfig_constants = (hls_thresholds is None or
                                      flag_use_otsu_terrain_masking is None or
                                      min_slope_angle is None or
                                      max_sun_local_inc_angle is None or
                                      mask_adjacent_to_cloud_mode is None or
                                      browse_image_height is None or
-                                     browse_image_width is None)
+                                     browse_image_width is None or
+                                     exclude_psw_aggressive_in_browse is None or
+                                     not_water_in_browse is None or
+                                     cloud_in_browse is None or
+                                     snow_in_browse is None)
 
     if flag_read_runconfig_constants:
         runconfig_constants = parse_runconfig_file()
         if hls_thresholds is None:
             hls_thresholds = runconfig_constants.hls_thresholds
         if flag_use_otsu_terrain_masking is None:
-            flag_use_otsu_terrain_masking = runconfig_constants.flag_use_otsu_terrain_masking
+            flag_use_otsu_terrain_masking = \
+                runconfig_constants.flag_use_otsu_terrain_masking
         if min_slope_angle is None:
             min_slope_angle = runconfig_constants.min_slope_angle
         if max_sun_local_inc_angle is None:
-            max_sun_local_inc_angle = runconfig_constants.max_sun_local_inc_angle
+            max_sun_local_inc_angle = \
+                runconfig_constants.max_sun_local_inc_angle
         if mask_adjacent_to_cloud_mode is None:
-            mask_adjacent_to_cloud_mode = runconfig_constants.mask_adjacent_to_cloud_mode
+            mask_adjacent_to_cloud_mode = \
+                runconfig_constants.mask_adjacent_to_cloud_mode
         if browse_image_height is None:
             browse_image_height = runconfig_constants.browse_image_height
         if browse_image_width is None:
             browse_image_width = runconfig_constants.browse_image_width
+        if exclude_psw_aggressive_in_browse is None:
+            exclude_psw_aggressive_in_browse = \
+                runconfig_constants.exclude_psw_aggressive_in_browse
+        if not_water_in_browse is None:
+            not_water_in_browse = runconfig_constants.not_water_in_browse
+        if cloud_in_browse is None:
+            cloud_in_browse = runconfig_constants.cloud_in_browse
+        if snow_in_browse is None:
+            snow_in_browse = runconfig_constants.snow_in_browse
         
     if scratch_dir is None:
         scratch_dir = '.'
@@ -3189,14 +3435,21 @@ def generate_dswx_layers(input_list,
     logger.info(f'    product version: {product_version}')
     logger.info(f'    software version: {SOFTWARE_VERSION}')
     logger.info(f'processing parameters:')
-    logger.info(f'    flag_use_otsu_terrain_masking: {flag_use_otsu_terrain_masking}')
+    logger.info(f'    flag_use_otsu_terrain_masking: '
+                                f'{flag_use_otsu_terrain_masking}')
     logger.info(f'    min_slope_angle: {min_slope_angle}')
     logger.info(f'    max_sun_local_inc_angle: {max_sun_local_inc_angle}')
-    logger.info(f'    mask_adjacent_to_cloud_mode: {mask_adjacent_to_cloud_mode}')
+    logger.info(f'    mask_adjacent_to_cloud_mode: '
+                                f'{mask_adjacent_to_cloud_mode}')
     if output_browse_image:
         logger.info(f'browse image:')
         logger.info(f'    browse_image_height: {browse_image_height}')
         logger.info(f'    browse_image_width: {browse_image_width}')
+        logger.info('    exclude_psw_aggressive_in_browse: '
+                                f'{exclude_psw_aggressive_in_browse}')
+        logger.info(f'    not_water_in_browse: {not_water_in_browse}')
+        logger.info(f'    cloud_in_browse: {cloud_in_browse}')
+        logger.info(f'    snow_in_browse: {snow_in_browse}')
 
     os.makedirs(scratch_dir, exist_ok=True)
 
@@ -3349,7 +3602,6 @@ def generate_dswx_layers(input_list,
         invalid_ind = np.where(blue == image_dict['fill_data'])
     else:
         invalid_ind = np.where(np.isnan(blue))
-
     if output_rgb_file:
         _save_output_rgb_file(red, green, blue, output_rgb_file,
                               offset_dict, scale_dict,
@@ -3417,6 +3669,7 @@ def generate_dswx_layers(input_list,
                           projection,
                           description=band_description_dict['WTR-2'],
                           scratch_dir=scratch_dir,
+                          flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
                           output_files_list=build_vrt_list)
 
     cloud, masked_dswx_band = _compute_mask_and_filter_interpreted_layer(
@@ -3437,47 +3690,60 @@ def generate_dswx_layers(input_list,
                           description=band_description_dict['WTR'],
                           scratch_dir=scratch_dir,
                           output_files_list=build_vrt_list)
-
-    # Output the WTR layer as the browse image
-    # Note: The browse image will be always be saved as a separate png file;
-    # it will not included in the combined `output_file`.
+    
+    # Output the WTR-2 w/ Translucent clouds layer as the browse image
+    # Note: The browse image will be saved as a separate full-res geotiff 
+    # and low-res png files; they will not included in the combined 
+    # `output_file`.
     if output_browse_image:
 
-        # If the `output_interpreted_band` was generated,
-        # convert that to the browse image
-        if output_interpreted_band:
-            src_geotiff_filename = output_interpreted_band
-        else:
-            # If the `output_interpreted_band` geotiff was not generated,
-            # we'll need to make it as a temporary file, and then convert
-            # that to the browse image.
+        # Build the browse image
+        # Create the source image as a geotiff
+        # Reason: gdal.Create() cannot currently create .png files, so we
+        # must start from a GeoTiff, etc.
+        # Source: https://gis.stackexchange.com/questions/132298/gdal-c-api-how-to-create-png-or-jpeg-from-scratch
+        browse_arr = _compute_browse_array(
+            masked_interpreted_water_layer=masked_dswx_band,  # WTR layer
+            flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
+            exclude_psw_aggressive=exclude_psw_aggressive_in_browse,
+            set_not_water_to_nodata=(not_water_in_browse == 'nodata'),
+            set_cloud_to_nodata=(cloud_in_browse == 'nodata'),
+            set_snow_to_nodata=(snow_in_browse == 'nodata'))
 
-            # Create the source image as a geotiff
-            # Reason: gdal.Create() cannot currently create .png files, so we
-            # must start from a GeoTiff, etc.
-            # Source: https://gis.stackexchange.com/questions/132298/gdal-c-api-how-to-create-png-or-jpeg-from-scratch
-            src_geotiff_filename = os.path.join(scratch_dir,"dswx_tmp.tif")
-            save_dswx_product(masked_dswx_band,
-                            src_geotiff_filename,
-                            dswx_metadata_dict,
-                            geotransform,
-                            projection,
-                            scratch_dir=scratch_dir)
+        # Form color table
+        browse_ctable = _get_browse_ctable(
+            flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
+            not_water_color=not_water_in_browse,
+            cloud_color=cloud_in_browse,
+            snow_color=snow_in_browse)
 
-            # add the temp file to the list to be removed at the end
-            temp_files_list += [src_geotiff_filename]
+        # Save geotiff high-res browse image to output directory
+        browse_image_geotiff_filename = \
+                    output_browse_image.replace('.png', '.tif')
+        # add the browse image GEOTIFF to the output files list
+        output_files_list += [browse_image_geotiff_filename]
 
-        # Convert the geotiff to a PNG to create the browse image
-        geotiff2png(src_geotiff_filename=src_geotiff_filename,
+        _save_array(input_array=browse_arr,
+                    output_file=browse_image_geotiff_filename,
+                    dswx_metadata_dict=dswx_metadata_dict,
+                    geotransform=geotransform,
+                    projection=projection,
+                    scratch_dir=scratch_dir,
+                    output_dtype=gdal.GDT_Byte,  # unsigned int 8
+                    ctable=browse_ctable,
+                    no_data_value=UINT8_FILL_VALUE)
+
+        # Convert the geotiff to a resized PNG to create the browse image PNG
+        geotiff2png(src_geotiff_filename=browse_image_geotiff_filename,
                 dest_png_filename=output_browse_image,
                 output_height=browse_image_height,
                 output_width=browse_image_width,
                 logger=logger
                 )
-        
-        # add the browse image to the output files list
+
+        # add the browse image PNG to the output files list
         output_files_list += [output_browse_image]
-        
+
     if output_cloud_mask:
         save_cloud_mask(cloud, output_cloud_mask, dswx_metadata_dict, geotransform,
                         projection,
