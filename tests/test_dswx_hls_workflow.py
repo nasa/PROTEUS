@@ -24,8 +24,9 @@ def test_workflow():
         os.makedirs(test_data_directory, exist_ok=True)
 
     dataset_name = 's30_louisiana_mississippi'
-    dataset_url = ('https://zenodo.org/record/7191337/files/'
-                   's30_louisiana_mississippi.tar.gz')
+    dataset_url = ('https://zenodo.org/record/7478469/files/'
+                   's30_louisiana_mississippi.tar.gz?download=1')
+
     dataset_dir = os.path.join(test_data_directory, dataset_name)
     user_runconfig_file = os.path.join(dataset_dir, 'dswx_hls.yaml')
 
@@ -87,10 +88,11 @@ def test_workflow():
         scratch_dir=args.scratch_dir,
         product_id=args.product_id,
         product_version=args.product_version,
-        flag_use_otsu_terrain_masking=args.flag_use_otsu_terrain_masking,
+        shadow_masking_algorithm=args.shadow_masking_algorithm,
         min_slope_angle = args.min_slope_angle,
         max_sun_local_inc_angle=args.max_sun_local_inc_angle,
         mask_adjacent_to_cloud_mode=args.mask_adjacent_to_cloud_mode,
+        copernicus_forest_classes=args.copernicus_forest_classes,
         flag_debug=args.flag_debug)
 
     ref_files = glob.glob(os.path.join(ref_dir, '*'))

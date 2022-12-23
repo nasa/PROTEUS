@@ -1,5 +1,5 @@
 FROM ubuntu:20.04
-FROM python:3.8 
+FROM python:3.9
 
 # Set default UID and GID
 ENV USER_ID 1000
@@ -32,12 +32,12 @@ RUN set -ex \
 
 # set default user and workdir
 WORKDIR /home/conda
-ADD dist/proteus-0.1.tar.gz .
+ADD dist/proteus-0.5.1.tar.gz .
 
 USER root
-RUN mkdir -p proteus-0.1/build
+RUN mkdir -p proteus-0.5.1/build
 RUN export PATH=/opt/conda/bin:$PATH
-WORKDIR /home/conda/proteus-0.1
+WORKDIR /home/conda/proteus-0.5.1
 RUN python3 setup.py install
 WORKDIR /home/conda
 
@@ -48,7 +48,7 @@ ENV GDAL_DIR /opt/conda
 ENV PATH $GDAL_DIR/bin:$PATH
 ENV GDAL_DATA $GDAL_DIR/share/gdal
 
-ENV PYTHONPATH /home/conda/proteus-0.1/src/:$PYTHONPATH
-ENV PATH /home/conda/proteus-0.1/bin/:$PATH
+ENV PYTHONPATH /home/conda/proteus-0.5.1/src/:$PYTHONPATH
+ENV PATH /home/conda/proteus-0.5.1/bin/:$PATH
 
 CMD [ "/bin/bash" ]

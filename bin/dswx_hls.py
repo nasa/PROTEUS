@@ -79,10 +79,12 @@ def main():
         scratch_dir=args.scratch_dir,
         product_id=args.product_id,
         product_version=args.product_version,
-        flag_use_otsu_terrain_masking=args.flag_use_otsu_terrain_masking,
+        check_ancillary_inputs_coverage=args.check_ancillary_inputs_coverage,
+        shadow_masking_algorithm=args.shadow_masking_algorithm,
         min_slope_angle = args.min_slope_angle,
         max_sun_local_inc_angle=args.max_sun_local_inc_angle,
         mask_adjacent_to_cloud_mode=args.mask_adjacent_to_cloud_mode,
+        copernicus_forest_classes=args.copernicus_forest_classes,
         flag_debug=args.flag_debug)
 
 
