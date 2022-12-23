@@ -326,6 +326,8 @@ class RunConfigConstants:
     mask_adjacent_to_cloud_mode: str
            Define how areas adjacent to cloud/cloud-shadow should be handled.
            Options: "mask", "ignore", and "cover"
+    copernicus_forest_classes: list(int)
+           Copernicus CGLS Land Cover 100m forest classes
     browse_image_height: int
             Height in pixels of the browse image PNG
     browse_image_width: int
@@ -361,6 +363,7 @@ class RunConfigConstants:
         self.min_slope_angle = None
         self.max_sun_local_inc_angle = None
         self.mask_adjacent_to_cloud_mode = None
+        self.copernicus_forest_classes = None
         self.browse_image_height = None
         self.browse_image_width = None
         self.exclude_psw_aggressive_in_browse = None
@@ -602,6 +605,11 @@ def get_dswx_hls_cli_parser():
                         ' should be handled. Options: "mask", "ignore", and'
                         ' "cover"')
 
+    parser.add_argument('--copernicus-forest-classes',
+                        dest='copernicus_forest_classes',
+                        type=list,
+                        help='Copernicus CGLS Land Cover 100m forest classes')
+
     parser.add_argument('--debug',
                         dest='flag_debug',
                         action='store_true',
@@ -821,6 +829,7 @@ def _update_landcover_array(conglomerate_array, agg_sum, threshold,
 def create_landcover_mask(copernicus_landcover_file,
                           worldcover_file, output_file, scratch_dir,
                           mask_type, geotransform, projection, length, width,
+                          copernicus_forest_classes,
                           dswx_metadata_dict = None, output_files_list = None,
                           temp_files_list = None):
     """
@@ -848,6 +857,8 @@ def create_landcover_mask(copernicus_landcover_file,
               DSWx-HLS product's length (number of lines)
        width: int
               DSWx-HLS product's width (number of columns)
+       copernicus_forest_classes: list(int)
+              Copernicus CGLS Land Cover 100m forest classes
        dswx_metadata_dict: dict (optional)
               Metadata dictionary that will store band metadata 
        output_files_list: list (optional)
@@ -927,8 +938,20 @@ def create_landcover_mask(copernicus_landcover_file,
                                                size_y, size_x)
     del tree_binary_mask
 
-    tree_aggregate_sum = np.where(copernicus_landcover_array == 111,
-                                  tree_aggregate_sum, 0)
+    copernicus_forest = np.zeros_like(tree_aggregate_sum, dtype=np.uint8)
+    if copernicus_forest_classes is None:
+        copernicus_forest_classes = [20, 111, 113, 115, 116, 121, 123, 125,
+                                     126]
+
+    logger.info('    CGLS Land Cover 100m forest classes:'
+                f' {copernicus_forest_classes}')
+
+    for copernicus_forest_class in copernicus_forest_classes:
+        copernicus_forest |= (copernicus_landcover_array ==
+                              copernicus_forest_class)
+
+    tree_aggregate_sum = np.where(copernicus_forest, tree_aggregate_sum, 0)
+    del copernicus_forest
 
     logger.info(f'combining masks')
     # create array filled with 30000
@@ -3332,6 +3355,7 @@ def generate_dswx_layers(input_list,
                          min_slope_angle=None,
                          max_sun_local_inc_angle=None,
                          mask_adjacent_to_cloud_mode=None,
+                         copernicus_forest_classes=None,
                          flag_debug=False):
     """Compute the DSWx-HLS product
 
@@ -3653,7 +3677,8 @@ def generate_dswx_layers(input_list,
         landcover_mask = create_landcover_mask(
             landcover_file, worldcover_file, output_landcover,
             scratch_dir, landcover_mask_type, geotransform, projection,
-            length, width, dswx_metadata_dict = dswx_metadata_dict,
+            length, width, copernicus_forest_classes,
+            dswx_metadata_dict = dswx_metadata_dict,
             output_files_list=build_vrt_list, temp_files_list=temp_files_list)
 
     # Set array of invalid pixels
