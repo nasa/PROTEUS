@@ -939,16 +939,14 @@ def create_landcover_mask(copernicus_landcover_file,
     del tree_binary_mask
 
     copernicus_forest = np.zeros_like(tree_aggregate_sum, dtype=np.uint8)
-    if copernicus_forest_classes is None:
-        copernicus_forest_classes = [20, 111, 113, 115, 116, 121, 123, 125,
-                                     126]
 
     logger.info('    CGLS Land Cover 100m forest classes:'
                 f' {copernicus_forest_classes}')
 
-    for copernicus_forest_class in copernicus_forest_classes:
-        copernicus_forest |= (copernicus_landcover_array ==
-                              copernicus_forest_class)
+    if copernicus_forest_classes is not None:
+        for copernicus_forest_class in copernicus_forest_classes:
+            copernicus_forest |= (copernicus_landcover_array ==
+                                  copernicus_forest_class)
 
     tree_aggregate_sum = np.where(copernicus_forest, tree_aggregate_sum, 0)
     del copernicus_forest
@@ -3458,6 +3456,7 @@ def generate_dswx_layers(input_list,
                                  min_slope_angle,
                                  max_sun_local_inc_angle,
                                  mask_adjacent_to_cloud_mode,
+                                 copernicus_forest_classes,
                                  browse_image_height,
                                  browse_image_width,
                                  exclude_psw_aggressive_in_browse,
@@ -3480,6 +3479,8 @@ def generate_dswx_layers(input_list,
         if mask_adjacent_to_cloud_mode is None:
             mask_adjacent_to_cloud_mode = \
                 runconfig_constants.mask_adjacent_to_cloud_mode
+        if copernicus_forest_classes is None:
+            copernicus_forest_classes = runconfig_constants.copernicus_forest_classes
         if browse_image_height is None:
             browse_image_height = runconfig_constants.browse_image_height
         if browse_image_width is None:
