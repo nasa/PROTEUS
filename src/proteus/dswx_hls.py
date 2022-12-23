@@ -3500,9 +3500,10 @@ def generate_dswx_layers(input_list,
     if flag_use_otsu_terrain_masking:
         terrain_masking_algorighm = 'Otsu'
     else:
-        terrain_masking_algorighm = 'sun local incidence angle'
+        terrain_masking_algorighm = 'Sun local incidence angle'
+
+    logger.info(f'    terrain masking algorithm: {terrain_masking_algorighm}')
     if not flag_use_otsu_terrain_masking:
-        logger.info(f'    terrain masking algorithm: {terrain_masking_algorighm}')
         logger.info(f'        min. slope angle: {min_slope_angle}')
         logger.info(f'        max. sun local inc. angle: {max_sun_local_inc_angle}')
     logger.info(f'        mask adjacent cloud/cloud-shadow mode: {mask_adjacent_to_cloud_mode}')
