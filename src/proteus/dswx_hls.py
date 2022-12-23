@@ -3499,14 +3499,18 @@ def generate_dswx_layers(input_list,
     logger.info(f'processing parameters:')
     if flag_use_otsu_terrain_masking:
         terrain_masking_algorighm = 'Otsu'
+        terrain_masking_parameters_str = ' (unused)'
     else:
         terrain_masking_algorighm = 'Sun local incidence angle'
+        terrain_masking_parameters_str = ''
 
     logger.info(f'    terrain masking algorithm: {terrain_masking_algorighm}')
-    if not flag_use_otsu_terrain_masking:
-        logger.info(f'        min. slope angle: {min_slope_angle}')
-        logger.info(f'        max. sun local inc. angle: {max_sun_local_inc_angle}')
-    logger.info(f'        mask adjacent cloud/cloud-shadow mode: {mask_adjacent_to_cloud_mode}')
+    logger.info(f'        min. slope angle: {min_slope_angle}'
+                f' {terrain_masking_parameters_str}')
+    logger.info(f'        max. sun local inc. angle: {max_sun_local_inc_angle}'
+                f'{terrain_masking_parameters_str}')
+    logger.info(f'    mask adjacent cloud/cloud-shadow mode:'
+                f'{mask_adjacent_to_cloud_mode}')
     if output_browse_image:
         logger.info(f'browse image:')
         logger.info(f'    browse_image_height: {browse_image_height}')
