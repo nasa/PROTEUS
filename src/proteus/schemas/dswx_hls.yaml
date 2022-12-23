@@ -57,8 +57,8 @@ runconfig:
             # Check if ancillary inputs cover entirely the output product
             check_ancillary_inputs_coverage: bool(required=False)
 
-            # Use terrain-masking based on the Otsu method
-            flag_use_otsu_terrain_masking: bool(required=False)
+            # Select shadow masking algorithm
+            shadow_masking_algorithm: enum('otsu', 'sun_local_inc_angle', required=False)
 
             # Minimum slope angle in degrees for terrain masking
             min_slope_angle: num(min=-180, max=180, required=False)

@@ -330,9 +330,8 @@ class RunConfigConstants:
         HLS reflectance thresholds for generating DSWx-HLS products
     check_ancillary_inputs_coverage: bool
         Check if ancillary inputs cover entirely the output product
-    flag_use_otsu_terrain_masking: bool
-           Flag to indicate whether the terrain masking should be computed
-           with the Otsu threshold method
+    shadow_masking_algorithm: str
+           Shadow masking algorithm
     min_slope_angle: float
            Minimum slope angle
     max_sun_local_inc_angle: float
@@ -373,7 +372,7 @@ class RunConfigConstants:
     """
     def __init__(self):
         self.hls_thresholds = HlsThresholds()
-        self.flag_use_otsu_terrain_masking = None
+        self.shadow_masking_algorithm = None
         self.check_ancillary_inputs_coverage = None
         self.min_slope_angle = None
         self.max_sun_local_inc_angle = None
@@ -602,12 +601,11 @@ def get_dswx_hls_cli_parser():
                         help=('Check if ancillary inputs cover entirely'
                               ' the output product'))
 
-    parser.add_argument('--use-otsu-terrain-masking',
-                        dest='flag_use_otsu_terrain_masking',
-                        action='store_true',
-                        default=None,
-                        help=('Compute and apply terrain masking using Otsu'
-                              ' thresholding'))
+    parser.add_argument('--shadow-masking-algorithm',
+                        dest='shadow_masking_algorithm',
+                        type=str,
+                        choices=['otsu', 'sun_local_inc_angle'],
+                        help=('Shadow masking algorithm'))
 
     parser.add_argument('--min-slope-angle',
                         dest='min_slope_angle',
@@ -3341,7 +3339,7 @@ def generate_dswx_layers(input_list,
                          product_id=None,
                          product_version=SOFTWARE_VERSION,
                          check_ancillary_inputs_coverage=None,
-                         flag_use_otsu_terrain_masking=None,
+                         shadow_masking_algorithm=None,
                          min_slope_angle=None,
                          max_sun_local_inc_angle=None,
                          mask_adjacent_to_cloud_mode=None,
@@ -3423,9 +3421,8 @@ def generate_dswx_layers(input_list,
               metadata
        check_ancillary_inputs_coverage: bool (optional)
               Check if ancillary inputs cover entirely the output product
-       flag_use_otsu_terrain_masking: bool (optional)
-              Flag to indicate whether the terrain masking should be computed
-              with the Otsu threshold method
+       shadow_masking_algorithm: str (optional)
+              Shadow masking algorithm. Choices: "otsu" or "sun_local_inc_angle"
        min_slope_angle: float (optional)
               Minimum slope angle
        max_sun_local_inc_angle: float (optional)
@@ -3446,7 +3443,7 @@ def generate_dswx_layers(input_list,
     flag_read_runconfig_constants = \
         any([p is None for p in [hls_thresholds,
                                  check_ancillary_inputs_coverage,
-                                 flag_use_otsu_terrain_masking,
+                                 shadow_masking_algorithm,
                                  min_slope_angle,
                                  max_sun_local_inc_angle,
                                  mask_adjacent_to_cloud_mode,
@@ -3465,9 +3462,9 @@ def generate_dswx_layers(input_list,
         if check_ancillary_inputs_coverage is None:
             check_ancillary_inputs_coverage = \
                 runconfig_constants.check_ancillary_inputs_coverage
-        if flag_use_otsu_terrain_masking is None:
-            flag_use_otsu_terrain_masking = \
-                runconfig_constants.flag_use_otsu_terrain_masking
+        if shadow_masking_algorithm is None:
+            shadow_masking_algorithm = \
+                runconfig_constants.shadow_masking_algorithm
         if min_slope_angle is None:
             min_slope_angle = runconfig_constants.min_slope_angle
         if max_sun_local_inc_angle is None:
@@ -3520,14 +3517,18 @@ def generate_dswx_layers(input_list,
     logger.info(f'    check ancillary coverage:'
                 f'{check_ancillary_inputs_coverage}')
 
-    if flag_use_otsu_terrain_masking:
-        terrain_masking_algorithm = 'Otsu'
+    logger.info(f'    shadow masking algorithm: {shadow_masking_algorithm}')
+    if shadow_masking_algorithm == 'otsu':
         terrain_masking_parameters_str = ' (unused)'
     else:
-        terrain_masking_algorithm = 'Sun local incidence angle'
         terrain_masking_parameters_str = ''
 
-    logger.info(f'    terrain masking algorithm: {terrain_masking_algorithm}')
+    if shadow_masking_algorithm not in ['otsu', 'sun_local_inc_angle']:
+        error_msg = (f'ERROR Invalid shadow masking algorithm:'
+                     f' {shadow_masking_algorithm}')
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
     logger.info(f'        min. slope angle: {min_slope_angle}'
                 f' {terrain_masking_parameters_str}')
     logger.info(f'        max. sun local inc. angle: {max_sun_local_inc_angle}'
@@ -3655,7 +3656,7 @@ def generate_dswx_layers(input_list,
                                     margin_in_pixels=DEM_MARGIN_IN_PIXELS,
                                     temp_files_list=temp_files_list)
 
-        if flag_use_otsu_terrain_masking:
+        if shadow_masking_algorithm == 'otsu':
             # shadow masking with Otsu threshold method
             hillshade = _compute_hillshade(
                 dem_cropped_file, scratch_dir, sun_azimuth_angle,
