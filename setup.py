@@ -13,7 +13,8 @@ def _get_version():
             PROTEUS software version
     """
 
-    version_file = 'src/proteus/version.py'
+    version_file = os.path.join('src','proteus','version.py')
+
     with open(version_file, 'r') as f:
         text = f.read()
 
