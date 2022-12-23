@@ -12,6 +12,7 @@ from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32, GDT_Byte
 from osgeo import gdal, osr
 from scipy.ndimage import binary_dilation
+import scipy
 
 from proteus.core import save_as_cog
 
@@ -3161,11 +3162,17 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
     sun_zenith_degrees = 90 - sun_elevation_angle
     sun_zenith = np.radians(sun_zenith_degrees)
 
+    # vector coordinates: (x, y, z)
     target_to_sun_unit_vector = [np.sin(sun_azimuth) * np.sin(sun_zenith),
                                  np.cos(sun_azimuth) * np.sin(sun_zenith),
                                  np.cos(sun_zenith)]
     
+    # numpy computes the gradient as (y, x)
     gradient_h = np.gradient(dem)
+
+    # The terrain normal vector is calculated as:
+    # N = [-dh/dx, -dh/dy, 1] where dh/dx is the west-east slope
+    # and dh/dy is the south-north slope wrt to the DEM grid
     terrain_normal_vector = [-gradient_h[1] / pixel_spacing_x,
                              -gradient_h[0] / - abs(pixel_spacing_y),
                              1]
@@ -3377,18 +3384,19 @@ def generate_dswx_layers(input_list,
        success : bool
               Flag success indicating if execution was successful
     """
-    
-    flag_read_runconfig_constants = (hls_thresholds is None or
-                                     flag_use_otsu_terrain_masking is None or
-                                     min_slope_angle is None or
-                                     max_sun_local_inc_angle is None or
-                                     mask_adjacent_to_cloud_mode is None or
-                                     browse_image_height is None or
-                                     browse_image_width is None or
-                                     exclude_psw_aggressive_in_browse is None or
-                                     not_water_in_browse is None or
-                                     cloud_in_browse is None or
-                                     snow_in_browse is None)
+
+    flag_read_runconfig_constants = \
+        any([p is None for p in [hls_thresholds,
+                                 flag_use_otsu_terrain_masking,
+                                 min_slope_angle,
+                                 max_sun_local_inc_angle,
+                                 mask_adjacent_to_cloud_mode,
+                                 browse_image_height,
+                                 browse_image_width,
+                                 exclude_psw_aggressive_in_browse,
+                                 not_water_in_browse,
+                                 cloud_in_browse,
+                                 snow_in_browse]])
 
     if flag_read_runconfig_constants:
         runconfig_constants = parse_runconfig_file()
@@ -3440,12 +3448,15 @@ def generate_dswx_layers(input_list,
     logger.info(f'    product version: {product_version}')
     logger.info(f'    software version: {SOFTWARE_VERSION}')
     logger.info(f'processing parameters:')
-    logger.info(f'    flag_use_otsu_terrain_masking: '
-                                f'{flag_use_otsu_terrain_masking}')
-    logger.info(f'    min_slope_angle: {min_slope_angle}')
-    logger.info(f'    max_sun_local_inc_angle: {max_sun_local_inc_angle}')
-    logger.info(f'    mask_adjacent_to_cloud_mode: '
-                                f'{mask_adjacent_to_cloud_mode}')
+    if flag_use_otsu_terrain_masking:
+        terrain_masking_algorighm = 'Otsu'
+    else:
+        terrain_masking_algorighm = 'sun local incidence angle'
+    if not flag_use_otsu_terrain_masking:
+        logger.info(f'    terrain masking algorithm: {terrain_masking_algorighm}')
+        logger.info(f'        min. slope angle: {min_slope_angle}')
+        logger.info(f'        max. sun local inc. angle: {max_sun_local_inc_angle}')
+    logger.info(f'        mask adjacent cloud/cloud-shadow mode: {mask_adjacent_to_cloud_mode}')
     if output_browse_image:
         logger.info(f'browse image:')
         logger.info(f'    browse_image_height: {browse_image_height}')
@@ -3561,8 +3572,7 @@ def generate_dswx_layers(input_list,
             # new OPERA shadow masking
             shadow_layer_with_margin = _compute_opera_shadow_layer(
                 dem_with_margin, sun_azimuth_angle, sun_elevation_angle,
-                min_slope_angle = min_slope_angle,
-                max_sun_local_inc_angle = max_sun_local_inc_angle)
+                min_slope_angle, max_sun_local_inc_angle)
 
         # remove extra margin from shadow_layer
         shadow_layer = _crop_2d_array_all_sides(shadow_layer_with_margin,
