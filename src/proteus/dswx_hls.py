@@ -665,6 +665,10 @@ def compare_dswx_hls_products(file_1, file_2):
         print(f'ERROR file not found: {file_2}')
         return False
 
+    print('Comparing files:')
+    print(f'    file 1: {file_1}')
+    print(f'    file 2: {file_2}')
+
     flag_all_ok = [True]
 
     # TODO: compare projections ds.GetProjection()
