@@ -10,7 +10,7 @@ import datetime
 from collections import OrderedDict
 from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32, GDT_Byte
-from osgeo import gdal, osr
+from osgeo import gdal, osr, ogr
 from scipy.ndimage import binary_dilation
 import scipy
 
@@ -2734,6 +2734,60 @@ def _warp(input_file, geotransform, projection,
 
     return relocated_array
 
+def _mask_ocean(geotransform, length, width, projection,
+                shape_file):
+    tile_min_x, tile_dx, _, tile_max_y, _, tile_dy = geotransform
+    tile_max_x = tile_min_x + width * tile_dx
+    tile_min_y = tile_max_y + length * tile_dy
+
+    srs = osr.SpatialReference()
+    if projection.upper() == 'WGS84':
+        srs.SetWellKnownGeogCS(projection)
+    else:
+        srs.ImportFromProj4(projection)
+
+    tile_ring = ogr.Geometry(ogr.wkbLinearRing)
+    tile_ring.AddPoint(tile_min_x, tile_max_y)
+    tile_ring.AddPoint(tile_max_x, tile_max_y)
+    tile_ring.AddPoint(tile_max_x, tile_min_y)
+    tile_ring.AddPoint(tile_min_x, tile_min_y)
+    tile_ring.AddPoint(tile_min_x, tile_max_y)
+    tile_polygon = ogr.Geometry(ogr.wkbPolygon)
+    tile_polygon.AddGeometry(tile_ring)
+
+    data_source = ogr.Open(shape_file, 0)
+    for layer in data_source:
+        for i, feature in enumerate(layer):
+            geom = feature.GetGeometryRef()
+            if geom.GetGeometryName() != 'POLYGON':
+                continue
+            min_x, max_x, min_y, max_y = geom.GetEnvelope()
+            if not (min_x < tile_min_x < max_x or
+                    min_x < tile_max_x < max_x):
+                # the tile does not intersect with feature (lon test)
+                continue
+            if not (min_y < tile_min_y < max_y or
+                    min_y < tile_max_y < max_y):
+                # the tile does not intersect with feature (lat test)
+                continue
+            print('Found feature!')
+            print('    min_y:', min_y)
+            print('    max_y:', max_y)
+            print('    min_x:', min_x)
+            print('    max_x:', max_x)
+            intersection_polygon = geom.Intersection(tile_polygon)
+            min_x, max_x, min_y, max_y = intersection_polygon.GetEnvelope()
+            print('intersection:')
+            print('    min_y:', min_y)
+            print('    max_y:', max_y)
+            print('    min_x:', min_x)
+            print('    max_x:', max_x)
+            # print(geom.GetGeometryRef)
+
+    ocean_mask = np.array((length, width), dtype=np.uint8)
+    return ocean_mask
+
+
 def _deep_update(main_dict, update_dict):
     """Update input dictionary with a second (update) dictionary
     https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
@@ -3644,6 +3698,13 @@ def generate_dswx_layers(input_list,
     projection = image_dict['projection']
     length = image_dict['length']
     width = image_dict['width']
+
+    shape_file = '/Users/shiroma/Downloads/gshhg-shp-2.3.7/GSHHS_shp/f/GSHHS_f_L1.shp'
+    ocean_mask = _mask_ocean(geotransform, length, width, projection,
+                             shape_file)
+    import plant
+    plant.save_image(ocean_mask, 'temp_ocean_mask.tif', force=True)
+    return
 
     sun_azimuth_angle_meta = dswx_metadata_dict['MEAN_SUN_AZIMUTH_ANGLE'].split(', ')
     sun_zenith_angle_meta = dswx_metadata_dict['MEAN_SUN_ZENITH_ANGLE'].split(', ')
