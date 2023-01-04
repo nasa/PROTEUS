@@ -1841,7 +1841,6 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
 
     # if Fmask, update fmask fill_value and escape
     if key == 'fmask':
-        image_dict['fmask_fill_value'] = fill_value
         image_dict[key] = image
         return True
 
@@ -1919,9 +1918,6 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
                                 offset)
 
     image_dict[key] = image
-
-    if 'fill_value' not in image_dict.keys():
-        image_dict['fill_value'] = fill_value
 
     # save offset and scale factor into corresponding dictionaries
     offset_dict[key] = offset
@@ -3924,18 +3920,13 @@ def generate_dswx_layers(input_list,
     swir1 = image_dict['swir1']
     swir2 = image_dict['swir2']
     fmask = image_dict['fmask']
-    fill_value = image_dict['fill_value']
-    fmask_fill_value = image_dict['fmask_fill_value']
-
     geotransform = image_dict['geotransform']
     projection = image_dict['projection']
     length = image_dict['length']
     width = image_dict['width']
-
     invalid_ind = np.where(image_dict['invalid_ind_array'])
 
     sun_azimuth_angle_meta = dswx_metadata_dict['MEAN_SUN_AZIMUTH_ANGLE'].split(', ')
-
     sun_zenith_angle_meta = dswx_metadata_dict['MEAN_SUN_ZENITH_ANGLE'].split(', ')
 
     if len(sun_azimuth_angle_meta) == 2:
