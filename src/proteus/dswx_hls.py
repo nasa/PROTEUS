@@ -2870,14 +2870,6 @@ def _create_ocean_mask(shape_file, margin_km, scratch_dir,
     else:
         tile_srs.ImportFromProj4(projection)
 
-    '''
-    print('tile (UTM):')
-    print('    min_y:', tile_min_y_utm)
-    print('    max_y:', tile_max_y_utm)
-    print('    min_x:', tile_min_x_utm)
-    print('    max_x:', tile_max_x_utm)
-    '''
-
     tile_polygon = None
     ocean_mask = np.zeros((length, width), dtype=np.uint8)
     shapefile_ds = ogr.Open(shape_file, 0)
@@ -2894,13 +2886,6 @@ def _create_ocean_mask(shape_file, margin_km, scratch_dir,
                     _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
                                        tile_min_x_utm, tile_max_x_utm,
                                        tile_srs, polygon_srs)
-                '''
-                print('tile (geographic):')
-                print('    min_y:', tile_min_y)
-                print('    max_y:', tile_max_y)
-                print('    min_x:', tile_min_x)
-                print('    max_x:', tile_max_x)
-                '''
 
             min_x, max_x, min_y, max_y = geom.GetEnvelope()
             if not (min_x < tile_min_x < max_x or
@@ -2912,34 +2897,11 @@ def _create_ocean_mask(shape_file, margin_km, scratch_dir,
                 # the tile does not intersect with feature (lat test)
                 continue
 
-            '''
-            print('found feature!')
-            print('    min_y:', min_y)
-            print('    max_y:', max_y)
-            print('    min_x:', min_x)
-            print('    max_x:', max_x)
-            '''
+            # intersect shoreline polygon to the tile and update its
+            # spatial reference system (SRS) to match the tile SRS
             intersection_polygon = geom.Intersection(tile_polygon)
-            '''
-            min_x, max_x, min_y, max_y = intersection_polygon.GetEnvelope()
-            print('intersection:')
-            print('    min_y:', min_y)
-            print('    max_y:', max_y)
-            print('    min_x:', min_x)
-            print('    max_x:', max_x)
-            '''
             intersection_polygon.AssignSpatialReference(polygon_srs)
-            # print(intersection_polygon.GetSpatialReference())
-
             intersection_polygon.TransformTo(tile_srs)
-            '''
-            min_x, max_x, min_y, max_y = intersection_polygon.GetEnvelope()
-            print('intersection (utm):')
-            print('    min_y:', min_y)
-            print('    max_y:', max_y)
-            print('    min_x:', min_x)
-            print('    max_x:', max_x)
-            '''
 
             # add margin to polygon
             margin_m = 1000 * margin_km
