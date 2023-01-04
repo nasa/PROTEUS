@@ -1209,7 +1209,8 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
 
 
 def _get_interpreted_dswx_ctable(
-        flag_collapse_wtr_classes = FLAG_COLLAPSE_WTR_CLASSES):
+        flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
+        layer_name='WTR'):
     """Create and return GDAL RGB color table for DSWx-HLS
        surface water interpreted layers.
 
@@ -1217,6 +1218,9 @@ def _get_interpreted_dswx_ctable(
             Flag that indicates if interpreted layer contains
             collapsed classes following the standard DSWx-HLS product
             water classes
+       layer_name: str
+            Layer name. If layer name is WTR, CLOUD-masked classes
+            are included in the color table
 
        Returns
        -------
@@ -1255,11 +1259,14 @@ def _get_interpreted_dswx_ctable(
     # Dark blue - Ocean masked
     dswx_ctable.SetColorEntry(WTR_OCEAN_MASKED, (0, 0, 127))
 
-    # Gray - CLOUD masked (Cloud/cloud-shadow)
-    dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
+    # if layer is WTR, CLOUD-masked classes are included in the color table
+    if layer_name == 'WTR':
 
-    # Cyan - CLOUD masked (Snow)
-    dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0, 255, 255))
+        # Gray - CLOUD masked (Cloud/cloud-shadow)
+        dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
+
+        # Cyan - CLOUD masked (Snow)
+        dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0, 255, 255))
 
     # Black - Fill value
     dswx_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
@@ -2149,7 +2156,8 @@ def _collapse_wtr_classes(interpreted_layer):
     return collapsed_interpreted_layer
 
 
-def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
+def save_dswx_product(layer_image, layer_name,
+                      output_file, dswx_metadata_dict, geotransform,
                       projection, scratch_dir='.', output_files_list = None,
                       description = None,
                       flag_collapse_wtr_classes = FLAG_COLLAPSE_WTR_CLASSES,
@@ -2158,8 +2166,10 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
 
        Parameters
        ----------
-       wtr: numpy.ndarray
-              Water classification layer WTR
+       layer_image: numpy.ndarray
+              Layer image, e.g., WTR, WTR-1, or WTR-2 arrays
+       layer_name: str
+              Layer name, e.g., `WTR`, `WTR-1`, or `WTR-2`
        output_file: str
               Output filename
        dswx_metadata_dict: dict
@@ -2181,10 +2191,10 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
               Remaining bands to be included into the DSWx-HLS product
     """
     _makedirs(output_file)
-    shape = wtr.shape
+    shape = layer_image.shape
     driver = gdal.GetDriverByName("GTiff")
 
-    dswx_processed_bands['wtr'] = wtr
+    dswx_processed_bands[layer_name.replace('-', '_').lower()] = layer_image
 
     # translate dswx_processed_bands_keys to band_description_dict keys
     # example: wtr_1 to WTR-1
@@ -2216,40 +2226,37 @@ def save_dswx_product(wtr, output_file, dswx_metadata_dict, geotransform,
     gdal_ds.SetGeoTransform(geotransform)
     gdal_ds.SetProjection(projection)
 
-    for band_index, (band_name, description_from_dict) in enumerate(
-            band_description_dict.items()):
+    band_index = 0
+
+    for layer_name, description_from_dict in band_description_dict.items():
 
         # check if band is in the list of processed bands
-        if band_name in dswx_processed_band_names_list:
+        if layer_name not in dswx_processed_band_names_list:
+            continue
 
-            # index using processed key from band name (e.g., WTR-1 to wtr_1)
-            band_array = dswx_processed_bands[
-                band_name.replace('-', '_').lower()]
-        else:
-            logger.warning(f'layer not found "{band_name}".')
-            band_array = None
+        # index using processed key from band name (e.g., WTR-1 to wtr_1)
+        band_array = dswx_processed_bands[band_name.replace('-', '_').lower()]
 
-        # if band is not in the list of processed bands or it's None
-        if band_array is None:
-            band_array = np.zeros_like(wtr)
-
+        if description is None:
+            description = description_from_dict
+            
         gdal_band = gdal_ds.GetRasterBand(band_index + 1)
+        band_index += 1
 
-        if band_name in collapsable_layers_list and flag_collapse_wtr_classes:
+        if layer_name in collapsable_layers_list and flag_collapse_wtr_classes:
             band_array = _collapse_wtr_classes(band_array)
 
         gdal_band.WriteArray(band_array)
         gdal_band.SetNoDataValue(UINT8_FILL_VALUE)
         if n_valid_bands == 1:
             # set color table and color interpretation
-            dswx_ctable = _get_interpreted_dswx_ctable(flag_collapse_wtr_classes)
+            dswx_ctable = _get_interpreted_dswx_ctable(flag_collapse_wtr_classes,
+                layer_name=layer_name)
             gdal_band.SetRasterColorTable(dswx_ctable)
             gdal_band.SetRasterColorInterpretation(
                 gdal.GCI_PaletteIndex)
-        if description is not None:
-            gdal_band.SetDescription(description)
-        else:
-            gdal_band.SetDescription(description_from_dict)
+
+        gdal_band.SetDescription(description)
 
         gdal_band.FlushCache()
         gdal_band = None
@@ -4064,12 +4071,11 @@ def generate_dswx_layers(input_list,
         wtr_1_layer[ocean_mask == 0] = WTR_OCEAN_MASKED
 
     if output_non_masked_dswx:
-        save_dswx_product(wtr_1_layer,
+        save_dswx_product(wtr_1_layer, 'WTR-1',
                           output_non_masked_dswx,
                           dswx_metadata_dict,
                           geotransform,
                           projection,
-                          description=band_description_dict['WTR-1'],
                           scratch_dir=scratch_dir,
                           output_files_list=build_vrt_list)
 
@@ -4078,12 +4084,11 @@ def generate_dswx_layers(input_list,
         hls_thresholds)
 
     if output_shadow_masked_dswx is not None:
-        save_dswx_product(wtr_2_layer,
+        save_dswx_product(wtr_2_layer, 'WTR-2',
                           output_shadow_masked_dswx,
                           dswx_metadata_dict,
                           geotransform,
                           projection,
-                          description=band_description_dict['WTR-2'],
                           scratch_dir=scratch_dir,
                           flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
                           output_files_list=build_vrt_list)
@@ -4092,12 +4097,11 @@ def generate_dswx_layers(input_list,
         mask_adjacent_to_cloud_mode)
 
     if output_interpreted_band:
-        save_dswx_product(wtr_layer,
+        save_dswx_product(wtr_layer, 'WTR',
                           output_interpreted_band,
                           dswx_metadata_dict,
                           geotransform,
                           projection,
-                          description=band_description_dict['WTR'],
                           scratch_dir=scratch_dir,
                           output_files_list=build_vrt_list)
     
@@ -4186,7 +4190,7 @@ def generate_dswx_layers(input_list,
 
     # save output_file as GeoTIFF
     if output_file and not output_file.endswith('.vrt'):
-        save_dswx_product(wtr_layer,
+        save_dswx_product(wtr_layer, 'WTR',
                           output_file,
                           dswx_metadata_dict,
                           geotransform,
