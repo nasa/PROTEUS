@@ -1802,14 +1802,47 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
 
     metadata = layer_gdal_dataset.GetMetadata()
 
+    # read image
+    if flag_debug:
+        logger.info('reading in debug mode')
+        image = layer_gdal_dataset.ReadAsArray(
+            xoff=0, yoff=0, xsize=1000, ysize=1000)
+    else:
+        image = layer_gdal_dataset.ReadAsArray()
+
+
+    # read `fill_value`
+    if fill_value is None and '_FillValue' in metadata.keys():
+        fill_value = float(metadata['_FillValue'])
+    elif fill_value is None:
+        fill_value = -9999
+
+    # create/update `invalid_ind_array`
+    # (invalid pixels are cumulative)
+    if 'invalid_ind_array' not in image_dict.keys():
+        invalid_ind_array = image == fill_value
+    else:
+        invalid_ind_array = np.logical_or(image_dict['invalid_ind_array'],
+                                          image == fill_value)
+
+    image_dict['invalid_ind_array'] = invalid_ind_array
+
+    # creatre/update geographical grid
+    if 'geotransform' not in image_dict.keys():
+        image_dict['geotransform'] = \
+            layer_gdal_dataset.GetGeoTransform()
+    if 'projection' not in image_dict.keys():
+        image_dict['projection'] = \
+            layer_gdal_dataset.GetProjection()
+    if 'length' not in image_dict.keys():
+        image_dict['length'] = image.shape[0]
+    if 'width' not in image_dict.keys():
+        image_dict['width'] = image.shape[1]
+
+    # if Fmask, update fmask fill_value and escape
     if key == 'fmask':
-        if flag_debug:
-            logger.info('reading in debug mode')
-            image_dict[key] = layer_gdal_dataset.ReadAsArray(
-                xoff=0, yoff=0, xsize=1000, ysize=1000)
-        else:
-            image_dict[key] = layer_gdal_dataset.ReadAsArray()
-        image_dict['fmask_fill_value'] = int(metadata['_FillValue'])
+        image_dict['fmask_fill_value'] = fill_value
+        image_dict[key] = image
         return True
 
     offset = 0.0
@@ -1879,38 +1912,16 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
     if 'scale_factor' in metadata:
         scale_factor = float(metadata['scale_factor'])
 
-    if flag_debug:
-        logger.info('reading in debug mode')
-        image = layer_gdal_dataset.ReadAsArray(
-            xoff=0, yoff=0, xsize=1000, ysize=1000)
-    else:
-        image = layer_gdal_dataset.ReadAsArray()
-
-    if fill_value is None and '_FillValue' in metadata.keys():
-        fill_value = float(metadata['_FillValue'])
-    elif fill_value is None:
-        fill_value = -9999
-
-    invalid_ind = np.where(image == fill_value)
     if FLAG_CLIP_NEGATIVE_REFLECTANCE:
         image = np.clip(image, 1, None)
     if flag_offset_and_scale_inputs:
         image = scale_factor * (np.asarray(image, dtype=np.float32) -
                                 offset)
-        image[invalid_ind] == np.nan
-    elif FLAG_CLIP_NEGATIVE_REFLECTANCE:
-        image[invalid_ind] = fill_value
 
     image_dict[key] = image
 
-    if 'geotransform' not in image_dict.keys():
-        image_dict['geotransform'] = \
-            layer_gdal_dataset.GetGeoTransform()
-        image_dict['projection'] = \
-            layer_gdal_dataset.GetProjection()
+    if 'fill_value' not in image_dict.keys():
         image_dict['fill_value'] = fill_value
-        image_dict['length'] = image_dict[key].shape[0]
-        image_dict['width'] = image_dict[key].shape[1]
 
     # save offset and scale factor into corresponding dictionaries
     offset_dict[key] = offset
@@ -3921,6 +3932,8 @@ def generate_dswx_layers(input_list,
     length = image_dict['length']
     width = image_dict['width']
 
+    invalid_ind = np.where(image_dict['invalid_ind_array'])
+
     sun_azimuth_angle_meta = dswx_metadata_dict['MEAN_SUN_AZIMUTH_ANGLE'].split(', ')
 
     sun_zenith_angle_meta = dswx_metadata_dict['MEAN_SUN_ZENITH_ANGLE'].split(', ')
@@ -4008,13 +4021,6 @@ def generate_dswx_layers(input_list,
             dswx_metadata_dict = dswx_metadata_dict,
             output_files_list=build_vrt_list, temp_files_list=temp_files_list)
 
-    # Set array of invalid pixels
-    if not flag_offset_and_scale_inputs:
-        invalid_ind = np.where((blue == fill_value) |
-                               (fmask == fmask_fill_value))
-    else:
-        invalid_ind = np.where((np.isnan(blue)) |
-                               (fmask == fmask_fill_value))
 
     if output_rgb_file:
         _save_output_rgb_file(red, green, blue, output_rgb_file,
