@@ -27,7 +27,8 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
     if logger is None:
         logger = logging.getLogger('proteus')
 
-    logger.info('COG step 1: add overviews')
+    logger.info(f'saving file as COG: {filename}')
+    logger.info('    step 1: add overviews')
     gdal_ds = gdal.Open(filename, gdal.GA_Update)
     gdal_dtype = gdal_ds.GetRasterBand(1).DataType
     dtype_name = gdal.GetDataTypeName(gdal_dtype).lower()
@@ -48,7 +49,7 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
     if os.path.isfile(external_overview_file):
         os.remove(external_overview_file)
 
-    logger.info('COG step 2: save as COG')
+    logger.info('    step 2: save as COG')
     temp_file = tempfile.NamedTemporaryFile(
                     dir=scratch_dir, suffix='.tif').name
 
@@ -72,7 +73,7 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
 
     shutil.move(temp_file, filename)
 
-    logger.info('COG step 3: validate')
+    logger.info('    step 3: validate')
     try:
         from proteus.extern.validate_cloud_optimized_geotiff import main as validate_cog
     except ModuleNotFoundError:
@@ -82,10 +83,10 @@ def save_as_cog(filename, scratch_dir = '.', logger = None,
     argv = ['--full-check=yes', filename]
     validate_cog_ret = validate_cog(argv)
     if validate_cog_ret == 0:
-        logger.info(f'file "{filename}" is a valid cloud optimized'
+        logger.info(f'    file "{filename}" is a valid cloud optimized'
                     ' GeoTIFF')
     else:
-        logger.warning(f'file "{filename}" is NOT a valid cloud'
+        logger.warning(f'    file "{filename}" is NOT a valid cloud'
                        f' optimized GeoTIFF!')
 
 
