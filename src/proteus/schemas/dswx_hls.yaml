@@ -14,19 +14,27 @@ runconfig:
             dem_file: str(required=False)
 
             # Digital elevation model description
-            dem_description: str(required=False)
+            dem_file_description: str(required=False)
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer file
             landcover_file: str(required=False)
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer description
-            landcover_description: str(required=False)
+            landcover_file_description: str(required=False)
 
             # ESA WorldCover map file
             worldcover_file: str(required=False)
 
             # ESA WorldCover map description
-            worldcover_description: str(required=False)
+            worldcover_file_description: str(required=False)
+
+            # Global Self-consistent, Hierarchical, High-resolution Shoreline
+            # (GSHHS) shape file
+            shoreline_shape_file: str(required=False)
+
+            # Global Self-consistent, Hierarchical, High-resolution Shoreline
+            # (GSHHS) shape file description
+            shoreline_shape_file_description: str(required=False)
 
         primary_executable:
             product_type: enum('DSWX_HLS')

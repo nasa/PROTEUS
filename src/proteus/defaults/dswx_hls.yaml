@@ -14,19 +14,27 @@ runconfig:
             dem_file:
 
             # Digital elevation model source description
-            dem_description:
+            dem_file_description:
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer file
             landcover_file:
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer description
-            landcover_description:
+            landcover_file_description:
 
             # ESA WorldCover map file
             worldcover_file:
 
             # ESA WorldCover map description
-            worldcover_description:
+            worldcover_file_description:
+
+            # Global Self-consistent, Hierarchical, High-resolution Shoreline
+            # (GSHHS) shape file
+            shoreline_shape_file:
+
+            # Global Self-consistent, Hierarchical, High-resolution Shoreline
+            # (GSHHS) shape file description
+            shoreline_shape_file_description:
 
         primary_executable:
             product_type: DSWX_HLS
