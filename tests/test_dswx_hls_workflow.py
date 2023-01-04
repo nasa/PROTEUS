@@ -84,6 +84,8 @@ def test_workflow():
         landcover_file_description=args.landcover_file_description,
         worldcover_file=args.worldcover_file,
         worldcover_file_description=args.worldcover_file_description,
+        shoreline_shape_file=args.shoreline_shape_file,
+        shoreline_shape_file_description=args.shoreline_shape_file_description,
         flag_offset_and_scale_inputs=args.flag_offset_and_scale_inputs,
         scratch_dir=args.scratch_dir,
         product_id=args.product_id,
@@ -93,6 +95,8 @@ def test_workflow():
         max_sun_local_inc_angle=args.max_sun_local_inc_angle,
         mask_adjacent_to_cloud_mode=args.mask_adjacent_to_cloud_mode,
         copernicus_forest_classes=args.copernicus_forest_classes,
+        ocean_masking_shoreline_distance_km = \
+            args.ocean_masking_shoreline_distance_km,
         flag_debug=args.flag_debug)
 
     ref_files = glob.glob(os.path.join(ref_dir, '*'))

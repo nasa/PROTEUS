@@ -80,6 +80,9 @@ runconfig:
             # Copernicus CGLS Land Cover 100m forest classes
             copernicus_forest_classes: list(int(), min=0, required=False)
 
+            # Ocean masking distance from shoreline in km
+            ocean_masking_shoreline_distance_km: num(required=False)
+
             # Layer 1 - WTR
             save_wtr: bool(required=False)
 

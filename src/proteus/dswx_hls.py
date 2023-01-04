@@ -339,44 +339,45 @@ class RunConfigConstants:
     check_ancillary_inputs_coverage: bool
         Check if ancillary inputs cover entirely the output product
     shadow_masking_algorithm: str
-           Shadow masking algorithm
+        Shadow masking algorithm
     min_slope_angle: float
-           Minimum slope angle
+        Minimum slope angle
     max_sun_local_inc_angle: float
-           Maximum local-incidence angle
+        Maximum local-incidence angle
     mask_adjacent_to_cloud_mode: str
-           Define how areas adjacent to cloud/cloud-shadow should be handled.
-           Options: "mask", "ignore", and "cover"
+        Define how areas adjacent to cloud/cloud-shadow should be handled.
+        Options: "mask", "ignore", and "cover"
     copernicus_forest_classes: list(int)
-           Copernicus CGLS Land Cover 100m forest classes
+        Copernicus CGLS Land Cover 100m forest classes
+    ocean_masking_shoreline_distance_km: float
+        Ocean masking distance from shoreline in km
     browse_image_height: int
-            Height in pixels of the browse image PNG
+        Height in pixels of the browse image PNG
     browse_image_width: int
-            Width in pixels of the browse image PNG
+        Width in pixels of the browse image PNG
     exclude_psw_aggressive_in_browse: bool
-            True to exclude the Partial Surface Water Aggressive class
-            in the browse image, which means that they will be considered
-            Not Water. False to not display this class.
+        True to exclude the Partial Surface Water Aggressive class
+        in the browse image, which means that they will be considered
+        Not Water. False to not display this class.
     not_water_in_browse: str
-            Define how Not Water (e.g. land) appears in the browse image.
-            Options are: 'white' and 'nodata'
-                'white'         : Not Water pixels will be white
-                'nodata'        : Not Water pixels will be marked as not having
-                                  valid data, and will be fully transparent
+        Define how Not Water (e.g. land) appears in the browse image.
+        Options are: 'white' and 'nodata'
+            'white'         : Not Water pixels will be white
+            'nodata'        : Not Water pixels will be marked as not having
+                              valid data, and will be fully transparent
     cloud_in_browse: str
-            Define how cloud appears in the browse image.
-            Options are: 'gray' and 'nodata'
-                'gray'          : cloud pixels will be opaque gray
-                'nodata'        : cloud pixels will be marked as not having
-                                  valid data, and will be fully transparent
+        Define how cloud appears in the browse image.
+        Options are: 'gray' and 'nodata'
+            'gray'          : cloud pixels will be opaque gray
+            'nodata'        : cloud pixels will be marked as not having
+                              valid data, and will be fully transparent
     snow_in_browse: str
-            Define how snow appears in the browse image.
-            Options are: 'cyan', 'gray', 'nodata'
-              'cyan'          : snow will be opaque cyan
-              'gray'          : snow will be opaque gray
-              'nodata'        : snow pixels will be marked as not having
-                                valid data, and will be fully transparent
-
+        Define how snow appears in the browse image.
+        Options are: 'cyan', 'gray', 'nodata'
+          'cyan'          : snow will be opaque cyan
+          'gray'          : snow will be opaque gray
+          'nodata'        : snow pixels will be marked as not having
+                            valid data, and will be fully transparent
     """
     def __init__(self):
         self.hls_thresholds = HlsThresholds()
@@ -386,6 +387,7 @@ class RunConfigConstants:
         self.max_sun_local_inc_angle = None
         self.mask_adjacent_to_cloud_mode = None
         self.copernicus_forest_classes = None
+        self.ocean_masking_shoreline_distance_km = None
         self.browse_image_height = None
         self.browse_image_width = None
         self.exclude_psw_aggressive_in_browse = None
@@ -649,6 +651,11 @@ def get_dswx_hls_cli_parser():
                         dest='copernicus_forest_classes',
                         type=list,
                         help='Copernicus CGLS Land Cover 100m forest classes')
+
+    parser.add_argument('--ocean-masking-distance-km',
+                        dest='ocean_masking_shoreline_distance_km',
+                        type=float,
+                        help='Ocean masking distance from shoreline in km')
 
     parser.add_argument('--debug',
                         dest='flag_debug',
@@ -2841,6 +2848,7 @@ def _create_ocean_mask(shape_file, margin_km, scratch_dir,
               GSHHS shape file (e.g., 'GSHHS_f_L1.shp')
        margin_km: int
               Margin (buffer) towards the ocean to be added to the shore lines
+              in km
        scratch_dir: str
               Directory for temporary files
        geotransform: numpy.ndarray
@@ -2904,7 +2912,7 @@ def _create_ocean_mask(shape_file, margin_km, scratch_dir,
             intersection_polygon.TransformTo(tile_srs)
 
             # add margin to polygon
-            margin_m = 1000 * margin_km
+            margin_m = int(1000 * margin_km)
             intersection_polygon = intersection_polygon.Buffer(margin_m)
 
             # Update feature with intersected polygon
@@ -3617,6 +3625,7 @@ def generate_dswx_layers(input_list,
                          max_sun_local_inc_angle=None,
                          mask_adjacent_to_cloud_mode=None,
                          copernicus_forest_classes=None,
+                         ocean_masking_shoreline_distance_km=None,
                          flag_debug=False):
     """Compute the DSWx-HLS product
 
@@ -3706,13 +3715,16 @@ def generate_dswx_layers(input_list,
               Minimum slope angle
        max_sun_local_inc_angle: float (optional)
               Maximum local-incidence angle
-       flag_debug: bool (optional)
-              Flag to indicate if execution is for debug purposes. If so,
-              only a subset of the image will be loaded into memory
        mask_adjacent_to_cloud_mode: str (optional)
               Define how areas adjacent to cloud/cloud-shadow should be handled.
               Options: "mask", "ignore", and "cover"
-
+       copernicus_forest_classes: list(int)
+              Copernicus CGLS Land Cover 100m forest classes
+       ocean_masking_shoreline_distance_km: float
+              Ocean masking distance from shoreline in km
+       flag_debug: bool (optional)
+              Flag to indicate if execution is for debug purposes. If so,
+              only a subset of the image will be loaded into memory
        Returns
        -------
        success : bool
@@ -3727,6 +3739,7 @@ def generate_dswx_layers(input_list,
                                  max_sun_local_inc_angle,
                                  mask_adjacent_to_cloud_mode,
                                  copernicus_forest_classes,
+                                 ocean_masking_shoreline_distance_km,
                                  browse_image_height,
                                  browse_image_width,
                                  exclude_psw_aggressive_in_browse,
@@ -3754,6 +3767,9 @@ def generate_dswx_layers(input_list,
                 runconfig_constants.mask_adjacent_to_cloud_mode
         if copernicus_forest_classes is None:
             copernicus_forest_classes = runconfig_constants.copernicus_forest_classes
+        if ocean_masking_shoreline_distance_km is None:
+            ocean_masking_shoreline_distance_km = \
+                runconfig_constants.ocean_masking_shoreline_distance_km
         if browse_image_height is None:
             browse_image_height = runconfig_constants.browse_image_height
         if browse_image_width is None:
@@ -3821,6 +3837,11 @@ def generate_dswx_layers(input_list,
                 f'{terrain_masking_parameters_str}')
     logger.info(f'    mask adjacent cloud/cloud-shadow mode:'
                 f'{mask_adjacent_to_cloud_mode}')
+    logger.info(f'    CGLS Land Cover 100m forest classes:'
+                f' {copernicus_forest_classes}')
+    logger.info(f'    Ocean masking distance from shoreline in km:'
+                f' {ocean_masking_shoreline_distance_km}')
+
     if output_browse_image:
         logger.info(f'browse image:')
         logger.info(f'    browse_image_height: {browse_image_height}')
@@ -4038,10 +4059,9 @@ def generate_dswx_layers(input_list,
     if invalid_ind is not None:
         wtr_1_layer[invalid_ind] = UINT8_FILL_VALUE
 
-    ocean_margin_km = 10
- 
     if shoreline_shape_file is not None:
-        ocean_mask = _create_ocean_mask(shoreline_shape_file, ocean_margin_km,
+        ocean_mask = _create_ocean_mask(shoreline_shape_file,
+                                        ocean_masking_shoreline_distance_km,
                                         scratch_dir, geotransform, projection,
                                         length, width)
         wtr_1_layer[ocean_mask == 0] = WTR_OCEAN_MASKED
