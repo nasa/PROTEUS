@@ -143,12 +143,10 @@ WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE = 4
 FIRST_UNCOLLAPSED_WATER_CLASS = 1
 LAST_UNCOLLAPSED_WATER_CLASS = 4
 
-# Ocean masked
-WTR_OCEAN_MASKED = 7
-
-# Cloud/cloud-shadow masked classes
-WTR_CLOUD_MASKED_SNOW = 8
-WTR_CLOUD_MASKED = 9
+# WTR masked classes
+WTR_SNOW_MASKED = 252
+WTR_CLOUD_MASKED = 253
+WTR_OCEAN_MASKED = 254
 
 # Shadow mask
 SHAD_NOT_MASKED = 1
@@ -158,9 +156,9 @@ SHAD_MASKED = 0
 BWTR_WATER = 1
 CLOUD_OCEAN_MASKED = 252
 CONF_NOT_WATER = 99
-CONF_OCEAN_MASKED = 252
-CONF_CLOUD_MASKED_SNOW = 253
-CONF_CLOUD_MASKED = 254
+CONF_SNOW_MASKED = 252
+CONF_CLOUD_MASKED = 253
+CONF_OCEAN_MASKED = 254
 
 '''
 Internally, DSWx-HLS has 4 water classes derived from
@@ -185,7 +183,7 @@ collapse_wtr_classes_dict = {
     WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE: \
         WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
     WTR_OCEAN_MASKED: WTR_OCEAN_MASKED,
-    WTR_CLOUD_MASKED_SNOW: WTR_CLOUD_MASKED_SNOW,
+    WTR_SNOW_MASKED: WTR_SNOW_MASKED,
     WTR_CLOUD_MASKED: WTR_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
@@ -199,7 +197,7 @@ wtr_confidence_dict = {
     WTR_COLLAPSED_OPEN_WATER: 85,
     WTR_COLLAPSED_PARTIAL_SURFACE_WATER: 70,
     WTR_OCEAN_MASKED: CONF_OCEAN_MASKED,
-    WTR_CLOUD_MASKED_SNOW: CONF_CLOUD_MASKED_SNOW,
+    WTR_SNOW_MASKED: CONF_SNOW_MASKED,
     WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
@@ -215,7 +213,7 @@ wtr_confidence_non_collapsed_dict = {
     WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE: 70,
     WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE: 60,
     WTR_OCEAN_MASKED: CONF_OCEAN_MASKED,
-    WTR_CLOUD_MASKED_SNOW: CONF_CLOUD_MASKED_SNOW,
+    WTR_SNOW_MASKED: CONF_SNOW_MASKED,
     WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
@@ -1266,7 +1264,7 @@ def _get_interpreted_dswx_ctable(
         dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
 
         # Cyan - CLOUD masked (Snow)
-        dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0, 255, 255))
+        dswx_ctable.SetColorEntry(WTR_SNOW_MASKED, (0, 255, 255))
 
     # Black - Fill value
     dswx_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
@@ -1332,11 +1330,11 @@ def _get_browse_ctable(
     if snow_color == 'gray':
         # The gray for snow should match the gray of the clouds
         cloud_gray = out_ctable.GetColorEntry(WTR_CLOUD_MASKED)
-        out_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, cloud_gray)
+        out_ctable.SetColorEntry(WTR_SNOW_MASKED, cloud_gray)
     elif snow_color == 'nodata':
         # The no-data fill RGBA was set by `_get_interpreted_dswx_ctable`.
         # So, "remove" original snow entry from colortable.
-        out_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, FILL_VALUE_RGBA)
+        out_ctable.SetColorEntry(WTR_SNOW_MASKED, FILL_VALUE_RGBA)
     else:
         # Snow color will remain the same as in WTR
         pass
@@ -1747,7 +1745,7 @@ def _compute_and_apply_cloud_mask(wtr_2_layer, fmask,
     cloud_mask[snow_mask] += 2
 
     # Update WTR with ocean mask
-    wtr_layer[cloud_mask == 2] = WTR_CLOUD_MASKED_SNOW
+    wtr_layer[cloud_mask == 2] = WTR_SNOW_MASKED
 
     # Copy masked values from WTR-2 to CLOUD and WTR
     masked_ind = np.where(wtr_2_layer == UINT8_FILL_VALUE)
@@ -2086,7 +2084,7 @@ def _get_binary_water_ctable():
     # Dark blue - Ocean masked
     binary_water_ctable.SetColorEntry(WTR_OCEAN_MASKED, (0, 0, 127))
     # Cyan - CLOUD masked (snow)
-    binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED_SNOW, (0, 255, 255))
+    binary_water_ctable.SetColorEntry(WTR_SNOW_MASKED, (0, 255, 255))
     # Gray - CLOUD masked (cloud/cloud-shadow)
     binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
     # Black (transparent) - Fill value
@@ -2121,8 +2119,7 @@ def _get_confidence_layer_ctable():
     confidence_layer_ctable.SetColorEntry(CONF_OCEAN_MASKED, (0, 0, 127))
 
     # Cyan - CLOUD masked (snow)
-    confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED_SNOW,
-                                          (0, 255, 255))
+    confidence_layer_ctable.SetColorEntry(CONF_SNOW_MASKED, (0, 255, 255))
 
     # Gray - CLOUD masked (cloud/cloud-shadow)
     confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED, (127, 127, 127))
@@ -2646,7 +2643,7 @@ def _compute_browse_array(
     set_snow_to_nodata : bool
         How to code the snow pixels. Defaults to False. Options are:
             True : snow pixels will be marked with UINT8_FILL_VALUE
-            False : snow will remain WTR_CLOUD_MASKED_SNOW
+            False : snow will remain WTR_SNOW_MASKED
     
     Returns
     -------
@@ -2673,7 +2670,7 @@ def _compute_browse_array(
         browse_arr[browse_arr == WTR_CLOUD_MASKED] = UINT8_FILL_VALUE
 
     if set_snow_to_nodata:
-        browse_arr[browse_arr == WTR_CLOUD_MASKED_SNOW] = UINT8_FILL_VALUE
+        browse_arr[browse_arr == WTR_SNOW_MASKED] = UINT8_FILL_VALUE
 
     return browse_arr
 
