@@ -1255,7 +1255,7 @@ def _get_interpreted_dswx_ctable(
             WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE, (0, 255, 0))
 
     # Dark blue - Ocean masked
-    dswx_ctable.SetColorEntry(WTR_OCEAN_MASKED, (0, 0, 127))
+    dswx_ctable.SetColorEntry(WTR_OCEAN_MASKED, (0, 0, 127, 255))
 
     # if layer is WTR, CLOUD-masked classes are included in the color table
     if layer_name == 'WTR':
@@ -1392,7 +1392,7 @@ def _get_cloud_mask_ctable():
     # Light blue - Cloud, cloud shadow, and snow/ice
     mask_ctable.SetColorEntry(7, (127, 127, 255))
     # Dark blue - Ocean masked
-    mask_ctable.SetColorEntry(CLOUD_OCEAN_MASKED, (0, 0, 127))
+    mask_ctable.SetColorEntry(CLOUD_OCEAN_MASKED, (0, 0, 127, 255))
     # Black - Fill value
     mask_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
     return mask_ctable
@@ -2061,7 +2061,7 @@ def _get_binary_mask_ctable():
     # White - Not masked
     binary_mask_ctable.SetColorEntry(SHAD_NOT_MASKED, (255, 255, 255))
     # Dark blue - Ocean masked
-    binary_mask_ctable.SetColorEntry(WTR_OCEAN_MASKED, (0, 0, 127))
+    binary_mask_ctable.SetColorEntry(WTR_OCEAN_MASKED, (0, 0, 127, 255))
     # Fill value
     binary_mask_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
     return binary_mask_ctable
@@ -2082,7 +2082,7 @@ def _get_binary_water_ctable():
     # Blue - Water
     binary_water_ctable.SetColorEntry(BWTR_WATER, (0, 0, 255))
     # Dark blue - Ocean masked
-    binary_water_ctable.SetColorEntry(WTR_OCEAN_MASKED, (0, 0, 127))
+    binary_water_ctable.SetColorEntry(WTR_OCEAN_MASKED, (0, 0, 127, 255))
     # Cyan - CLOUD masked (snow)
     binary_water_ctable.SetColorEntry(WTR_SNOW_MASKED, (0, 255, 255))
     # Gray - CLOUD masked (cloud/cloud-shadow)
@@ -2116,7 +2116,7 @@ def _get_confidence_layer_ctable():
     confidence_layer_ctable.SetColorEntry(CONF_NOT_WATER, (255, 255, 255))
 
     # Dark blue - Ocean masked
-    confidence_layer_ctable.SetColorEntry(CONF_OCEAN_MASKED, (0, 0, 127))
+    confidence_layer_ctable.SetColorEntry(CONF_OCEAN_MASKED, (0, 0, 127, 255))
 
     # Cyan - CLOUD masked (snow)
     confidence_layer_ctable.SetColorEntry(CONF_SNOW_MASKED, (0, 255, 255))
