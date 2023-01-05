@@ -450,7 +450,7 @@ def get_dswx_hls_cli_parser():
                         help='Global Self-consistent, Hierarchical, High-'
                         'resolution Shoreline (GSHHS) shape file')
 
-    parser.add_argument('--shoreline_shape-description',
+    parser.add_argument('--shoreline-shape-description',
                         dest='shoreline_shape_file_description',
                         type=str,
                         help='Global Self-consistent, Hierarchical, High-'
@@ -2300,7 +2300,7 @@ def geotiff2png(src_geotiff_filename,
 
     """
     # Load the source dataset
-    gdal_ds = gdal.Open(src_geotiff_filename, 1)
+    gdal_ds = gdal.Open(src_geotiff_filename, gdal.GA_ReadOnly)
 
     # Set output height
     if output_height is None:
@@ -2327,13 +2327,13 @@ def geotiff2png(src_geotiff_filename,
 
     # Translate the existing geotiff to the .png format
     gdal.Translate(dest_png_filename, 
-                        src_geotiff_filename, 
-                        format='PNG',
-                        height=output_height,
-                        width=output_width,
-                        resampleAlg=resamp_algorithm,
-                        nogcp=True,  # do not print GCPs
-                        )
+                   src_geotiff_filename, 
+                   format='PNG',
+                   height=output_height,
+                   width=output_width,
+                   resampleAlg=resamp_algorithm,
+                   nogcp=True,  # do not print GCPs
+    )
 
     if logger is None:
         logger = logging.getLogger('proteus')
@@ -2793,20 +2793,6 @@ def _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
 
        Parameters
        ----------
-       shape_file: str
-              GSHHS shape file (e.g., 'GSHHS_f_L1.shp')
-       margin_km: int
-              Margin (buffer) towards the ocean to be added to the shore lines
-       scratch_dir: str
-              Directory for temporary files
-       geotransform: numpy.ndarray
-              Geotransform describing the DSWx-HLS product geolocation
-       projection: str
-              DSWx-HLS product's projection
-       length: int
-              DSWx-HLS product's length (number of lines)
-       width: int
-              DSWx-HLS product's width (number of columns)
        tile_min_y_utm: float
               Tile minimum Y-coordinate (UTM)
        tile_max_y_utm: float
@@ -2819,6 +2805,18 @@ def _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
               Tile original spatial reference system (SRS)
        polygon_srs: osr.SpatialReference
               Polygon (shoreline) spatial reference system (SRS)
+       Returns
+       -------
+       tile_polygon: ogr.Geometry
+              Rectangle representing polygon SRS bounding box
+       tile_min_y: float
+              Tile minimum Y-coordinate (polygon SRS)
+       tile_max_y: float
+              Tile maximum Y-coordinate (polygon SRS)
+       tile_min_x: float
+              Tile minimum X-coordinate (polygon SRS)
+       tile_max_x: float
+              Tile maximum X-coordinate (polygon SRS)
     """
 
     transformation = osr.CoordinateTransformation(tile_srs, polygon_srs)
@@ -3559,7 +3557,7 @@ def _crop_2d_array_all_sides(input_2d_array, margin):
 
 
 def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
-        shoreline_shape_file):
+        shoreline_shape_file, geotransform, projection, length, width):
     """
     Check for existence and coverage of ancillary inputs: DEM, landcover, and
     worldcover files; and existence of the shoreline shape file
@@ -3575,6 +3573,14 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
         shoreline_shape_file: str
               Global Self-consistent, Hierarchical, High-resolution Shoreline
               (GSHHS) shape file
+      geotransform: numpy.ndarray
+              Geotransform describing the DSWx-HLS product geolocation
+       projection: str
+              DSWx-HLS product's projection
+       length: int
+              DSWx-HLS product's length (number of lines)
+       width: int
+              DSWx-HLS product's width (number of columns)
     """
 
     # DEM file
@@ -3584,6 +3590,16 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
         'WorldCover 10m file': worldcover_file,
         'Shoreline shape file': shoreline_shape_file
     }
+    tile_min_x_utm, tile_dx_utm, _, tile_max_y_utm, _, tile_dy_utm = \
+        geotransform
+    tile_max_x_utm = tile_min_x_utm + width * tile_dx_utm
+    tile_min_y_utm = tile_max_y_utm + length * tile_dy_utm
+    tile_srs = osr.SpatialReference()
+    if projection.upper() == 'WGS84':
+        tile_srs.SetWellKnownGeogCS(projection)
+    else:
+        tile_srs.ImportFromProj4(projection)
+
     for file_description, file_name in rasters_to_check_dict.items():
 
         # check if file was provided
@@ -3597,6 +3613,50 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
             error_msg = f'ERROR {file_description} not found: {file_name}'
             logger.error(error_msg)
             raise FileNotFoundError(error_msg)
+
+        if file_description == 'Shoreline shape file':
+            continue
+            
+        # test if tile is fully covered by the ancillary input
+        gdal_ds = gdal.Open(file_name, gdal.GA_ReadOnly)
+
+        file_geotransform = gdal_ds.GetGeoTransform()
+        file_projection = gdal_ds.GetProjection()
+        min_x, dx, _, max_y, _, dy = file_geotransform
+        file_width = gdal_ds.GetRasterBand(1).XSize
+        file_length = gdal_ds.GetRasterBand(1).YSize
+        max_x = min_x + file_width * dx
+        min_y = max_y + file_length * dy
+
+        file_srs = osr.SpatialReference()
+        if file_projection.upper() == 'WGS84':
+            file_srs.SetWellKnownGeogCS(file_projection)
+        else:
+            file_srs.ImportFromProj4(file_projection)
+        tile_polygon, tile_min_y, tile_max_y, tile_min_x, tile_max_x = \
+            _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
+                               tile_min_x_utm, tile_max_x_utm,
+                               tile_srs, file_srs)
+
+        for pos_x in [min_x, max_x]:
+            for pos_y in [min_y, max_y]:
+                file_vertex = ogr.Geometry(ogr.wkbPoint)
+                file_vertex.AssignSpatialReference(file_srs)
+                file_vertex.SetPoint(0, pos_x, pos_y)
+
+                # test if any of the ancillary input vertices is within
+                # the tile. If so, raise an error 
+                flag_error = file_vertex.Within(tile_polygon)
+                if not flag_error:
+                    continue
+                error_msg = f'ERROR the {file_description} with extents'
+                error_msg += f' S/N: [{min_y},{max_y}]'
+                error_msg += f' W/E: [{min_x},{max_x}],'
+                error_msg += f' does not fully cover input tile with'
+                error_msg += f' extents S/N: [{tile_min_y},{tile_max_y}]'
+                error_msg += f' W/E: [{tile_min_x},{tile_max_x}],'
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
 
 def generate_dswx_layers(input_list,
@@ -3866,10 +3926,6 @@ def generate_dswx_layers(input_list,
         logger.info(f'    cloud_in_browse: {cloud_in_browse}')
         logger.info(f'    snow_in_browse: {snow_in_browse}')
 
-    if check_ancillary_inputs_coverage:
-        _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
-                                shoreline_shape_file)
-
     os.makedirs(scratch_dir, exist_ok=True)
 
     image_dict = {}
@@ -3953,6 +4009,12 @@ def generate_dswx_layers(input_list,
     logger.info(f'Sun parameters (from HLS metadata):')
     logger.info(f'    azimuth angle: {sun_azimuth_angle}')
     logger.info(f'    elevation angle: {sun_elevation_angle}')
+
+    # check ancillary inputs
+    if check_ancillary_inputs_coverage:
+        _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
+                                shoreline_shape_file, geotransform,
+                                projection, length, width)
 
     if dem_file is not None:
         # DEM
