@@ -131,15 +131,16 @@ interpreted_dswx_band_dict = {
 
 
 # Not-water classes
-WTR_NOT_WATER = 0
+WATER_NOT_WATER_CLEAR = 0
 
 # Water classes
-WTR_COLLAPSED_OPEN_WATER = 1
-WTR_COLLAPSED_PARTIAL_SURFACE_WATER = 2
-WTR_UNCOLLAPSED_HIGH_CONF_WATER = 1
-WTR_UNCOLLAPSED_MODERATE_CONF_WATER = 2
-WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE = 3
-WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE = 4
+WATER_COLLAPSED_OPEN_WATER = 1
+WATER_COLLAPSED_PARTIAL_SURFACE_WATER = 2
+
+WATER_UNCOLLAPSED_HIGH_CONF_CLEAR = 1
+WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR = 2
+WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR = 3
+WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR = 4
 
 FIRST_UNCOLLAPSED_WATER_CLASS = 1
 LAST_UNCOLLAPSED_WATER_CLASS = 4
@@ -158,10 +159,17 @@ BWTR_WATER = 1
 CLOUD_OCEAN_MASKED = 254
 
 # CONF layer
-CONF_NOT_WATER = 99
-CONF_SNOW_MASKED = 252
-CONF_CLOUD_MASKED = 253
-CONF_OCEAN_MASKED = 254
+WATER_NOT_WATER_CLOUD = 10
+WATER_UNCOLLAPSED_HIGH_CONF_CLOUD = 11
+WATER_UNCOLLAPSED_MODERATE_CONF_CLOUD = 12
+WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLOUD = 13
+WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLOUD = 14
+
+WATER_NOT_WATER_SNOW = 20
+WATER_UNCOLLAPSED_HIGH_CONF_SNOW = 21
+WATER_UNCOLLAPSED_MODERATE_CONF_SNOW = 22
+WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_SNOW = 23
+WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_SNOW = 24
 
 '''
 Internally, DSWx-HLS has 4 water classes derived from
@@ -178,46 +186,16 @@ WTR layers are saved:
 2. Partial surface water.
 '''
 collapse_wtr_classes_dict = {
-    WTR_NOT_WATER: WTR_NOT_WATER,
-    WTR_UNCOLLAPSED_HIGH_CONF_WATER: WTR_COLLAPSED_OPEN_WATER,
-    WTR_UNCOLLAPSED_MODERATE_CONF_WATER: WTR_COLLAPSED_OPEN_WATER,
-    WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE: \
-        WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
-    WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE: \
-        WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
+    WATER_NOT_WATER_CLEAR: WATER_NOT_WATER_CLEAR,
+    WATER_UNCOLLAPSED_HIGH_CONF_CLEAR: WATER_COLLAPSED_OPEN_WATER,
+    WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR: WATER_COLLAPSED_OPEN_WATER,
+    WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR: \
+        WATER_COLLAPSED_PARTIAL_SURFACE_WATER,
+    WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR: \
+        WATER_COLLAPSED_PARTIAL_SURFACE_WATER,
     WTR_OCEAN_MASKED: WTR_OCEAN_MASKED,
     WTR_SNOW_MASKED: WTR_SNOW_MASKED,
     WTR_CLOUD_MASKED: WTR_CLOUD_MASKED,
-    UINT8_FILL_VALUE: UINT8_FILL_VALUE
-}
-
-'''
-Dictionary containing the mapping from the output 2-water classes
-(after collapsing) to confidence values in percent
-'''
-wtr_confidence_dict = {
-    WTR_NOT_WATER: CONF_NOT_WATER,
-    WTR_COLLAPSED_OPEN_WATER: 85,
-    WTR_COLLAPSED_PARTIAL_SURFACE_WATER: 70,
-    WTR_OCEAN_MASKED: CONF_OCEAN_MASKED,
-    WTR_SNOW_MASKED: CONF_SNOW_MASKED,
-    WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
-    UINT8_FILL_VALUE: UINT8_FILL_VALUE
-}
-
-'''
-Dictionary containing the mapping from the original 4-water classes
-(before collapsing) to confidence values in percent
-'''
-wtr_confidence_non_collapsed_dict = {
-    WTR_NOT_WATER: CONF_NOT_WATER,
-    WTR_UNCOLLAPSED_HIGH_CONF_WATER: 95,
-    WTR_UNCOLLAPSED_MODERATE_CONF_WATER: 80,
-    WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE: 70,
-    WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE: 60,
-    WTR_OCEAN_MASKED: CONF_OCEAN_MASKED,
-    WTR_SNOW_MASKED: CONF_SNOW_MASKED,
-    WTR_CLOUD_MASKED: CONF_CLOUD_MASKED,
     UINT8_FILL_VALUE: UINT8_FILL_VALUE
 }
 
@@ -226,7 +204,7 @@ collapsable_layers_list = ['WTR', 'WTR-1', 'WTR-2']
 band_description_dict = {
     'WTR': 'Water classification (WTR)',
     'BWTR': 'Binary Water (BWTR)',
-    'CONF': 'TBD Confidence (CONF)',
+    'CONF': 'Confidence classifications (CONF)',
     'DIAG': 'Diagnostic layer (DIAG)',
     'WTR-1': 'Interpretation of diagnostic layer into water classes (WTR-1)',
     'WTR-2': 'Interpreted layer refined using land cover and terrain shadow testing (WTR-2)',
@@ -1164,7 +1142,7 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
         to_mask_ind = np.where((shadow_layer == SHAD_MASKED) &
             ((interpreted_layer >= FIRST_UNCOLLAPSED_WATER_CLASS) &
              (interpreted_layer <= LAST_UNCOLLAPSED_WATER_CLASS)))
-        landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
+        landcover_shadow_masked_dswx[to_mask_ind] = WATER_NOT_WATER_CLEAR
 
     elif shadow_layer is not None:
         logger.info('    applying shadow mask (with landcover):')
@@ -1172,7 +1150,7 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
             (~_is_landcover_class_water_or_wetland(landcover_mask)) &
             ((interpreted_layer >= FIRST_UNCOLLAPSED_WATER_CLASS) &
              (interpreted_layer <= LAST_UNCOLLAPSED_WATER_CLASS)))
-        landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
+        landcover_shadow_masked_dswx[to_mask_ind] = WATER_NOT_WATER_CLEAR
 
     if landcover_mask is None:
         return landcover_shadow_masked_dswx
@@ -1184,27 +1162,27 @@ def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
         _is_landcover_class_evergreen(landcover_mask) &
         (nir > hls_thresholds.lcmask_nir) &
          ((interpreted_layer ==
-            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE) |
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR) |
           (interpreted_layer ==
-            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE)))
-    landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR)))
+    landcover_shadow_masked_dswx[to_mask_ind] = WATER_NOT_WATER_CLEAR
 
     # Check landcover (low intensity developed)
     to_mask_ind = np.where(
         _is_landcover_class_low_intensity_developed(landcover_mask) &
         (nir > hls_thresholds.lcmask_nir) &
          ((interpreted_layer ==
-            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE) |
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR) |
           (interpreted_layer ==
-            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE)))
-    landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR)))
+    landcover_shadow_masked_dswx[to_mask_ind] = WATER_NOT_WATER_CLEAR
 
     # Check landcover (high intensity developed)
     to_mask_ind = np.where(
         _is_landcover_class_high_intensity_developed(landcover_mask) &
         ((interpreted_layer >= FIRST_UNCOLLAPSED_WATER_CLASS) &
          (interpreted_layer <= LAST_UNCOLLAPSED_WATER_CLASS)))
-    landcover_shadow_masked_dswx[to_mask_ind] = WTR_NOT_WATER
+    landcover_shadow_masked_dswx[to_mask_ind] = WATER_NOT_WATER_CLEAR
 
     return landcover_shadow_masked_dswx
 
@@ -1234,28 +1212,30 @@ def _get_interpreted_dswx_ctable(
     # set color for each value
 
     # White - Not water
-    dswx_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 255))
+    dswx_ctable.SetColorEntry(WATER_NOT_WATER_CLEAR, (255, 255, 255))
 
     if flag_collapse_wtr_classes:
         # Blue - Open water
-        dswx_ctable.SetColorEntry(WTR_COLLAPSED_OPEN_WATER,
+        dswx_ctable.SetColorEntry(WATER_COLLAPSED_OPEN_WATER,
                                   (0, 0, 255)) 
         # Light Blue - Partial surface water
-        dswx_ctable.SetColorEntry(WTR_COLLAPSED_PARTIAL_SURFACE_WATER,
+        dswx_ctable.SetColorEntry(WATER_COLLAPSED_PARTIAL_SURFACE_WATER,
                                   (180, 213, 244))
     else:
         # Blue - Water (high confidence)
-        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_HIGH_CONF_WATER,
+        dswx_ctable.SetColorEntry(WATER_UNCOLLAPSED_HIGH_CONF_CLEAR,
                                   (0, 0, 255)) 
         # Light blue - Water (moderate conf.)
-        dswx_ctable.SetColorEntry(WTR_UNCOLLAPSED_MODERATE_CONF_WATER,
-                                  (0, 127, 255))
+        dswx_ctable.SetColorEntry(WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR,
+                                (173, 173, 252))
         # Dark green - Partial surface water conservative
         dswx_ctable.SetColorEntry(
-            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE, (0, 127, 0))
-        # Green - Partial surface water aggressive
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR, 
+                                   (0, 195, 0)) # 225 ok
+        # Light green - Partial surface water aggressive
         dswx_ctable.SetColorEntry(
-            WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE, (0, 255, 0))
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR, 
+                                (150, 255, 150))
 
     # Dark blue - Ocean masked
     dswx_ctable.SetColorEntry(WTR_OCEAN_MASKED, OCEAN_MASKED_RGBA)
@@ -1332,8 +1312,8 @@ def _get_browse_ctable(
 
     if snow_color == 'gray':
         # The gray for snow should match the gray of the clouds
-        cloud_gray = out_ctable.GetColorEntry(WTR_CLOUD_MASKED)
-        out_ctable.SetColorEntry(WTR_SNOW_MASKED, cloud_gray)
+        cloud_rgb = out_ctable.GetColorEntry(WTR_CLOUD_MASKED)
+        out_ctable.SetColorEntry(WTR_SNOW_MASKED, cloud_rgb)
     elif snow_color == 'nodata':
         # The no-data fill RGBA was set by `_get_interpreted_dswx_ctable`.
         # So, "remove" original snow entry from colortable.
@@ -1354,7 +1334,7 @@ def _get_browse_ctable(
     if not_water_color == 'nodata':
         # The no-data fill RGBA was set by `_get_interpreted_dswx_ctable`.
         # So, "remove" original Not Water entry from colortable.
-        out_ctable.SetColorEntry(WTR_NOT_WATER, FILL_VALUE_RGBA)
+        out_ctable.SetColorEntry(WATER_NOT_WATER_CLEAR, FILL_VALUE_RGBA)
     else:
         # Not Water color will remain the same as in WTR
         pass
@@ -1539,34 +1519,99 @@ def _get_binary_water_layer(wtr_layer):
     return binary_water_layer
 
 
-def _get_confidence_layer(interpreted_layer,
-        flag_collapse_wtr_classes = False):
+def _get_confidence_layer(wtr_2_layer, cloud_layer):
     """
-       Generate confidence layer from interpreted water layer
+    Generate a version of the WTR-2 layer that has uncollapsed water classes
+    and that sets unique values for the pixels that are covered by snow 
+    or cloud.
 
-       Parameters
-       ----------
-       interpreted_layer: numpy.ndarray
-              Interpreted water layer
+    Parameters
+    ----------
+    wtr_2_layer : numpy.ndarray
+        Landcover shadow-masked layer (i.e. the DSWx-HLS WTR-2 layer) with
+        the four water classes uncollapsed.
+    cloud_layer : numpy.ndarray
+        DSWx-HLS CLOUD layer
+    
+    Returns
+    -------
+    conf_layer : numpy.ndarray
+        Confidence layer
 
-       flag_collapse_wtr_classes: bool
-            Flag that indicates if interpreted layer contains
-            collapsed classes following the standard DSWx-HLS product
-            water classes
-
-       Returns
-       -------
-       confidence_layer : numpy.ndarray
-            Confidence layer
+    Notes
+    -----
+    CLOUD layer classifications (as of Nov. 2022)
+    0: Not masked
+    1: Cloud shadow
+    2: Snow/ice
+    3: Cloud shadow and snow/ice
+    4: Cloud
+    5: Cloud and cloud shadow
+    6: Cloud and snow/ice
+    7: Cloud, cloud shadow, and snow/ice
+    255: Fill value (no data)
+    For determining pixel coloration, cloud has precedence over
+    all other classes. Only color a pixel as snow if it's not 
+    cloud/cloud-shadow/adjacent masked. (e.g. a pixel with a
+    value of 6 in the CLOUD layer would be colored as cloud.)
     """
-    if flag_collapse_wtr_classes:
-        confidence_layer_classes = wtr_confidence_dict
-    else:
-        confidence_layer_classes = wtr_confidence_non_collapsed_dict
-    confidence_layer = np.full_like(interpreted_layer, UINT8_FILL_VALUE)
-    for original_value, new_value in confidence_layer_classes.items():
-        confidence_layer[interpreted_layer == original_value] = new_value
-    return confidence_layer
+
+    # Create a copy of the wtr_2_layer.
+    conf_layer = wtr_2_layer.copy()
+
+    # Update Ocean Masking
+    conf_layer[conf_layer == WTR_OCEAN_MASKED] = 254
+
+    # Update the pixels with cloud and/or cloud shadow
+    cloud_idx = ((cloud_layer == 1) | 
+                (cloud_layer == 3) |
+                (cloud_layer == 4) |
+                (cloud_layer == 5) |
+                (cloud_layer == 6) |
+                (cloud_layer == 7))
+
+    idx = ((conf_layer == WATER_NOT_WATER_CLEAR) & cloud_idx)
+    conf_layer[idx] = WATER_NOT_WATER_CLOUD
+
+    idx = ((conf_layer == WATER_UNCOLLAPSED_HIGH_CONF_CLEAR) & cloud_idx)
+    conf_layer[idx] = WATER_UNCOLLAPSED_HIGH_CONF_CLOUD
+
+    idx = ((conf_layer == WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR) & cloud_idx)
+    conf_layer[idx] = WATER_UNCOLLAPSED_MODERATE_CONF_CLOUD
+
+    idx = ((conf_layer == \
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR) \
+            & cloud_idx)
+    conf_layer[idx] = WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLOUD
+
+    idx = ((conf_layer == \
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR) \
+            & cloud_idx)
+    conf_layer[idx] = WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLOUD
+
+    # Update the pixels with snow
+    snow_idx = (cloud_layer == 2)
+
+    idx = (conf_layer == WATER_NOT_WATER_CLEAR) & snow_idx
+    conf_layer[idx] = WATER_NOT_WATER_SNOW
+
+    idx = (conf_layer == WATER_UNCOLLAPSED_HIGH_CONF_CLEAR) & snow_idx
+    conf_layer[idx] = WATER_UNCOLLAPSED_HIGH_CONF_SNOW
+
+    idx = (conf_layer == WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR) & snow_idx
+    conf_layer[idx] = WATER_UNCOLLAPSED_MODERATE_CONF_SNOW
+
+    idx = (conf_layer == \
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR) \
+            & snow_idx
+    conf_layer[idx] = WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_SNOW
+
+    idx = (conf_layer == \
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR) \
+            & snow_idx
+    conf_layer[idx] = WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_SNOW
+
+    return conf_layer
 
 
 def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
@@ -2081,7 +2126,7 @@ def _get_binary_water_ctable():
     # create color table
     binary_water_ctable = gdal.ColorTable()
     # White - No water
-    binary_water_ctable.SetColorEntry(WTR_NOT_WATER, (255, 255, 255))
+    binary_water_ctable.SetColorEntry(WATER_NOT_WATER_CLEAR, (255, 255, 255))
     # Blue - Water
     binary_water_ctable.SetColorEntry(BWTR_WATER, (0, 0, 255))
     # Dark blue - Ocean masked
@@ -2102,35 +2147,101 @@ def _get_confidence_layer_ctable():
        Returns
        -------
        confidence_layer_ctable : gdal.ColorTable
-              Confidence layer color table
+              Confidence layer color table. 
     """
-    # create color table
-    confidence_layer_ctable = gdal.ColorTable()
+
+    # Parse the RGB values from the uncollapsed WTR layer colors.
+    # The CONF layer colors will be based off of these.
+    conf_ctable = _get_interpreted_dswx_ctable(flag_collapse_wtr_classes=False,
+                                               layer_name='WTR')
     
-    # color gradient from white to blue
-    for conf_value in range(101):
-        conf_value_255 = int(float(conf_value) * 255 // 100)
-        confidence_layer_ctable.SetColorEntry(
-            conf_value, (255 - conf_value_255,
-                         255 - conf_value_255,
-                         255))
+    # Extract the RGB values from the DSWx color table.
+    # These represent the rgb values for the "_CLEAR" classifications.
+    # which have the same classificaion values for both WTR and CONF
+    not_water_rgb = conf_ctable.GetColorEntry(WATER_NOT_WATER_CLEAR)
+    snow_rgb = conf_ctable.GetColorEntry(WTR_SNOW_MASKED)
+    cloud_rgb = conf_ctable.GetColorEntry(WTR_CLOUD_MASKED)
+    water_high_conf_rgb = conf_ctable.GetColorEntry(
+                    WATER_UNCOLLAPSED_HIGH_CONF_CLEAR)
+    water_mod_conf_rgb = conf_ctable.GetColorEntry(
+                    WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR)
+    psw_conservative_rgb = conf_ctable.GetColorEntry(
+                    WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR)
+    psw_aggressive_rgb = conf_ctable.GetColorEntry(
+                    WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR)
 
-    # White - Not water
-    confidence_layer_ctable.SetColorEntry(CONF_NOT_WATER, (255, 255, 255))
+    # "Remove" the WTR_SNOW_MASKED and WTR_CLOUD_MASKED color table entries.
+    # Cloud and Snow are handled differently for CONF.
+    conf_ctable.SetColorEntry(WTR_SNOW_MASKED, (0,0,0))
+    conf_ctable.SetColorEntry(WTR_CLOUD_MASKED, (0,0,0))
 
-    # Dark blue - Ocean masked
-    confidence_layer_ctable.SetColorEntry(CONF_OCEAN_MASKED, OCEAN_MASKED_RGBA)
+    # Set "_CLOUD" color table entries
+    alpha = 0.52
+    
+    rgb = get_transparency_rgb_vals(cloud_rgb, not_water_rgb, alpha)
+    conf_ctable.SetColorEntry(WATER_NOT_WATER_CLOUD, rgb)
 
-    # Cyan - CLOUD masked (snow)
-    confidence_layer_ctable.SetColorEntry(CONF_SNOW_MASKED, (0, 255, 255))
+    rgb = get_transparency_rgb_vals(cloud_rgb, water_high_conf_rgb, alpha)
+    conf_ctable.SetColorEntry(WATER_UNCOLLAPSED_HIGH_CONF_CLOUD, rgb)
 
-    # Gray - CLOUD masked (cloud/cloud-shadow)
-    confidence_layer_ctable.SetColorEntry(CONF_CLOUD_MASKED, (127, 127, 127))
+    rgb = get_transparency_rgb_vals(cloud_rgb, water_mod_conf_rgb, alpha)
+    conf_ctable.SetColorEntry(WATER_UNCOLLAPSED_MODERATE_CONF_CLOUD, rgb)
 
-    # Black - Fill value
-    confidence_layer_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
-    return confidence_layer_ctable
+    rgb = get_transparency_rgb_vals(cloud_rgb, psw_conservative_rgb, alpha)
+    conf_ctable.SetColorEntry(
+        WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLOUD, rgb)
 
+    rgb = get_transparency_rgb_vals(cloud_rgb, psw_aggressive_rgb, alpha)
+    conf_ctable.SetColorEntry(
+        WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLOUD, rgb)
+
+    # Set "_SNOW" color table entries
+    conf_ctable.SetColorEntry(WATER_NOT_WATER_SNOW, snow_rgb)
+    conf_ctable.SetColorEntry(WATER_UNCOLLAPSED_HIGH_CONF_SNOW, snow_rgb)
+    conf_ctable.SetColorEntry(WATER_UNCOLLAPSED_MODERATE_CONF_SNOW, snow_rgb)
+    conf_ctable.SetColorEntry(
+        WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_SNOW, snow_rgb)
+    conf_ctable.SetColorEntry(
+        WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_SNOW, snow_rgb)
+
+    # Note: WTR_OCEAN_MASKED and UINT8_FILL_VALUE classification
+    # and color table values are the same for WTR and CONF layers.
+    # No need to update the color table values for those classes.
+
+    return conf_ctable
+
+
+def get_transparency_rgb_vals(top_rgb, bottom_rgb, alpha):
+    '''
+    Compute the RGB values to be displayed if the top layer
+    has the given alpha (transparency) value over the
+    bottom layer.
+    
+    Parameters
+    ----------
+    top_rgb : tuple of int
+        RGB values for the top layer, e.g. (0,0,255) for pure blue
+    bottom_rgb : tuple of int
+        RGB values for the bottom layer, e.g. (0,255,0) for pure green
+    alpha : float
+        A value in range [0, 1] that represents the
+        transparency to be applied.
+        Example: if alpha is 0.7, then for the combined layers
+        the final pixel value consists of 70% of the top pixel
+        value and 30% of the bottom pixel value.
+    Returns
+    -------
+    output_rgb : tuple of int
+        RGB values for the combined top and bottom layers
+        with the given `alpha` transparency applied.
+    '''
+    if alpha < 0 or alpha > 1:
+        raise ValueError("alpha must be in range [0, 1].")
+
+    new_rgb = [int((alpha * a) + ((1 - alpha) * b)) 
+                        for a, b in zip(top_rgb, bottom_rgb)]
+
+    return tuple(new_rgb)
 
 
 def _collapse_wtr_classes(interpreted_layer):
@@ -2638,7 +2749,7 @@ def _compute_browse_array(
     set_not_water_to_nodata : bool
         How to code the Not Water pixels. Defaults to False. Options are:
             True : Not Water pixels will be marked with UINT8_FILL_VALUE
-            False : Not Water will remain WTR_NOT_WATER
+            False : Not Water will remain WATER_NOT_WATER_CLEAR
     set_cloud_to_nodata : bool
         How to code the cloud pixels. Defaults to False. Options are:
             True : cloud pixels will be marked with UINT8_FILL_VALUE
@@ -2660,14 +2771,14 @@ def _compute_browse_array(
     # Discard the Partial Surface Water Aggressive class
     if exclude_psw_aggressive:
         browse_arr[
-            browse_arr == WTR_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE] = \
-                WTR_NOT_WATER
+            browse_arr == WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR] = \
+                WATER_NOT_WATER_CLEAR
 
     if flag_collapse_wtr_classes:
         browse_arr = _collapse_wtr_classes(browse_arr)
 
     if set_not_water_to_nodata:
-        browse_arr[browse_arr == WTR_NOT_WATER] = UINT8_FILL_VALUE
+        browse_arr[browse_arr == WATER_NOT_WATER_CLEAR] = UINT8_FILL_VALUE
 
     if set_cloud_to_nodata:
         browse_arr[browse_arr == WTR_CLOUD_MASKED] = UINT8_FILL_VALUE
@@ -4236,9 +4347,9 @@ def generate_dswx_layers(input_list,
                            description=band_description_dict['BWTR'],
                            output_files_list=build_vrt_list)
 
-    # TODO: fix CONF layer!!!
     if output_confidence_layer:
-        confidence_layer = _get_confidence_layer(wtr_layer)
+        confidence_layer = _get_confidence_layer(wtr_2_layer=wtr_2_layer,
+                                                 cloud_layer=cloud)
         confidence_layer_ctable = _get_confidence_layer_ctable()
         _save_array(confidence_layer,
                     output_confidence_layer,
