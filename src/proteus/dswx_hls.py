@@ -1227,15 +1227,15 @@ def _get_interpreted_dswx_ctable(
                                   (0, 0, 255)) 
         # Light blue - Water (moderate conf.)
         dswx_ctable.SetColorEntry(WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR,
-                                (173, 173, 252))
+                                  (173, 173, 252))
         # Dark green - Partial surface water conservative
         dswx_ctable.SetColorEntry(
             WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR, 
-                                   (0, 195, 0)) # 225 ok
+                                  (0, 195, 0)) # 225 ok
         # Light green - Partial surface water aggressive
         dswx_ctable.SetColorEntry(
             WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR, 
-                                (150, 255, 150))
+                                  (150, 255, 150))
 
     # Dark blue - Ocean masked
     dswx_ctable.SetColorEntry(WTR_OCEAN_MASKED, OCEAN_MASKED_RGBA)
@@ -1557,10 +1557,9 @@ def _get_confidence_layer(wtr_2_layer, cloud_layer):
     """
 
     # Create a copy of the wtr_2_layer.
+    # Note: Ocean Masking value will remain the same from
+    # WTR-2 to CONF, so there will no need to modify that.
     conf_layer = wtr_2_layer.copy()
-
-    # Update Ocean Masking
-    conf_layer[conf_layer == WTR_OCEAN_MASKED] = 254
 
     # Update the pixels with cloud and/or cloud shadow
     cloud_idx = ((cloud_layer == 1) | 
