@@ -16,7 +16,7 @@ import scipy
 
 from proteus.core import save_as_cog
 
-SOFTWARE_VERSION = '0.5.2'
+from proteus.version import VERSION as SOFTWARE_VERSION
 
 '''
 Internally, DSWx-HLS SAS stores 4 water classes. The flag below enables or
