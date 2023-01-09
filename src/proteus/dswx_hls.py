@@ -3683,10 +3683,10 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
               Landcover filename
        worldcover_file: str
               Worldcover filename
-        shoreline_shapefile: str
+       shoreline_shapefile: str
               Global Self-consistent, Hierarchical, High-resolution Shoreline
               (GSHHS) shape file
-      geotransform: numpy.ndarray
+       geotransform: numpy.ndarray
               Geotransform describing the DSWx-HLS product geolocation
        projection: str
               DSWx-HLS product's projection
@@ -3731,6 +3731,8 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
             continue
             
         # test if tile is fully covered by the ancillary input
+        # by checking all ancillary input vertices are located
+        # outside of the tile grid.
         gdal_ds = gdal.Open(file_name, gdal.GA_ReadOnly)
 
         file_geotransform = gdal_ds.GetGeoTransform()
