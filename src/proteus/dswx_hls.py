@@ -2965,7 +2965,8 @@ def _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
 
 
 def _create_ocean_mask(shapefile, margin_km, scratch_dir,
-                       geotransform, projection, length, width):
+                       geotransform, projection, length, width,
+                       temp_files_list = None):
     """Compute ocean mask from Global Self-consistent, Hierarchical,
     High-resolution Shoreline (GSHHS) shape file. 
 
@@ -2986,6 +2987,10 @@ def _create_ocean_mask(shapefile, margin_km, scratch_dir,
               DSWx-HLS product's length (number of lines)
        width: int
               DSWx-HLS product's width (number of columns)
+       temp_files_list: list (optional)
+              Mutable list of temporary files. If provided,
+              paths to the temporary files generated will be
+              appended to this list.
 
        Returns
        -------
@@ -3048,9 +3053,10 @@ def _create_ocean_mask(shapefile, margin_km, scratch_dir,
             # Set up the shapefile driver 
             shapefile_driver = ogr.GetDriverByName("ESRI Shapefile")
 
-            # TODO fix filename:
             temp_shapefile_filename = tempfile.NamedTemporaryFile(
                 dir=scratch_dir, suffix='.shp').name
+            if temp_files_list is not None:
+                temp_files_list.append(temp_shapefile_filename)
 
             out_ds = shapefile_driver.CreateDataSource(temp_shapefile_filename)
             out_layer = out_ds.CreateLayer("polygon", tile_srs, ogr.wkbPolygon)
@@ -4248,7 +4254,8 @@ def generate_dswx_layers(input_list,
         ocean_mask = _create_ocean_mask(shoreline_shapefile,
                                         ocean_masking_shoreline_distance_km,
                                         scratch_dir, geotransform, projection,
-                                        length, width)
+                                        length, width,
+                                        temp_files_list=temp_files_list)
         wtr_1_layer[ocean_mask == 0] = WTR_OCEAN_MASKED
 
     if output_non_masked_dswx:
