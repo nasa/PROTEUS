@@ -3740,6 +3740,9 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
         min_x, dx, _, max_y, _, dy = file_geotransform
         file_width = gdal_ds.GetRasterBand(1).XSize
         file_length = gdal_ds.GetRasterBand(1).YSize
+
+        del gdal_ds
+
         max_x = min_x + file_width * dx
         min_y = max_y + file_length * dy
 
