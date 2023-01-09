@@ -1809,10 +1809,10 @@ def _compute_and_apply_cloud_layer(wtr_2_layer, fmask,
     return cloud_layer, wtr_layer
 
 
-def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
-                        dswx_metadata_dict, key,
-                        flag_offset_and_scale_inputs, flag_debug = False,
-                        band_suffix = None):
+def _load_hls_band_from_file(filename, image_dict, offset_dict, scale_dict,
+                             dswx_metadata_dict, band_name,
+                             flag_offset_and_scale_inputs, flag_debug = False,
+                             band_suffix = None):
     """Load HLS band from file into memory
 
        Parameters
@@ -1820,14 +1820,16 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
        filename: str
               Filename containing HLS band
        image_dict: dict
-              Image dictionary that will store HLS band array
+              Image dictionary that will store HLS band array and band
+              metadata, including: `invalid_ind_array`, `geotransform`,
+              `projection`, `length`, `width`, etc.
        offset_dict: dict
               Offset dictionary that will store band offset
        scale_dict: dict
               Scale dictionary that will store band scaling factor
        dswx_metadata_dict: dict
               Metadata dictionary that will store band metadata
-       key: str
+       band_name: str
               Name of the band (e.g., "blue", "green", "swir1", etc)
        flag_offset_and_scale_inputs: bool
               Flag to indicate if the band should be offseted and scaled
@@ -1872,8 +1874,8 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
     elif fill_value is None:
         fill_value = -9999
 
-    # create/update `invalid_ind_array`
-    # (invalid pixels are cumulative)
+    # create/update `invalid_ind_array` with invalid pixels in this band.
+    # (invalid pixels are cumulative for all bands)
     if 'invalid_ind_array' not in image_dict.keys():
         invalid_ind_array = image == fill_value
     else:
@@ -1895,8 +1897,8 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
         image_dict['width'] = image.shape[1]
 
     # if Fmask, update fmask fill_value and escape
-    if key == 'fmask':
-        image_dict[key] = image
+    if band_name == 'fmask':
+        image_dict[band_name] = image
         return True
 
     offset = 0.0
@@ -1972,11 +1974,11 @@ def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
         image = scale_factor * (np.asarray(image, dtype=np.float32) -
                                 offset)
 
-    image_dict[key] = image
+    image_dict[band_name] = image
 
     # save offset and scale factor into corresponding dictionaries
-    offset_dict[key] = offset
-    scale_dict[key] = scale_factor
+    offset_dict[band_name] = offset
+    scale_dict[band_name] = scale_factor
 
     return True
 
@@ -2015,22 +2017,22 @@ def _load_hls_product_v1(filename, image_dict, offset_dict,
         filename = filename[0]
 
     logger.info('loading HLS v.1.x layers:')
-    for key in l30_v1_band_dict.keys():
+    for band_name in l30_v1_band_dict.keys():
 
-        logger.info(f'    {key}')
+        logger.info(f'    {band_name}')
 
         # Sensor is undertermined (first band) or LANDSAT
         if ('SPACECRAFT_NAME' not in dswx_metadata_dict.keys() or
                 'LANDSAT' in dswx_metadata_dict['SPACECRAFT_NAME'].upper()):
-            band_name = l30_v1_band_dict[key]
+            band_name = l30_v1_band_dict[band_name]
         else:
-            band_name = s30_v1_band_dict[key]
+            band_name = s30_v1_band_dict[band_name]
 
         band_ref = f'HDF4_EOS:EOS_GRID:"{filename}":Grid:{band_name}'
-        success = _load_hls_from_file(band_ref, image_dict, offset_dict,
-                                      scale_dict, dswx_metadata_dict,
-                                      key, flag_offset_and_scale_inputs,
-                                      flag_debug = flag_debug)
+        success = _load_hls_band_from_file(band_ref, image_dict, offset_dict,
+                                           scale_dict, dswx_metadata_dict,
+                                           band_name, flag_offset_and_scale_inputs,
+                                           flag_debug = flag_debug)
         if not success:
             return False
 
@@ -2067,29 +2069,29 @@ def _load_hls_product_v2(file_list, image_dict, offset_dict,
               Flag indicating if band was successfuly loaded into memory
     """
     logger.info('loading HLS v.2.0 layers:')
-    for key in l30_v2_band_dict.keys():
+    for band_name in l30_v2_band_dict.keys():
 
-        logger.info(f'    {key}')
+        logger.info(f'    {band_name}')
 
         # Sensor is undertermined (first band) or LANDSAT
         if ('SPACECRAFT_NAME' not in dswx_metadata_dict.keys() or
                 'LANDSAT' in dswx_metadata_dict['SPACECRAFT_NAME'].upper()):
-            band_name = l30_v2_band_dict[key]
+            band_name = l30_v2_band_dict[band_name]
         else:
-            band_name = s30_v2_band_dict[key]
+            band_name = s30_v2_band_dict[band_name]
 
         for filename in file_list:
             if band_name + '.tif' in filename:
                 break
         else:
-            logger.info(f'ERROR band {key} not found within list of input'
+            logger.info(f'ERROR band {band_name} not found within list of input'
                         ' file(s)')
             return
-        success = _load_hls_from_file(filename, image_dict, offset_dict,
-                                      scale_dict, dswx_metadata_dict,
-                                      key, flag_offset_and_scale_inputs,
-                                      flag_debug = flag_debug,
-                                      band_suffix = band_name)
+        success = _load_hls_band_from_file(filename, image_dict, offset_dict,
+                                           scale_dict, dswx_metadata_dict,
+                                           band_name, flag_offset_and_scale_inputs,
+                                           flag_debug = flag_debug,
+                                           band_suffix = band_name)
         if not success:
             return False
 
