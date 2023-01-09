@@ -204,7 +204,7 @@ collapsable_layers_list = ['WTR', 'WTR-1', 'WTR-2']
 band_description_dict = {
     'WTR': 'Water classification (WTR)',
     'BWTR': 'Binary Water (BWTR)',
-    'CONF': 'Confidence classifications (CONF)',
+    'CONF': 'Confidence classification (CONF)',
     'DIAG': 'Diagnostic layer (DIAG)',
     'WTR-1': 'Interpretation of diagnostic layer into water classes (WTR-1)',
     'WTR-2': 'Interpreted layer refined using land cover and terrain shadow testing (WTR-2)',
