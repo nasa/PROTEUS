@@ -222,7 +222,7 @@ layer_names_to_args_dict = {
     'WTR-2': 'output_shadow_masked_dswx',
     'LAND': 'output_landcover',
     'SHAD': 'output_shadow_layer',
-    'CLOUD': 'output_cloud_mask',
+    'CLOUD': 'output_cloud_layer',
     'DEM': 'output_dem_layer',
     'RGB': 'output_rgb_file',
     'INFRARED_RGB': 'output_infrared_rgb_file'}
@@ -507,7 +507,7 @@ def get_dswx_hls_cli_parser():
 
     parser.add_argument('--cloud'
                         '--output-cloud-mask',
-                        dest='output_cloud_mask',
+                        dest='output_cloud_layer',
                         type=str,
                         help='Output cloud/cloud-shadow classification file'
                         ' (GeoTIFF)')
@@ -1342,7 +1342,7 @@ def _get_browse_ctable(
     return out_ctable
 
 
-def _get_cloud_mask_ctable():
+def _get_cloud_layer_ctable():
     """Create and return GDAL RGB color table for DSWx-HLS cloud/cloud-shadow mask.
 
        Returns
@@ -1695,7 +1695,7 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
     return diagnostic_layer
 
 
-def _compute_and_apply_cloud_mask(wtr_2_layer, fmask,
+def _compute_and_apply_cloud_layer(wtr_2_layer, fmask,
                                   mask_adjacent_to_cloud_mode):
     """Compute cloud/cloud-shadow mask and filter interpreted water layer
 
@@ -1711,14 +1711,14 @@ def _compute_and_apply_cloud_mask(wtr_2_layer, fmask,
 
        Returns
        -------
-       cloud_mask : numpy.ndarray
+       cloud_layer : numpy.ndarray
               Cloud mask
        wtr_layer : numpy.ndarray
               Cloud-masked interpreted water layer
     """
     shape = wtr_2_layer.shape
     wtr_layer = wtr_2_layer.copy()
-    cloud_mask = np.zeros(shape, dtype = np.uint8)
+    cloud_layer = np.zeros(shape, dtype = np.uint8)
 
     '''
     HLS Fmask
@@ -1750,17 +1750,17 @@ def _compute_and_apply_cloud_mask(wtr_2_layer, fmask,
                 f' {mask_adjacent_to_cloud_mode}')
  
     # Check Fmask cloud shadow bit (3) => bit 0
-    cloud_mask[np.bitwise_and(fmask, 2**3) == 2**3] = 1
+    cloud_layer[np.bitwise_and(fmask, 2**3) == 2**3] = 1
 
     if mask_adjacent_to_cloud_mode == 'mask':
         # Check Fmask adjacent to cloud/shadow bit (2) => bit 0
-       cloud_mask[np.bitwise_and(fmask, 2**2) == 2**2] = 1
+       cloud_layer[np.bitwise_and(fmask, 2**2) == 2**2] = 1
 
     # Check Fmask cloud bit (1) => bit 2
-    cloud_mask[np.bitwise_and(fmask, 2**1) == 2**1] += 4
+    cloud_layer[np.bitwise_and(fmask, 2**1) == 2**1] += 4
 
     # If cloud (1) or cloud shadow (3), mark WTR as WTR_CLOUD_MASKED
-    wtr_layer[cloud_mask != 0] = WTR_CLOUD_MASKED
+    wtr_layer[cloud_layer != 0] = WTR_CLOUD_MASKED
 
     # Check Fmask snow bit (4) => bit 1
     snow_mask = np.bitwise_and(fmask, 2**4) == 2**4
@@ -1768,8 +1768,8 @@ def _compute_and_apply_cloud_mask(wtr_2_layer, fmask,
     # Cover areas marked as adjacent to cloud/shadow
     if mask_adjacent_to_cloud_mode == 'cover':
         # Dilate snow mask over areas adjacent to cloud/shadow
-        adjacent_to_cloud_mask = np.bitwise_and(fmask, 2**2) == 2**2
-        areas_to_dilate = (adjacent_to_cloud_mask) & (cloud_mask == 0)
+        adjacent_to_cloud_layer = np.bitwise_and(fmask, 2**2) == 2**2
+        areas_to_dilate = (adjacent_to_cloud_layer) & (cloud_layer == 0)
 
         snow_mask = binary_dilation(snow_mask, iterations=10,
                                     mask=areas_to_dilate)
@@ -1785,28 +1785,28 @@ def _compute_and_apply_cloud_mask(wtr_2_layer, fmask,
                              FIRST_UNCOLLAPSED_WATER_CLASS) &
                             (wtr_layer <=
                              LAST_UNCOLLAPSED_WATER_CLASS))
-        not_masked = (~snow_mask) & (cloud_mask == 0)
+        not_masked = (~snow_mask) & (cloud_layer == 0)
         not_masked = binary_dilation(not_masked, iterations=7,
                                      mask=areas_to_dilate)
 
         snow_mask[not_masked] = False
 
     # Add snow class to CLOUD mask
-    cloud_mask[snow_mask] += 2
+    cloud_layer[snow_mask] += 2
 
     # Update WTR with ocean mask
-    wtr_layer[cloud_mask == 2] = WTR_SNOW_MASKED
+    wtr_layer[cloud_layer == 2] = WTR_SNOW_MASKED
 
     # Copy masked values from WTR-2 to CLOUD and WTR
     masked_ind = np.where(wtr_2_layer == UINT8_FILL_VALUE)
-    cloud_mask[masked_ind] = UINT8_FILL_VALUE
+    cloud_layer[masked_ind] = UINT8_FILL_VALUE
     wtr_layer[masked_ind] = UINT8_FILL_VALUE
 
     masked_ind = np.where(wtr_2_layer == WTR_OCEAN_MASKED)
-    cloud_mask[masked_ind] = CLOUD_OCEAN_MASKED
+    cloud_layer[masked_ind] = CLOUD_OCEAN_MASKED
     wtr_layer[masked_ind] = WTR_OCEAN_MASKED
 
-    return cloud_mask, wtr_layer
+    return cloud_layer, wtr_layer
 
 
 def _load_hls_from_file(filename, image_dict, offset_dict, scale_dict,
@@ -2453,7 +2453,7 @@ def geotiff2png(src_geotiff_filename,
     logger.info(f'Browse Image PNG created: {dest_png_filename}')
 
 
-def save_cloud_mask(mask, output_file, dswx_metadata_dict, geotransform, projection,
+def save_cloud_layer(mask, output_file, dswx_metadata_dict, geotransform, projection,
                     description = None, scratch_dir = '.', output_files_list = None):
     """Save DSWx-HLS cloud/cloud-mask layer
 
@@ -2488,7 +2488,7 @@ def save_cloud_mask(mask, output_file, dswx_metadata_dict, geotransform, project
     mask_band.SetNoDataValue(UINT8_FILL_VALUE)
 
     # set color table and color interpretation
-    mask_ctable = _get_cloud_mask_ctable()
+    mask_ctable = _get_cloud_layer_ctable()
     mask_band.SetRasterColorTable(mask_ctable)
     mask_band.SetRasterColorInterpretation(
         gdal.GCI_PaletteIndex)
@@ -3791,7 +3791,7 @@ def generate_dswx_layers(input_list,
                          output_shadow_masked_dswx=None,
                          output_landcover=None,
                          output_shadow_layer=None,
-                         output_cloud_mask=None,
+                         output_cloud_layer=None,
                          output_dem_layer=None,
                          output_browse_image=None,
                          browse_image_height=None,
@@ -3852,7 +3852,7 @@ def generate_dswx_layers(input_list,
               Output landcover classification file
        output_shadow_layer: str (optional)
               Output shadow layer filename
-       output_cloud_mask: str (optional)
+       output_cloud_layer: str (optional)
               Output cloud/cloud-shadow mask filename
        output_dem_layer: str (optional)
               Output elevation layer filename
@@ -4272,7 +4272,7 @@ def generate_dswx_layers(input_list,
                           flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
                           output_files_list=build_vrt_list)
 
-    cloud, wtr_layer = _compute_and_apply_cloud_mask(wtr_2_layer, fmask,
+    cloud, wtr_layer = _compute_and_apply_cloud_layer(wtr_2_layer, fmask,
         mask_adjacent_to_cloud_mode)
 
     if output_interpreted_band:
@@ -4337,8 +4337,8 @@ def generate_dswx_layers(input_list,
         # add the browse image PNG to the output files list
         output_files_list += [output_browse_image]
 
-    if output_cloud_mask:
-        save_cloud_mask(cloud, output_cloud_mask, dswx_metadata_dict, geotransform,
+    if output_cloud_layer:
+        save_cloud_layer(cloud, output_cloud_layer, dswx_metadata_dict, geotransform,
                         projection,
                         description=band_description_dict['CLOUD'],
                         scratch_dir=scratch_dir,

@@ -75,7 +75,7 @@ def test_workflow():
         output_shadow_masked_dswx=args.output_shadow_masked_dswx,
         output_landcover=args.output_landcover,
         output_shadow_layer=args.output_shadow_layer,
-        output_cloud_mask=args.output_cloud_mask,
+        output_cloud_layer=args.output_cloud_layer,
         output_dem_layer=args.output_dem_layer,
         output_browse_image=args.output_browse_image,
         browse_image_height=args.browse_image_height,
