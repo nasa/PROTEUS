@@ -1550,10 +1550,13 @@ def _get_confidence_layer(wtr_2_layer, cloud_layer):
     6: Cloud and snow/ice
     7: Cloud, cloud shadow, and snow/ice
     255: Fill value (no data)
-    For determining pixel coloration, cloud has precedence over
-    all other classes. Only color a pixel as snow if it's not 
-    cloud/cloud-shadow/adjacent masked. (e.g. a pixel with a
-    value of 6 in the CLOUD layer would be colored as cloud.)
+    The cloud classification in the CONF layer represents
+    the ensemble of cloud, cloud shadow, or adjacent-to-cloud
+    classification, and it has precedence over snow.
+    A pixel is only marked as snow if it's not 
+    cloud/cloud-shadow/adjacent
+    masked. (e.g., a pixel with a value of 6 in the CLOUD layer
+    would be marked as cloud in the CONF layer.)
     """
 
     # Create a copy of the wtr_2_layer.
@@ -1563,11 +1566,11 @@ def _get_confidence_layer(wtr_2_layer, cloud_layer):
 
     # Update the pixels with cloud and/or cloud shadow
     cloud_idx = ((cloud_layer == 1) | 
-                (cloud_layer == 3) |
-                (cloud_layer == 4) |
-                (cloud_layer == 5) |
-                (cloud_layer == 6) |
-                (cloud_layer == 7))
+                 (cloud_layer == 3) |
+                 (cloud_layer == 4) |
+                 (cloud_layer == 5) |
+                 (cloud_layer == 6) |
+                 (cloud_layer == 7))
 
     idx = ((conf_layer == WATER_NOT_WATER_CLEAR) & cloud_idx)
     conf_layer[idx] = WATER_NOT_WATER_CLOUD
