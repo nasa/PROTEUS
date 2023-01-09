@@ -2017,21 +2017,21 @@ def _load_hls_product_v1(filename, image_dict, offset_dict,
         filename = filename[0]
 
     logger.info('loading HLS v.1.x layers:')
-    for band_name in l30_v1_band_dict.keys():
+    for key in l30_v1_band_dict.keys():
 
-        logger.info(f'    {band_name}')
+        logger.info(f'    {key}')
 
         # Sensor is undertermined (first band) or LANDSAT
         if ('SPACECRAFT_NAME' not in dswx_metadata_dict.keys() or
                 'LANDSAT' in dswx_metadata_dict['SPACECRAFT_NAME'].upper()):
-            band_name = l30_v1_band_dict[band_name]
+            band_name = l30_v1_band_dict[key]
         else:
-            band_name = s30_v1_band_dict[band_name]
+            band_name = s30_v1_band_dict[key]
 
         band_ref = f'HDF4_EOS:EOS_GRID:"{filename}":Grid:{band_name}'
         success = _load_hls_band_from_file(band_ref, image_dict, offset_dict,
                                            scale_dict, dswx_metadata_dict,
-                                           band_name, flag_offset_and_scale_inputs,
+                                           key, flag_offset_and_scale_inputs,
                                            flag_debug = flag_debug)
         if not success:
             return False
@@ -2069,27 +2069,27 @@ def _load_hls_product_v2(file_list, image_dict, offset_dict,
               Flag indicating if band was successfuly loaded into memory
     """
     logger.info('loading HLS v.2.0 layers:')
-    for band_name in l30_v2_band_dict.keys():
+    for key in l30_v2_band_dict.keys():
 
-        logger.info(f'    {band_name}')
+        logger.info(f'    {key}')
 
         # Sensor is undertermined (first band) or LANDSAT
         if ('SPACECRAFT_NAME' not in dswx_metadata_dict.keys() or
                 'LANDSAT' in dswx_metadata_dict['SPACECRAFT_NAME'].upper()):
-            band_name = l30_v2_band_dict[band_name]
+            band_name = l30_v2_band_dict[key]
         else:
-            band_name = s30_v2_band_dict[band_name]
+            band_name = s30_v2_band_dict[key]
 
         for filename in file_list:
             if band_name + '.tif' in filename:
                 break
         else:
-            logger.info(f'ERROR band {band_name} not found within list of input'
+            logger.info(f'ERROR band {key} not found within list of input'
                         ' file(s)')
             return
         success = _load_hls_band_from_file(filename, image_dict, offset_dict,
                                            scale_dict, dswx_metadata_dict,
-                                           band_name, flag_offset_and_scale_inputs,
+                                           key, flag_offset_and_scale_inputs,
                                            flag_debug = flag_debug,
                                            band_suffix = band_name)
         if not success:
