@@ -4124,8 +4124,8 @@ def generate_dswx_layers(input_list,
     sun_elevation_angle = 90 - float(sun_zenith_angle)
 
     logger.info(f'Sun parameters (from HLS metadata):')
-    logger.info(f'    azimuth angle: {sun_azimuth_angle}')
-    logger.info(f'    elevation angle: {sun_elevation_angle}')
+    logger.info(f'    mean azimuth angle: {sun_azimuth_angle}')
+    logger.info(f'    mean elevation angle: {sun_elevation_angle}')
 
     # check ancillary inputs
     if check_ancillary_inputs_coverage:
