@@ -3764,8 +3764,7 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
 
                 # test if any of the ancillary input vertices is within
                 # the tile. If so, raise an error 
-                flag_error = file_vertex.Within(tile_polygon)
-                if not flag_error:
+                if not file_vertex.Within(tile_polygon):
                     continue
                 error_msg = f'ERROR the {file_description} with extents'
                 error_msg += f' S/N: [{min_y},{max_y}]'
