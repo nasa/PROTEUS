@@ -11,18 +11,21 @@ runconfig:
        
         dynamic_ancillary_file_group:
             # Digital elevation model file
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
             dem_file: str(required=False)
 
             # Digital elevation model description
             dem_file_description: str(required=False)
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer file
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
             landcover_file: str(required=False)
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer description
             landcover_file_description: str(required=False)
 
             # ESA WorldCover map file
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
             worldcover_file: str(required=False)
 
             # ESA WorldCover map description
@@ -30,6 +33,7 @@ runconfig:
 
             # Global Self-consistent, Hierarchical, High-resolution Shoreline
             # (GSHHS) shape file
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
             shoreline_shapefile: str(required=False)
 
             # Global Self-consistent, Hierarchical, High-resolution Shoreline
