@@ -30,11 +30,11 @@ runconfig:
 
             # Global Self-consistent, Hierarchical, High-resolution Shoreline
             # (GSHHS) shape file
-            shoreline_shape_file: str(required=False)
+            shoreline_shapefile: str(required=False)
 
             # Global Self-consistent, Hierarchical, High-resolution Shoreline
             # (GSHHS) shape file description
-            shoreline_shape_file_description: str(required=False)
+            shoreline_shapefile_description: str(required=False)
 
         primary_executable:
             product_type: enum('DSWX_HLS')

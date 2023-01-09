@@ -424,13 +424,13 @@ def get_dswx_hls_cli_parser():
 
     parser.add_argument('-s',
                         '--shoreline',
-                        dest='shoreline_shape_file',
+                        dest='shoreline_shapefile',
                         type=str,
                         help='Global Self-consistent, Hierarchical, High-'
                         'resolution Shoreline (GSHHS) shape file')
 
     parser.add_argument('--shoreline-shape-description',
-                        dest='shoreline_shape_file_description',
+                        dest='shoreline_shapefile_description',
                         type=str,
                         help='Global Self-consistent, Hierarchical, High-'
                         'resolution Shoreline (GSHHS) shape file description')
@@ -2962,14 +2962,14 @@ def _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
     return tile_polygon, tile_min_y, tile_max_y, tile_min_x, tile_max_x
 
 
-def _create_ocean_mask(shape_file, margin_km, scratch_dir,
+def _create_ocean_mask(shapefile, margin_km, scratch_dir,
                        geotransform, projection, length, width):
     """Compute ocean mask from Global Self-consistent, Hierarchical,
     High-resolution Shoreline (GSHHS) shape file. 
 
        Parameters
        ----------
-       shape_file: str
+       shapefile: str
               GSHHS shape file (e.g., 'GSHHS_f_L1.shp')
        margin_km: int
               Margin (buffer) towards the ocean to be added to the shore lines
@@ -3005,7 +3005,7 @@ def _create_ocean_mask(shape_file, margin_km, scratch_dir,
 
     tile_polygon = None
     ocean_mask = np.zeros((length, width), dtype=np.uint8)
-    shapefile_ds = ogr.Open(shape_file, 0)
+    shapefile_ds = ogr.Open(shapefile, 0)
 
     for layer in shapefile_ds:
         for feature in layer:
@@ -3200,9 +3200,9 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
     worldcover_file = ancillary_ds_group['worldcover_file']
     worldcover_file_description = ancillary_ds_group[
         'worldcover_file_description']
-    shoreline_shape_file = ancillary_ds_group['shoreline_shape_file']
-    shoreline_shape_file_description = ancillary_ds_group[
-        'shoreline_shape_file_description']
+    shoreline_shapefile = ancillary_ds_group['shoreline_shapefile']
+    shoreline_shapefile_description = ancillary_ds_group[
+        'shoreline_shapefile_description']
     scratch_dir = product_path_group['scratch_path']
     output_directory = product_path_group['output_dir']
     product_id = product_path_group['product_id']
@@ -3232,8 +3232,8 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
         'landcover_file_description': landcover_file_description,
         'worldcover_file': worldcover_file,
         'worldcover_file_description': worldcover_file_description,
-        'shoreline_shape_file': shoreline_shape_file,
-        'shoreline_shape_file_description': shoreline_shape_file_description,
+        'shoreline_shapefile': shoreline_shapefile,
+        'shoreline_shapefile_description': shoreline_shapefile_description,
         'scratch_dir': scratch_dir,
         'product_id': product_id,
         'product_version': product_version}
@@ -3347,8 +3347,8 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
                                      landcover_file_description=None,
                                      worldcover_file=None,
                                      worldcover_file_description=None,
-                                     shoreline_shape_file=None,
-                                     shoreline_shape_file_description=None):
+                                     shoreline_shapefile=None,
+                                     shoreline_shapefile_description=None):
     """Populate metadata dictionary with input files
 
        Parameters
@@ -3369,10 +3369,10 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
               Worldcover filename
        worldcover_file_description: str
               Worldcover description
-       shoreline_shape_file: str
+       shoreline_shapefile: str
               Global Self-consistent, Hierarchical, High-resolution Shoreline
               (GSHHS) shape file
-       shoreline_shape_file_description: str
+       shoreline_shapefile_description: str
               Global Self-consistent, Hierarchical, High-resolution Shoreline
               (GSHHS) shape file description
     """
@@ -3403,12 +3403,12 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
     else:
         dswx_metadata_dict['WORLDCOVER_SOURCE'] = '(not provided)'
 
-    if shoreline_shape_file_description:
+    if shoreline_shapefile_description:
         dswx_metadata_dict['SHORELINE_SOURCE'] = \
-            shoreline_shape_file_description
-    elif shoreline_shape_file:
+            shoreline_shapefile_description
+    elif shoreline_shapefile:
         dswx_metadata_dict['SHORELINE_SOURCE'] = \
-            os.path.basename(shoreline_shape_file)
+            os.path.basename(shoreline_shapefile)
     else:
         dswx_metadata_dict['SHORELINE_SOURCE'] = '(not provided)'
 
@@ -3670,7 +3670,7 @@ def _crop_2d_array_all_sides(input_2d_array, margin):
 
 
 def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
-        shoreline_shape_file, geotransform, projection, length, width):
+        shoreline_shapefile, geotransform, projection, length, width):
     """
     Check for existence and coverage of ancillary inputs: DEM, landcover, and
     worldcover files; and existence of the shoreline shape file
@@ -3683,7 +3683,7 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
               Landcover filename
        worldcover_file: str
               Worldcover filename
-        shoreline_shape_file: str
+        shoreline_shapefile: str
               Global Self-consistent, Hierarchical, High-resolution Shoreline
               (GSHHS) shape file
       geotransform: numpy.ndarray
@@ -3701,7 +3701,7 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
         'DEM file': dem_file,
         'Copernicus CGLS land cover 100m file': landcover_file,
         'WorldCover 10m file': worldcover_file,
-        'Shoreline shape file': shoreline_shape_file
+        'Shoreline shape file': shoreline_shapefile
     }
     tile_min_x_utm, tile_dx_utm, _, tile_max_y_utm, _, tile_dy_utm = \
         geotransform
@@ -3800,8 +3800,8 @@ def generate_dswx_layers(input_list,
                          landcover_file_description=None,
                          worldcover_file=None,
                          worldcover_file_description=None,
-                         shoreline_shape_file=None,
-                         shoreline_shape_file_description=None,
+                         shoreline_shapefile=None,
+                         shoreline_shapefile_description=None,
                          flag_offset_and_scale_inputs=False,
                          scratch_dir='.',
                          product_id=None,
@@ -3878,10 +3878,10 @@ def generate_dswx_layers(input_list,
               ESA WorldCover map filename
        worldcover_file_description: str (optional)
               ESA WorldCover map description
-       shoreline_shape_file: str (optional)
+       shoreline_shapefile: str (optional)
               Global Self-consistent, Hierarchical, High-resolution Shoreline
               (GSHHS) shape file
-       shoreline_shape_file_description: str (optional)
+       shoreline_shapefile_description: str (optional)
               Global Self-consistent, Hierarchical, High-resolution Shoreline
               (GSHHS) shape file description
        flag_offset_and_scale_inputs: bool (optional)
@@ -3994,9 +3994,9 @@ def generate_dswx_layers(input_list,
     logger.info(f'    WorldCover 10m file: {worldcover_file}')
     logger.info(f'        description:'
                 f' {worldcover_file_description}')
-    logger.info(f'    Shoreline shape file: {shoreline_shape_file}')
+    logger.info(f'    Shoreline shape file: {shoreline_shapefile}')
     logger.info(f'        description:'
-                f' {shoreline_shape_file_description}')
+                f' {shoreline_shapefile_description}')
     logger.info(f'product parameters:')
     logger.info(f'    product ID: {product_id}')
     logger.info(f'    product version: {product_version}')
@@ -4084,8 +4084,8 @@ def generate_dswx_layers(input_list,
         landcover_file_description=landcover_file_description,
         worldcover_file=worldcover_file,
         worldcover_file_description=worldcover_file_description,
-        shoreline_shape_file=shoreline_shape_file,
-        shoreline_shape_file_description=shoreline_shape_file_description)
+        shoreline_shapefile=shoreline_shapefile,
+        shoreline_shapefile_description=shoreline_shapefile_description)
 
     spacecraft_name = dswx_metadata_dict['SPACECRAFT_NAME']
     logger.info(f'processing HLS {spacecraft_name[0]}30 dataset v.{version}')
@@ -4126,7 +4126,7 @@ def generate_dswx_layers(input_list,
     # check ancillary inputs
     if check_ancillary_inputs_coverage:
         _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
-                                shoreline_shape_file, geotransform,
+                                shoreline_shapefile, geotransform,
                                 projection, length, width)
 
     if dem_file is not None:
@@ -4238,8 +4238,8 @@ def generate_dswx_layers(input_list,
     if invalid_ind is not None:
         wtr_1_layer[invalid_ind] = UINT8_FILL_VALUE
 
-    if shoreline_shape_file is not None:
-        ocean_mask = _create_ocean_mask(shoreline_shape_file,
+    if shoreline_shapefile is not None:
+        ocean_mask = _create_ocean_mask(shoreline_shapefile,
                                         ocean_masking_shoreline_distance_km,
                                         scratch_dir, geotransform, projection,
                                         length, width)
