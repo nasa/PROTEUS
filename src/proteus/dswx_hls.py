@@ -2952,6 +2952,11 @@ def _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
     tile_min_x = np.min(tile_x_array)
     tile_max_x = np.max(tile_x_array)
 
+    # handles anti-meridian: tile_max_x around +180 and tile_min_x around -180
+    # add 360 to tile_min_x, so it becomes a little greater than +180
+    if tile_max_x > tile_min_x + 340:
+        tile_min_x, tile_max_x = tile_max_x, tile_min_x + 360
+
     tile_ring = ogr.Geometry(ogr.wkbLinearRing)
     tile_ring.AddPoint(tile_min_x, tile_max_y)
     tile_ring.AddPoint(tile_max_x, tile_max_y)
@@ -3010,6 +3015,9 @@ def _create_ocean_mask(shapefile, margin_km, scratch_dir,
     else:
         tile_srs.ImportFromProj4(projection)
 
+    # convert margin from km to meters
+    margin_m = int(1000 * margin_km)
+
     tile_polygon = None
     ocean_mask = np.zeros((length, width), dtype=np.uint8)
     shapefile_ds = ogr.Open(shapefile, 0)
@@ -3022,29 +3030,24 @@ def _create_ocean_mask(shapefile, margin_km, scratch_dir,
 
             if tile_polygon is None:
                 polygon_srs = geom.GetSpatialReference()
-                tile_polygon, tile_min_y, tile_max_y, tile_min_x, tile_max_x = \
-                    _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
-                                       tile_min_x_utm, tile_max_x_utm,
+                tile_polygon_with_margin, *_ = \
+                    _get_tile_srs_bbox(tile_min_y_utm - 2 * margin_m,
+                                       tile_max_y_utm + 2 * margin_m,
+                                       tile_min_x_utm - 2 * margin_m,
+                                       tile_max_x_utm + 2 * margin_m,
                                        tile_srs, polygon_srs)
 
-            min_x, max_x, min_y, max_y = geom.GetEnvelope()
-            if not (min_x < tile_min_x < max_x or
-                    min_x < tile_max_x < max_x):
-                # the tile does not intersect with feature (lon test)
-                continue
-            if not (min_y < tile_min_y < max_y or
-                    min_y < tile_max_y < max_y):
-                # the tile does not intersect with feature (lat test)
+            # test if current geometry intersects with the tile
+            if not geom.Intersects(tile_polygon_with_margin):
                 continue
 
             # intersect shoreline polygon to the tile and update its
             # spatial reference system (SRS) to match the tile SRS
-            intersection_polygon = geom.Intersection(tile_polygon)
+            intersection_polygon = geom.Intersection(tile_polygon_with_margin)
             intersection_polygon.AssignSpatialReference(polygon_srs)
             intersection_polygon.TransformTo(tile_srs)
 
             # add margin to polygon
-            margin_m = int(1000 * margin_km)
             intersection_polygon = intersection_polygon.Buffer(margin_m)
 
             # Update feature with intersected polygon
