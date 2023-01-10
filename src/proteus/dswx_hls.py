@@ -4259,7 +4259,10 @@ def generate_dswx_layers(input_list,
                                         scratch_dir, geotransform, projection,
                                         length, width,
                                         temp_files_list=temp_files_list)
-        wtr_1_layer[ocean_mask == 0] = WTR_OCEAN_MASKED
+
+        # apply ocean mask where WTR-1 is different than fill value
+        wtr_1_layer[(ocean_mask == 0) & 
+                    (wtr_1_layer != UINT8_FILL_VALUE)] = WTR_OCEAN_MASKED
 
     if output_non_masked_dswx:
         save_dswx_product(wtr_1_layer, 'WTR-1',
