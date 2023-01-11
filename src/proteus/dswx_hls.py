@@ -210,7 +210,7 @@ band_description_dict = {
     'WTR-2': 'Interpreted layer refined using land cover and terrain shadow testing (WTR-2)',
     'LAND': 'Land cover classification (LAND)',
     'SHAD': 'Terrain shadow layer (SHAD)',
-    'CLOUD': 'Cloud/cloud-shadow classification (CLOUD)',
+    'CLOUD': 'Input HLS Fmask cloud/cloud-shadow classification (CLOUD)',
     'DEM': 'Digital elevation model (DEM)'}
 
 layer_names_to_args_dict = {
