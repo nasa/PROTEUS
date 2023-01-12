@@ -426,14 +426,12 @@ def get_dswx_hls_cli_parser():
                         '--shoreline',
                         dest='shoreline_shapefile',
                         type=str,
-                        help='Global Self-consistent, Hierarchical, High-'
-                        'resolution Shoreline (GSHHS) shape file')
+                        help='NOAA GSHHG/GSHHS shapefile')
 
     parser.add_argument('--shoreline-shape-description',
                         dest='shoreline_shapefile_description',
                         type=str,
-                        help='Global Self-consistent, Hierarchical, High-'
-                        'resolution Shoreline (GSHHS) shape file description')
+                        help='NOAA GSHHS shapefile description')
 
     # Outputs
     parser.add_argument('-o',
@@ -2973,13 +2971,12 @@ def _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
 def _create_ocean_mask(shapefile, margin_km, scratch_dir,
                        geotransform, projection, length, width,
                        temp_files_list = None):
-    """Compute ocean mask from Global Self-consistent, Hierarchical,
-    High-resolution Shoreline (GSHHS) shape file. 
+    """Compute ocean mask from NOAA GSHHS shapefile. 
 
        Parameters
        ----------
        shapefile: str
-              GSHHS shape file (e.g., 'GSHHS_f_L1.shp')
+              NOAA GSHHS shapefile (e.g., 'GSHHS_f_L1.shp')
        margin_km: int
               Margin (buffer) towards the ocean to be added to the shore lines
               in km
@@ -3387,11 +3384,9 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
        worldcover_file_description: str
               Worldcover description
        shoreline_shapefile: str
-              Global Self-consistent, Hierarchical, High-resolution Shoreline
-              (GSHHS) shape file
+              NOAA GSHHS shapefile
        shoreline_shapefile_description: str
-              Global Self-consistent, Hierarchical, High-resolution Shoreline
-              (GSHHS) shape file description
+              NOAA GSHHS shapefile description
     """
 
     # input datasets
@@ -3689,20 +3684,20 @@ def _crop_2d_array_all_sides(input_2d_array, margin):
 def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
         shoreline_shapefile, geotransform, projection, length, width):
     """
-    Check for existence and coverage of ancillary inputs: DEM, landcover, and
-    worldcover files; and existence of the shoreline shape file
+    Check for existence and coverage of provided ancillary inputs: DEM,
+    Copernicus CGLS Land Cover 100m, and
+    ESA WorldCover 10m files; and existence of the NOAAshoreline shapefile
 
        Parameters
        ----------
        dem_file: str
               DEM filename
        landcover_file: str
-              Landcover filename
+              Copernicus CGLS Land Cover 100m filename
        worldcover_file: str
-              Worldcover filename
+              ESA Worldcover 10m filename
        shoreline_shapefile: str
-              Global Self-consistent, Hierarchical, High-resolution Shoreline
-              (GSHHS) shape file
+              NOAA shoreline shapefile
        geotransform: numpy.ndarray
               Geotransform describing the DSWx-HLS product geolocation
        projection: str
@@ -3713,13 +3708,19 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
               DSWx-HLS product's width (number of columns)
     """
 
-    # DEM file
+    # file description (to be printed to the user if an error happens)
+    dem_file_description = 'DEM file'
+    landcover_file_description = 'Copernicus CGLS Land Cover 100m file'
+    worldcover_file_description = 'ESA WorldCover 10m file'
+    shoreline_shapefile_description = 'NOAA shoreline shapefile'
+
     rasters_to_check_dict = {
-        'DEM file': dem_file,
-        'Copernicus CGLS land cover 100m file': landcover_file,
-        'WorldCover 10m file': worldcover_file,
-        'Shoreline shape file': shoreline_shapefile
+        dem_file_description: dem_file,
+        landcover_file_description: landcover_file,
+        worldcover_file_description: worldcover_file,
+        shoreline_shapefile_description: shoreline_shapefile
     }
+
     tile_min_x_utm, tile_dx_utm, _, tile_max_y_utm, _, tile_dy_utm = \
         geotransform
     tile_max_x_utm = tile_min_x_utm + width * tile_dx_utm
@@ -3744,7 +3745,7 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
             logger.error(error_msg)
             raise FileNotFoundError(error_msg)
 
-        if file_description == 'Shoreline shape file':
+        if file_description == shoreline_shapefile_description:
             continue
             
         # test if tile is fully covered by the ancillary input
@@ -3900,11 +3901,9 @@ def generate_dswx_layers(input_list,
        worldcover_file_description: str (optional)
               ESA WorldCover map description
        shoreline_shapefile: str (optional)
-              Global Self-consistent, Hierarchical, High-resolution Shoreline
-              (GSHHS) shape file
+              NOAA GSHHS shapefile
        shoreline_shapefile_description: str (optional)
-              Global Self-consistent, Hierarchical, High-resolution Shoreline
-              (GSHHS) shape file description
+              NOAA GSHHS shapefile description
        flag_offset_and_scale_inputs: bool (optional)
               Flag indicating if DSWx-HLS should be offsetted and scaled
        scratch_dir: str (optional)
@@ -4009,13 +4008,13 @@ def generate_dswx_layers(input_list,
         logger.info(f'    output multi-band file: {output_file}')
     logger.info(f'    DEM file: {dem_file}')
     logger.info(f'        description: {dem_file_description}')
-    logger.info(f'    Copernicus CGLS land cover 100m file: {landcover_file}')
+    logger.info(f'    Copernicus CGLS Land Cover 100m file: {landcover_file}')
     logger.info(f'        description:'
                 f' {landcover_file_description}')
-    logger.info(f'    WorldCover 10m file: {worldcover_file}')
+    logger.info(f'    ESA WorldCover 10m file: {worldcover_file}')
     logger.info(f'        description:'
                 f' {worldcover_file_description}')
-    logger.info(f'    Shoreline shape file: {shoreline_shapefile}')
+    logger.info(f'     NOAA shoreline shapefile: {shoreline_shapefile}')
     logger.info(f'        description:'
                 f' {shoreline_shapefile_description}')
     logger.info(f'product parameters:')

@@ -31,13 +31,11 @@ runconfig:
             # ESA WorldCover map description
             worldcover_file_description: str(required=False)
 
-            # Global Self-consistent, Hierarchical, High-resolution Shoreline
-            # (GSHHS) shape file
+            # NOAA GSHHS shapefile
             # (REQUIRED if check_ancillary_inputs_coverage is True)
             shoreline_shapefile: str(required=False)
 
-            # Global Self-consistent, Hierarchical, High-resolution Shoreline
-            # (GSHHS) shape file description
+            # NOAA GSHHS shapefile description
             shoreline_shapefile_description: str(required=False)
 
         primary_executable:
