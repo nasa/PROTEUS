@@ -426,7 +426,7 @@ def get_dswx_hls_cli_parser():
                         '--shoreline',
                         dest='shoreline_shapefile',
                         type=str,
-                        help='NOAA GSHHG/GSHHS shapefile')
+                        help='NOAA GSHHS shapefile')
 
     parser.add_argument('--shoreline-shape-description',
                         dest='shoreline_shapefile_description',
