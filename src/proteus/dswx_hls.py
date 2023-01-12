@@ -1791,20 +1791,21 @@ def _compute_and_apply_cloud_layer(wtr_2_layer, fmask,
 
         snow_mask[not_masked] = False
 
-    # Add snow class to CLOUD mask
-    cloud_layer[snow_mask] += 2
-
-    # Update WTR with ocean mask
-    wtr_layer[cloud_layer == 2] = WTR_SNOW_MASKED
+    # Define the ocean mask excluding areas where CLOUD is not 0
+    ocean_masked_ind = np.where((wtr_2_layer == WTR_OCEAN_MASKED) &
+                                (cloud_layer != 0))
 
     # Copy masked values from WTR-2 to CLOUD and WTR
-    masked_ind = np.where(wtr_2_layer == UINT8_FILL_VALUE)
-    cloud_layer[masked_ind] = UINT8_FILL_VALUE
-    wtr_layer[masked_ind] = UINT8_FILL_VALUE
+    invalid_ind = np.where(wtr_2_layer == UINT8_FILL_VALUE)
+    cloud_layer[invalid_ind] = UINT8_FILL_VALUE
+    wtr_layer[invalid_ind] = UINT8_FILL_VALUE
 
-    masked_ind = np.where(wtr_2_layer == WTR_OCEAN_MASKED)
-    cloud_layer[masked_ind] = CLOUD_OCEAN_MASKED
-    wtr_layer[masked_ind] = WTR_OCEAN_MASKED
+    # Add snow class to CLOUD mask and apply it on the WTR layer
+    cloud_layer[snow_mask] += 2
+    wtr_layer[cloud_layer == 2] = WTR_SNOW_MASKED
+
+    # Apply the ocean mask on the WTR layer
+    wtr_layer[ocean_masked_ind] = WTR_OCEAN_MASKED
 
     return cloud_layer, wtr_layer
 
