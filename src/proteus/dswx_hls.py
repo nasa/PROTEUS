@@ -1793,7 +1793,7 @@ def _compute_and_apply_cloud_layer(wtr_2_layer, fmask,
 
     # Define the ocean mask excluding areas where CLOUD is not 0
     ocean_masked_ind = np.where((wtr_2_layer == WTR_OCEAN_MASKED) &
-                                (cloud_layer != 0))
+                                (cloud_layer == 0))
 
     # Copy masked values from WTR-2 to CLOUD and WTR
     invalid_ind = np.where(wtr_2_layer == UINT8_FILL_VALUE)
