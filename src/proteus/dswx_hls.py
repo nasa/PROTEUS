@@ -2731,7 +2731,8 @@ def _compute_browse_array(
         exclude_psw_aggressive=False,
         set_not_water_to_nodata=False,
         set_cloud_to_nodata=False,
-        set_snow_to_nodata=False):
+        set_snow_to_nodata=False,
+        set_ocean_masked_to_nodata=True):
     """
     Generate a version of the WTR-2 layer where the
     pixels marked with cloud and snow in the CLOUD layer
@@ -2761,6 +2762,10 @@ def _compute_browse_array(
         How to code the snow pixels. Defaults to False. Options are:
             True : snow pixels will be marked with UINT8_FILL_VALUE
             False : snow will remain WTR_SNOW_MASKED
+   set_ocean_masked_to_nodata : bool
+        How to code the ocean-masked pixels. Defaults to True. Options are:
+            True : ocean-masked pixels will be marked with UINT8_FILL_VALUE
+            False : ocean-masked will remain WTR_OCEAN_MASKED
     
     Returns
     -------
@@ -2788,6 +2793,9 @@ def _compute_browse_array(
 
     if set_snow_to_nodata:
         browse_arr[browse_arr == WTR_SNOW_MASKED] = UINT8_FILL_VALUE
+
+    if set_ocean_masked_to_nodata:
+        browse_arr[browse_arr == WTR_OCEAN_MASKED] = UINT8_FILL_VALUE
 
     return browse_arr
 
@@ -4321,7 +4329,8 @@ def generate_dswx_layers(input_list,
             exclude_psw_aggressive=exclude_psw_aggressive_in_browse,
             set_not_water_to_nodata=(not_water_in_browse == 'nodata'),
             set_cloud_to_nodata=(cloud_in_browse == 'nodata'),
-            set_snow_to_nodata=(snow_in_browse == 'nodata'))
+            set_snow_to_nodata=(snow_in_browse == 'nodata'),
+            set_ocean_masked_to_nodata=True)
 
         # Form color table
         browse_ctable = _get_browse_ctable(
