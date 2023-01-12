@@ -124,7 +124,7 @@ runconfig:
             # class in the browse image. If True, PSW-Agg pixels will 
             # appear as Not Water. If False, this class will be displayed
             # in the browse image, same as in WTR. Default is False.
-            exclude_psw_aggressive_in_browse: False
+            exclude_psw_aggressive_in_browse: True
 
             # Define how Not Water (e.g. land) appears in the browse image.
             # Defaults to 'white'.
