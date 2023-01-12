@@ -84,7 +84,7 @@ runconfig:
             copernicus_forest_classes: [20, 111, 113, 115, 116, 121, 123, 125, 126]
 
             # Ocean masking distance from shoreline in km
-            ocean_masking_shoreline_distance_km: 5
+            ocean_masking_shoreline_distance_km: 1
 
             save_wtr: True    # Layer 1 - WTR
             save_bwtr: True   # Layer 2 - BWTR
