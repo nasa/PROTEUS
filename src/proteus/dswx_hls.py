@@ -3068,8 +3068,6 @@ def _create_ocean_mask(shapefile, margin_km, scratch_dir,
                 for extension in ['.shp', '.prj', '.dbf', '.shx']:
                     temp_file_test = temp_shapefile_filename.replace(
                         '.shp', extension)
-                    if not os.path.isfile(temp_file_test):
-                        continue
                     temp_files_list.append(temp_file_test)
 
             out_ds = shapefile_driver.CreateDataSource(temp_shapefile_filename)
