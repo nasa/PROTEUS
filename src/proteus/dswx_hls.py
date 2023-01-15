@@ -3062,11 +3062,6 @@ def _create_ocean_mask(shapefile, margin_km, scratch_dir,
 
             temp_shapefile_filename = tempfile.NamedTemporaryFile(
                 dir=scratch_dir, suffix='.shp').name
-            if temp_files_list is not None:
-                for extension in ['.shp', '.prj', '.dbf', '.shx']:
-                    temp_file = temp_shapefile_filename.replace(
-                        '.shp', extension)
-                    temp_files_list.append(temp_file)
 
             out_ds = shapefile_driver.CreateDataSource(temp_shapefile_filename)
             out_layer = out_ds.CreateLayer("polygon", tile_srs, ogr.wkbPolygon)
@@ -3079,6 +3074,14 @@ def _create_ocean_mask(shapefile, margin_km, scratch_dir,
             gdal.RasterizeLayer(gdal_ds, [1], out_layer, burn_values=[1])
             current_ocean_mask = gdal_ds.ReadAsArray()
             gdal_ds = None
+
+            if temp_files_list is not None:
+                for extension in ['.shp', '.prj', '.dbf', '.shx']:
+                    temp_file = temp_shapefile_filename.replace(
+                        '.shp', extension)
+                    if not os.path.isfile(temp_file):
+                        continue
+                    temp_files_list.append(temp_file)
 
             ocean_mask |= current_ocean_mask
 
