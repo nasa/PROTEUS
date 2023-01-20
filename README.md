@@ -98,7 +98,7 @@ Then, from inside the cloned repository, build the Docker image:
 Load the Docker container image onto your computer:
 
 ```bash
-docker load -i docker/dockerimg_proteus_cal_val_3.1.tar
+docker load -i docker/dockerimg_proteus_cal_val_3.3.tar
 ```
 
 See DSWx-HLS Science Algorithm Software (SAS) User Guide for instructions on processing via Docker.
