@@ -11,22 +11,32 @@ runconfig:
        
         dynamic_ancillary_file_group:
             # Digital elevation model file
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
             dem_file:
 
             # Digital elevation model source description
-            dem_description:
+            dem_file_description:
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer file
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
             landcover_file:
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer description
-            landcover_description:
+            landcover_file_description:
 
             # ESA WorldCover map file
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
             worldcover_file:
 
             # ESA WorldCover map description
-            worldcover_description:
+            worldcover_file_description:
+
+            # NOAA GSHHS shapefile
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
+            shoreline_shapefile:
+
+            # NOAA GSHHS shapefile description
+            shoreline_shapefile_description:
 
         primary_executable:
             product_type: DSWX_HLS
@@ -71,6 +81,9 @@ runconfig:
             # Copernicus CGLS Land Cover 100m forest classes
             copernicus_forest_classes: [20, 111, 113, 115, 116, 121, 123, 125, 126]
 
+            # Ocean masking distance from shoreline in km
+            ocean_masking_shoreline_distance_km: 1
+
             save_wtr: True    # Layer 1 - WTR
             save_bwtr: True   # Layer 2 - BWTR
             save_conf: True   # Layer 3 - CONF
@@ -109,7 +122,7 @@ runconfig:
             # class in the browse image. If True, PSW-Agg pixels will 
             # appear as Not Water. If False, this class will be displayed
             # in the browse image, same as in WTR. Default is False.
-            exclude_psw_aggressive_in_browse: False
+            exclude_psw_aggressive_in_browse: True
 
             # Define how Not Water (e.g. land) appears in the browse image.
             # Defaults to 'white'.

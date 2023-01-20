@@ -11,22 +11,32 @@ runconfig:
        
         dynamic_ancillary_file_group:
             # Digital elevation model file
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
             dem_file: str(required=False)
 
             # Digital elevation model description
-            dem_description: str(required=False)
+            dem_file_description: str(required=False)
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer file
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
             landcover_file: str(required=False)
 
             # Copernicus Global Land Service (CGLS) Land Cover Layer description
-            landcover_description: str(required=False)
+            landcover_file_description: str(required=False)
 
             # ESA WorldCover map file
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
             worldcover_file: str(required=False)
 
             # ESA WorldCover map description
-            worldcover_description: str(required=False)
+            worldcover_file_description: str(required=False)
+
+            # NOAA GSHHS shapefile
+            # (REQUIRED if check_ancillary_inputs_coverage is True)
+            shoreline_shapefile: str(required=False)
+
+            # NOAA GSHHS shapefile description
+            shoreline_shapefile_description: str(required=False)
 
         primary_executable:
             product_type: enum('DSWX_HLS')
@@ -71,6 +81,9 @@ runconfig:
 
             # Copernicus CGLS Land Cover 100m forest classes
             copernicus_forest_classes: list(int(), min=0, required=False)
+
+            # Ocean masking distance from shoreline in km
+            ocean_masking_shoreline_distance_km: num(required=False)
 
             # Layer 1 - WTR
             save_wtr: bool(required=False)

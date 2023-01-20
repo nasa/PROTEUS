@@ -51,7 +51,7 @@ def main():
         args.output_file,
         hls_thresholds = runconfig_constants.hls_thresholds,
         dem_file=args.dem_file,
-        dem_description=args.dem_description,
+        dem_file_description=args.dem_file_description,
         output_interpreted_band=args.output_interpreted_band,
         output_rgb_file=args.output_rgb_file,
         output_infrared_rgb_file=args.output_infrared_rgb_file,
@@ -62,7 +62,7 @@ def main():
         output_shadow_masked_dswx=args.output_shadow_masked_dswx,
         output_landcover=args.output_landcover,
         output_shadow_layer=args.output_shadow_layer,
-        output_cloud_mask=args.output_cloud_mask,
+        output_cloud_layer=args.output_cloud_layer,
         output_dem_layer=args.output_dem_layer,
         output_browse_image=args.output_browse_image,
         browse_image_height=args.browse_image_height,
@@ -72,9 +72,11 @@ def main():
         cloud_in_browse=args.cloud_in_browse,
         snow_in_browse=args.snow_in_browse,
         landcover_file=args.landcover_file,
-        landcover_description=args.landcover_description,
+        landcover_file_description=args.landcover_file_description,
         worldcover_file=args.worldcover_file,
-        worldcover_description=args.worldcover_description,
+        worldcover_file_description=args.worldcover_file_description,
+        shoreline_shapefile=args.shoreline_shapefile,
+        shoreline_shapefile_description=args.shoreline_shapefile_description,
         flag_offset_and_scale_inputs=args.flag_offset_and_scale_inputs,
         scratch_dir=args.scratch_dir,
         product_id=args.product_id,
@@ -85,6 +87,8 @@ def main():
         max_sun_local_inc_angle=args.max_sun_local_inc_angle,
         mask_adjacent_to_cloud_mode=args.mask_adjacent_to_cloud_mode,
         copernicus_forest_classes=args.copernicus_forest_classes,
+        ocean_masking_shoreline_distance_km = \
+            args.ocean_masking_shoreline_distance_km,
         flag_debug=args.flag_debug)
 
 

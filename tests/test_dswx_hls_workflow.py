@@ -24,7 +24,7 @@ def test_workflow():
         os.makedirs(test_data_directory, exist_ok=True)
 
     dataset_name = 's30_louisiana_mississippi'
-    dataset_url = ('https://zenodo.org/record/7478469/files/'
+    dataset_url = ('https://zenodo.org/record/7555132/files/'
                    's30_louisiana_mississippi.tar.gz?download=1')
 
     dataset_dir = os.path.join(test_data_directory, dataset_name)
@@ -64,7 +64,7 @@ def test_workflow():
         args.output_file,
         hls_thresholds = runconfig_constants.hls_thresholds,
         dem_file=args.dem_file,
-        dem_description=args.dem_description,
+        dem_file_description=args.dem_file_description,
         output_interpreted_band=args.output_interpreted_band,
         output_rgb_file=args.output_rgb_file,
         output_infrared_rgb_file=args.output_infrared_rgb_file,
@@ -75,15 +75,17 @@ def test_workflow():
         output_shadow_masked_dswx=args.output_shadow_masked_dswx,
         output_landcover=args.output_landcover,
         output_shadow_layer=args.output_shadow_layer,
-        output_cloud_mask=args.output_cloud_mask,
+        output_cloud_layer=args.output_cloud_layer,
         output_dem_layer=args.output_dem_layer,
         output_browse_image=args.output_browse_image,
         browse_image_height=args.browse_image_height,
         browse_image_width=args.browse_image_width,
         landcover_file=args.landcover_file,
-        landcover_description=args.landcover_description,
+        landcover_file_description=args.landcover_file_description,
         worldcover_file=args.worldcover_file,
-        worldcover_description=args.worldcover_description,
+        worldcover_file_description=args.worldcover_file_description,
+        shoreline_shapefile=args.shoreline_shapefile,
+        shoreline_shapefile_description=args.shoreline_shapefile_description,
         flag_offset_and_scale_inputs=args.flag_offset_and_scale_inputs,
         scratch_dir=args.scratch_dir,
         product_id=args.product_id,
@@ -93,6 +95,8 @@ def test_workflow():
         max_sun_local_inc_angle=args.max_sun_local_inc_angle,
         mask_adjacent_to_cloud_mode=args.mask_adjacent_to_cloud_mode,
         copernicus_forest_classes=args.copernicus_forest_classes,
+        ocean_masking_shoreline_distance_km = \
+            args.ocean_masking_shoreline_distance_km,
         flag_debug=args.flag_debug)
 
     ref_files = glob.glob(os.path.join(ref_dir, '*'))
