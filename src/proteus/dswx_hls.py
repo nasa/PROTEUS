@@ -228,9 +228,7 @@ layer_names_to_args_dict = {
     'INFRARED_RGB': 'output_infrared_rgb_file'}
 
 
-METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SPATIAL_COVERAGE',
-                                         'CLOUD_COVERAGE',
-                                         'MEAN_SUN_AZIMUTH_ANGLE',
+METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['MEAN_SUN_AZIMUTH_ANGLE',
                                          'MEAN_SUN_ZENITH_ANGLE',
                                          'MEAN_VIEW_AZIMUTH_ANGLE',
                                          'MEAN_VIEW_ZENITH_ANGLE',
@@ -1907,6 +1905,9 @@ def _load_hls_band_from_file(filename, image_dict, offset_dict, scale_dict,
         for k, v in metadata.items():
             if k.upper() in METADATA_FIELDS_TO_COPY_FROM_HLS_LIST:
                 dswx_metadata_dict[k.upper()] = v
+            elif k.upper() in ['SPATIAL_COVERAGE', 'CLOUD_COVERAGE']:
+                dswx_metadata_key = 'INPUT_HLS_PRODUCT_'+k.upper()
+                dswx_metadata_dict[dswx_metadata_key] = v
             elif (k.upper() == 'LANDSAT_PRODUCT_ID' or
                     k.upper() == 'PRODUCT_URI'):
                 dswx_metadata_dict['SENSOR_PRODUCT_ID'] = v
@@ -4198,6 +4199,13 @@ def generate_dswx_layers(input_list,
     sun_azimuth_angle_meta = dswx_metadata_dict['MEAN_SUN_AZIMUTH_ANGLE'].split(', ')
     sun_zenith_angle_meta = dswx_metadata_dict['MEAN_SUN_ZENITH_ANGLE'].split(', ')
 
+    if 'INPUT_HLS_PRODUCT_SPATIAL_COVERAGE' in dswx_metadata_dict.keys():
+        hls_product_spatial_coverage = dswx_metadata_dict[
+            'INPUT_HLS_PRODUCT_SPATIAL_COVERAGE']
+    if 'INPUT_HLS_PRODUCT_CLOUD_COVERAGE' in dswx_metadata_dict.keys():
+        hls_product_cloud_coverage = dswx_metadata_dict[
+            'INPUT_HLS_PRODUCT_CLOUD_COVERAGE']
+
     if len(sun_azimuth_angle_meta) == 2:
         sun_azimuth_angle = (float(sun_azimuth_angle_meta[0]) +
                             float(sun_azimuth_angle_meta[1])) / 2.0
@@ -4215,6 +4223,12 @@ def generate_dswx_layers(input_list,
     logger.info(f'Sun parameters (from HLS metadata):')
     logger.info(f'    mean azimuth angle: {sun_azimuth_angle}')
     logger.info(f'    mean elevation angle: {sun_elevation_angle}')
+
+    logger.info(f'Data coverage:')
+    logger.info(f'    Input HLS product spatial coverage [%]:'
+                f' {hls_product_spatial_coverage}')
+    logger.info(f'    Input HLS product cloud coverage [%]:'
+                f' {hls_product_cloud_coverage}')
 
     # check ancillary inputs
     if check_ancillary_inputs_coverage:
