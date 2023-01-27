@@ -3484,7 +3484,7 @@ def _populate_dswx_metadata_processing_parameters(
 
     # Copernicus class for forest masking
     dswx_metadata_dict['FOREST_MASK_LANDCOVER_CLASSES'] = \
-        ', '.join(forest_mask_landcover_classes)
+        ','.join([str(c) for c in forest_mask_landcover_classes])
 
     # ocean masking distance from shoreline in km
     dswx_metadata_dict['OCEAN_MASKING_SHORELINE_DISTANCE_KM'] = \
@@ -4174,7 +4174,7 @@ def generate_dswx_layers(input_list,
         dswx_metadata_dict,
         shadow_masking_algorithm=shadow_masking_algorithm,
         min_slope_angle=min_slope_angle,
-        max_sun_local_inc_angle=max_sun_local_inc_angle=,
+        max_sun_local_inc_angle=max_sun_local_inc_angle,
         mask_adjacent_to_cloud_mode=mask_adjacent_to_cloud_mode,
         forest_mask_landcover_classes=forest_mask_landcover_classes,
         ocean_masking_shoreline_distance_km =
