@@ -78,8 +78,10 @@ runconfig:
             # Define how areas adjacent to cloud/cloud-shadow should be handled
             mask_adjacent_to_cloud_mode: 'mask'
 
-            # Copernicus CGLS Land Cover 100m forest classes
-            copernicus_forest_classes: [20, 111, 113, 115, 116, 121, 123, 125, 126]
+            # Copernicus CGLS Land Cover 100m forest classes to mask out from
+            # the WTR-2 and WTR layer due to dark reflectance that is usually
+            # misinterpreted as water.
+            forest_mask_landcover_classes: [20, 111, 113, 115, 116, 121, 123, 125, 126]
 
             # Ocean masking distance from shoreline in km
             ocean_masking_shoreline_distance_km: 1

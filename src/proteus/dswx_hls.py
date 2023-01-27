@@ -326,7 +326,7 @@ class RunConfigConstants:
     mask_adjacent_to_cloud_mode: str
         Define how areas adjacent to cloud/cloud-shadow should be handled.
         Options: "mask", "ignore", and "cover"
-    copernicus_forest_classes: list(int)
+    forest_mask_landcover_classes: list(int)
         Copernicus CGLS Land Cover 100m forest classes
     ocean_masking_shoreline_distance_km: float
         Ocean masking distance from shoreline in km
@@ -365,7 +365,7 @@ class RunConfigConstants:
         self.min_slope_angle = None
         self.max_sun_local_inc_angle = None
         self.mask_adjacent_to_cloud_mode = None
-        self.copernicus_forest_classes = None
+        self.forest_mask_landcover_classes = None
         self.ocean_masking_shoreline_distance_km = None
         self.browse_image_height = None
         self.browse_image_width = None
@@ -625,9 +625,11 @@ def get_dswx_hls_cli_parser():
                         ' "cover"')
 
     parser.add_argument('--copernicus-forest-classes',
-                        dest='copernicus_forest_classes',
+                        dest='forest_mask_landcover_classes',
                         type=list,
-                        help='Copernicus CGLS Land Cover 100m forest classes')
+                        help='Copernicus CGLS Land Cover 100m forest classes'
+                        ' to mask out from the WTR-2 and WTR layer due to dark'
+                        ' reflectance that is usually misinterpreted as water.')
 
     parser.add_argument('--ocean-masking-distance-km',
                         dest='ocean_masking_shoreline_distance_km',
@@ -857,7 +859,7 @@ def _update_landcover_array(conglomerate_array, agg_sum, threshold,
 def create_landcover_mask(copernicus_landcover_file,
                           worldcover_file, output_file, scratch_dir,
                           mask_type, geotransform, projection, length, width,
-                          copernicus_forest_classes,
+                          forest_mask_landcover_classes,
                           dswx_metadata_dict = None, output_files_list = None,
                           temp_files_list = None):
     """
@@ -885,7 +887,7 @@ def create_landcover_mask(copernicus_landcover_file,
               DSWx-HLS product's length (number of lines)
        width: int
               DSWx-HLS product's width (number of columns)
-       copernicus_forest_classes: list(int)
+       forest_mask_landcover_classes: list(int)
               Copernicus CGLS Land Cover 100m forest classes
        dswx_metadata_dict: dict (optional)
               Metadata dictionary that will store band metadata 
@@ -970,10 +972,10 @@ def create_landcover_mask(copernicus_landcover_file,
     copernicus_forest = np.zeros_like(tree_aggregate_sum, dtype=np.uint8)
 
     logger.info('    CGLS Land Cover 100m forest classes:'
-                f' {copernicus_forest_classes}')
+                f' {forest_mask_landcover_classes}')
 
-    if copernicus_forest_classes is not None:
-        for copernicus_forest_class in copernicus_forest_classes:
+    if forest_mask_landcover_classes is not None:
+        for copernicus_forest_class in forest_mask_landcover_classes:
             copernicus_forest |= (copernicus_landcover_array ==
                                   copernicus_forest_class)
 
@@ -3437,6 +3439,58 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['SHORELINE_SOURCE'] = '(not provided)'
 
 
+def _populate_dswx_metadata_processing_parameters(
+        dswx_metadata_dict,
+        shadow_masking_algorithm,
+        min_slope_angle,
+        max_sun_local_inc_angle,
+        mask_adjacent_to_cloud_mode,
+        forest_mask_landcover_classes,
+        ocean_masking_shoreline_distance_km):
+    """Populate metadata dictionary with processing parameters
+
+       Parameters
+       ----------
+       dswx_metadata_dict : collections.OrderedDict
+              Metadata dictionary
+       shadow_masking_algorithm: str
+              Shadow masking algorithm
+       min_slope_angle: float
+              Minimum slope angle in degrees for terrain masking
+       max_sun_local_inc_angle: float
+              Maximum sun local-incidence angle in degrees for terrain masking
+       mask_adjacent_to_cloud_mode: bool
+              Define how areas adjacent to cloud/cloud-shadow should be handled
+       forest_mask_landcover_classes: list
+              Copernicus CGLS Land Cover 100m forest classes to mask out from
+              the WTR-2 and WTR layer due to dark reflectance that is usually
+              misinterpreted as water.
+       ocean_masking_shoreline_distance_km: float
+              Ocean masking distance from shoreline in km
+    """
+
+    # shadow masking algorithm and parameters
+    dswx_metadata_dict['SHADOW_MASKING_ALGORITHM'] = shadow_masking_algorithm
+    if shadow_masking_algorithm == 'sun_local_inc_angle':
+        dswx_metadata_dict['MIN_SLOPE_ANGLE'] = min_slope_angle
+        dswx_metadata_dict['MAX_SUN_LOCAL_INC_ANGLE'] = max_sun_local_inc_angle
+    else:
+        dswx_metadata_dict['MIN_SLOPE_ANGLE'] = '-'
+        dswx_metadata_dict['MAX_SUN_LOCAL_INC_ANGLE'] = '-'
+
+    # mask adjacent to cloud/cloud shadow mode
+    dswx_metadata_dict['MASK_ADJACENT_TO_CLOUD_MODE'] = \
+        mask_adjacent_to_cloud_mode
+
+    # Copernicus class for forest masking
+    dswx_metadata_dict['FOREST_MASK_LANDCOVER_CLASSES'] = \
+        ', '.join(forest_mask_landcover_classes)
+
+    # ocean masking distance from shoreline in km
+    dswx_metadata_dict['OCEAN_MASKING_SHORELINE_DISTANCE_KM'] = \
+        ocean_masking_shoreline_distance_km
+
+
 class Logger(object):
     """
     Class to redirect stdout and stderr to the logger
@@ -3842,7 +3896,7 @@ def generate_dswx_layers(input_list,
                          min_slope_angle=None,
                          max_sun_local_inc_angle=None,
                          mask_adjacent_to_cloud_mode=None,
-                         copernicus_forest_classes=None,
+                         forest_mask_landcover_classes=None,
                          ocean_masking_shoreline_distance_km=None,
                          flag_debug=False):
     """Compute the DSWx-HLS product
@@ -3934,7 +3988,7 @@ def generate_dswx_layers(input_list,
        mask_adjacent_to_cloud_mode: str (optional)
               Define how areas adjacent to cloud/cloud-shadow should be handled.
               Options: "mask", "ignore", and "cover"
-       copernicus_forest_classes: list(int)
+       forest_mask_landcover_classes: list(int)
               Copernicus CGLS Land Cover 100m forest classes
        ocean_masking_shoreline_distance_km: float
               Ocean masking distance from shoreline in km
@@ -3954,7 +4008,7 @@ def generate_dswx_layers(input_list,
                                  min_slope_angle,
                                  max_sun_local_inc_angle,
                                  mask_adjacent_to_cloud_mode,
-                                 copernicus_forest_classes,
+                                 forest_mask_landcover_classes,
                                  ocean_masking_shoreline_distance_km,
                                  browse_image_height,
                                  browse_image_width,
@@ -3981,8 +4035,8 @@ def generate_dswx_layers(input_list,
         if mask_adjacent_to_cloud_mode is None:
             mask_adjacent_to_cloud_mode = \
                 runconfig_constants.mask_adjacent_to_cloud_mode
-        if copernicus_forest_classes is None:
-            copernicus_forest_classes = runconfig_constants.copernicus_forest_classes
+        if forest_mask_landcover_classes is None:
+            forest_mask_landcover_classes = runconfig_constants.forest_mask_landcover_classes
         if ocean_masking_shoreline_distance_km is None:
             ocean_masking_shoreline_distance_km = \
                 runconfig_constants.ocean_masking_shoreline_distance_km
@@ -4054,7 +4108,7 @@ def generate_dswx_layers(input_list,
     logger.info(f'    mask adjacent cloud/cloud-shadow mode:'
                 f'{mask_adjacent_to_cloud_mode}')
     logger.info(f'    CGLS Land Cover 100m forest classes:'
-                f' {copernicus_forest_classes}')
+                f' {forest_mask_landcover_classes}')
     logger.info(f'    Ocean masking distance from shoreline in km:'
                 f' {ocean_masking_shoreline_distance_km}')
 
@@ -4115,6 +4169,16 @@ def generate_dswx_layers(input_list,
         worldcover_file_description=worldcover_file_description,
         shoreline_shapefile=shoreline_shapefile,
         shoreline_shapefile_description=shoreline_shapefile_description)
+
+    _populate_dswx_metadata_processing_parameters(
+        dswx_metadata_dict,
+        shadow_masking_algorithm=shadow_masking_algorithm,
+        min_slope_angle=min_slope_angle,
+        max_sun_local_inc_angle=max_sun_local_inc_angle=,
+        mask_adjacent_to_cloud_mode=mask_adjacent_to_cloud_mode,
+        forest_mask_landcover_classes=forest_mask_landcover_classes,
+        ocean_masking_shoreline_distance_km =
+            ocean_masking_shoreline_distance_km)
 
     spacecraft_name = dswx_metadata_dict['SPACECRAFT_NAME']
     logger.info(f'processing HLS {spacecraft_name[0]}30 dataset v.{version}')
@@ -4219,7 +4283,7 @@ def generate_dswx_layers(input_list,
         landcover_mask = create_landcover_mask(
             landcover_file, worldcover_file, output_landcover,
             scratch_dir, landcover_mask_type, geotransform, projection,
-            length, width, copernicus_forest_classes,
+            length, width, forest_mask_landcover_classes,
             dswx_metadata_dict = dswx_metadata_dict,
             output_files_list=build_vrt_list, temp_files_list=temp_files_list)
 

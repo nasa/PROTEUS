@@ -94,7 +94,7 @@ def test_workflow():
         min_slope_angle = args.min_slope_angle,
         max_sun_local_inc_angle=args.max_sun_local_inc_angle,
         mask_adjacent_to_cloud_mode=args.mask_adjacent_to_cloud_mode,
-        copernicus_forest_classes=args.copernicus_forest_classes,
+        forest_mask_landcover_classes=args.forest_mask_landcover_classes,
         ocean_masking_shoreline_distance_km = \
             args.ocean_masking_shoreline_distance_km,
         flag_debug=args.flag_debug)
