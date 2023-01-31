@@ -1694,20 +1694,28 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
 
 
 def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
-    """Compute a preliminary cloud/cloud-shadow mask (without the snow/ice class)
+    """Compute a preliminary CLOUD layer without the snow/ice
+       class. The CLOUD layer will be completed by a subsequent function
+       _add_snow_to_cloud_layer_and_apply_cloud_masking()
+       after the WTR-2 layer is generated.
 
        Parameters
        ----------
        fmask: numpy ndarray
-              HLS Fmask
+            HLS Fmask
        mask_adjacent_to_cloud_mode: str
-              Define how areas adjacent to cloud/cloud-shadow should be handled.
-              Options: "mask", "ignore", and "cover"
+            Define how areas adjacent to cloud/cloud-shadow should be handled.
+            Options: "mask" - mask out these areas marking them as cloud
+            shadow (default); "ignore" - ignore the adjacent to cloud/
+            cloud shadow classification; and 'cover' - covers these areas
+            with a dilation algorithm (this option will be handled in
+            the subsequent function
+            _add_snow_to_cloud_layer_and_apply_cloud_masking())
 
        Returns
        -------
        preliminary_cloud_layer : numpy.ndarray
-              Preliminary cloud mask (without the snow/ice class)
+            Preliminary cloud mask (without the snow/ice class)
     """
     preliminary_cloud_layer = np.zeros(fmask.shape, dtype = np.uint8)
 
@@ -1715,20 +1723,19 @@ def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
     HLS Fmask
     BITS:
     0 - Cirrus (reserved but not used)
-    1 - Cloud (*1)
-    2 - Adjacent to cloud/shadow (*3)
-    3 - Cloud shadow (*1)
-    4 - Snow/ice (*2)
+    1 - Cloud (maps to output bit 2)
+    2 - Adjacent to cloud/shadow 
+        (if mask_adjacent_to_cloud_mode == "mask" then maps to output bit 1
+         else: ignore this class)
+    3 - Cloud shadow (output bit 1)
+    4 - Snow/ice (output values will be assigned in the subsequent function:
+        _add_snow_to_cloud_layer_and_apply_cloud_masking()
     5 - Water
     6-7 - Aerosol quality:
           00 - Climatology aerosol
           01 - Low aerosol
           10 - Moderate aerosol
           11 - High aerosol
-
-    (*1) set output as WTR_CLOUD_MASKED
-    (*2) set output as WTR_SNOW_MASKED
-    (*3) mode dependent (mask_adjacent_to_cloud_mode)
     '''
 
     if (mask_adjacent_to_cloud_mode not in ['mask', 'ignore', 'cover']):
@@ -1750,21 +1757,28 @@ def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
     return preliminary_cloud_layer
 
 
-def _compute_and_apply_cloud_layer(wtr_2_layer, cloud_layer, fmask,
-                                   mask_adjacent_to_cloud_mode):
-    """Compute cloud/cloud-shadow mask and filter interpreted water layer
+
+def _add_snow_to_cloud_layer_and_apply_cloud_masking(
+        wtr_2_layer, cloud_layer, fmask, mask_adjacent_to_cloud_mode):
+    """Finish computing the CLOUD layer by adding the snow/ice class
+       to the CLOUD layer and mask the interpreted water layer WTR-2
+       creating the layer WTR.
+       This function succeeds the function _compute_preliminary_cloud_layer().
 
        Parameters
        ----------
        wtr_2_layer: numpy.ndarray
-              Cloud-unmasked interpreted water layer
+            Cloud-unmasked interpreted water layer
        cloud_layer : numpy.ndarray
-              Preliminary cloud mask (without the snow/ice class)
+            Preliminary cloud mask (without the snow/ice class)
        fmask: numpy ndarray
-              HLS Fmask
+            HLS Fmask
        mask_adjacent_to_cloud_mode: str
-              Define how areas adjacent to cloud/cloud-shadow should be handled.
-              Options: "mask", "ignore", and "cover"
+            Define how areas adjacent to cloud/cloud-shadow should be handled.
+            Options: "mask" - mask out these areas marking them as cloud
+            shadow (default); "ignore" - ignore the adjacent to cloud/
+            cloud shadow classification; and 'cover' - covers these areas
+            with a dilation algorithm
 
        Returns
        -------
@@ -4310,7 +4324,6 @@ def generate_dswx_layers(input_list,
     dswx_metadata_dict['SPATIAL_COVERAGE'] = spatial_coverage
     dswx_metadata_dict['CLOUD_COVERAGE'] = cloud_coverage
 
-
     if dem_file is not None:
         # DEM
         dem_cropped_file = tempfile.NamedTemporaryFile(
@@ -4447,7 +4460,7 @@ def generate_dswx_layers(input_list,
                           flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
                           output_files_list=build_vrt_list)
 
-    cloud, wtr_layer = _compute_and_apply_cloud_layer(
+    cloud, wtr_layer = _add_snow_to_cloud_layer_and_apply_cloud_masking(
         wtr_2_layer, preliminary_cloud_layer, fmask,
         mask_adjacent_to_cloud_mode)
     del preliminary_cloud_layer
