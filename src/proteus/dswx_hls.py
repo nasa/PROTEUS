@@ -4249,6 +4249,7 @@ def generate_dswx_layers(input_list,
     width = image_dict['width']
     invalid_ind = np.where(image_dict['invalid_ind_array'])
     valid_array = ~image_dict['invalid_ind_array']
+    del image_dict
 
     sun_azimuth_angle_meta = dswx_metadata_dict['MEAN_SUN_AZIMUTH_ANGLE'].split(', ')
     sun_zenith_angle_meta = dswx_metadata_dict['MEAN_SUN_ZENITH_ANGLE'].split(', ')
