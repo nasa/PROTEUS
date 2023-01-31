@@ -4315,7 +4315,7 @@ def generate_dswx_layers(input_list,
 
     # use floor integer to compute spatial and cloud coverage
     spatial_coverage = int(100 * float(n_valid) / total_number_of_pixels)
-    cloud_coverage = int(100 * float(n_cloud_and_valid) / total_number_of_pixels)
+    cloud_coverage = int(100 * float(n_cloud_and_valid) / n_valid)
 
     # print spatial and cloud coverage
     logger.info(f'    spatial coverage [%]:  {spatial_coverage}')
