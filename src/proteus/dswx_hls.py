@@ -4257,6 +4257,12 @@ def generate_dswx_layers(input_list,
     logger.info(f'    mean azimuth angle: {sun_azimuth_angle}')
     logger.info(f'    mean elevation angle: {sun_elevation_angle}')
 
+    # check ancillary inputs
+    if check_ancillary_inputs_coverage:
+        _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
+                                shoreline_shapefile, geotransform,
+                                projection, length, width)
+
     # print input HLS product spatial and cloud coverage
     logger.info(f'data coverage:')
     if 'INPUT_HLS_PRODUCT_SPATIAL_COVERAGE' in dswx_metadata_dict.keys():
@@ -4304,11 +4310,6 @@ def generate_dswx_layers(input_list,
     dswx_metadata_dict['SPATIAL_COVERAGE'] = spatial_coverage
     dswx_metadata_dict['CLOUD_COVERAGE'] = cloud_coverage
 
-    # check ancillary inputs
-    if check_ancillary_inputs_coverage:
-        _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
-                                shoreline_shapefile, geotransform,
-                                projection, length, width)
 
     if dem_file is not None:
         # DEM
