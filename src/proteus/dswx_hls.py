@@ -3500,6 +3500,7 @@ def _populate_dswx_metadata_processing_parameters(
         max_sun_local_inc_angle,
         mask_adjacent_to_cloud_mode,
         forest_mask_landcover_classes,
+        shoreline_shapefile,
         ocean_masking_shoreline_distance_km):
     """Populate metadata dictionary with processing parameters
 
@@ -3519,6 +3520,8 @@ def _populate_dswx_metadata_processing_parameters(
               Copernicus CGLS Land Cover 100m forest classes to mask out from
               the WTR-2 and WTR layer due to dark reflectance that is usually
               misinterpreted as water.
+       shoreline_shapefile:
+              NOAA shoreline shapefile
        ocean_masking_shoreline_distance_km: float
               Ocean masking distance from shoreline in km
     """
@@ -3541,8 +3544,11 @@ def _populate_dswx_metadata_processing_parameters(
         ','.join([str(c) for c in forest_mask_landcover_classes])
 
     # ocean masking distance from shoreline in km
-    dswx_metadata_dict['OCEAN_MASKING_SHORELINE_DISTANCE_KM'] = \
-        ocean_masking_shoreline_distance_km
+    if shoreline_shapefile:
+        dswx_metadata_dict['OCEAN_MASKING_SHORELINE_DISTANCE_KM'] = \
+            ocean_masking_shoreline_distance_km
+    else:
+        dswx_metadata_dict['OCEAN_MASKING_SHORELINE_DISTANCE_KM'] = '-'
 
 
 class Logger(object):
@@ -4231,6 +4237,7 @@ def generate_dswx_layers(input_list,
         max_sun_local_inc_angle=max_sun_local_inc_angle,
         mask_adjacent_to_cloud_mode=mask_adjacent_to_cloud_mode,
         forest_mask_landcover_classes=forest_mask_landcover_classes,
+        shoreline_shapefile = shoreline_shapefile,
         ocean_masking_shoreline_distance_km =
             ocean_masking_shoreline_distance_km)
 
