@@ -981,7 +981,7 @@ def create_landcover_mask(copernicus_landcover_file,
     del copernicus_forest
 
     logger.info(f'    combining masks')
-    # create array filled with 30000
+    # create array filled with "fill value"
     landcover_fill_value = \
         dswx_hls_landcover_classes_dict['fill_value']
     hierarchy_combined = np.full(water_aggregate_sum.shape,
@@ -1027,7 +1027,8 @@ def create_landcover_mask(copernicus_landcover_file,
                     projection, description = description,
                     scratch_dir=scratch_dir,
                     output_files_list = output_files_list,
-                    ctable=ctable)
+                    ctable=ctable,
+                    no_data_value=landcover_fill_value)
 
     return hierarchy_combined
 
@@ -1401,9 +1402,6 @@ def _get_landcover_mask_ctable():
     high_intensity_developed_class_offset = \
         dswx_hls_landcover_classes_dict['high_intensity_developed_offset']
 
-    # White - Not masked (fill_value)
-    mask_ctable.SetColorEntry(fill_value, (255, 255, 255))
-
     # Green - Evergreen forest class
     mask_ctable.SetColorEntry(evergreen_forest_class, (0, 255, 0))
 
@@ -1419,6 +1417,9 @@ def _get_landcover_mask_ctable():
     for i in range(100):
         mask_ctable.SetColorEntry(high_intensity_developed_class_offset + i, 
                                   (255, 0, 0))
+
+    # Fill value
+    mask_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
 
     return mask_ctable
 
@@ -1722,20 +1723,22 @@ def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
     '''
     HLS Fmask
     BITS:
-    0 - Cirrus (reserved but not used)
-    1 - Cloud (maps to output bit 2)
-    2 - Adjacent to cloud/shadow 
+        0 - Cirrus (reserved but not used)
+    (*) 1 - Cloud (maps to output bit 2)
+    (*) 2 - Adjacent to cloud/shadow 
         (if mask_adjacent_to_cloud_mode == "mask" then maps to output bit 1
          else: ignore this class)
-    3 - Cloud shadow (output bit 1)
-    4 - Snow/ice (output values will be assigned in the subsequent function:
-        _add_snow_to_cloud_layer_and_apply_cloud_masking()
-    5 - Water
-    6-7 - Aerosol quality:
-          00 - Climatology aerosol
-          01 - Low aerosol
-          10 - Moderate aerosol
-          11 - High aerosol
+    (*) 3 - Cloud shadow (output bit 0)
+        4 - Snow/ice (output bit 1, will be assigned in the subsequent function:
+            _add_snow_to_cloud_layer_and_apply_cloud_masking())
+        5 - Water
+        6-7 - Aerosol quality:
+              00 - Climatology aerosol
+              01 - Low aerosol
+              10 - Moderate aerosol
+              11 - High aerosol
+    
+    (*) Updates the preliminary CLOUD layer in this function
     '''
 
     if (mask_adjacent_to_cloud_mode not in ['mask', 'ignore', 'cover']):
@@ -1758,12 +1761,12 @@ def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
 
 
 
-def _add_snow_to_cloud_layer_and_apply_cloud_masking(
-        wtr_2_layer, cloud_layer, fmask, mask_adjacent_to_cloud_mode):
+def _add_snow_to_cloud_layer(wtr_2_layer, cloud_layer, fmask,
+                             mask_adjacent_to_cloud_mode):
     """Finish computing the CLOUD layer by adding the snow/ice class
-       to the CLOUD layer and mask the interpreted water layer WTR-2
-       creating the layer WTR.
-       This function succeeds the function _compute_preliminary_cloud_layer().
+       to the CLOUD layer.
+       This function succeeds the function _compute_preliminary_cloud_layer()
+       and preceeds _apply_cloud_masking()
 
        Parameters
        ----------
@@ -1784,33 +1787,26 @@ def _add_snow_to_cloud_layer_and_apply_cloud_masking(
        -------
        cloud_layer : numpy.ndarray
               Cloud mask
-       wtr_layer : numpy.ndarray
-              Cloud-masked interpreted water layer
+    
     """
-    wtr_layer = wtr_2_layer.copy()
 
     '''
     HLS Fmask
     BITS:
-    0 - Cirrus (reserved but not used)
-    1 - Cloud (*1)
-    2 - Adjacent to cloud/shadow (*3)
-    3 - Cloud shadow (*1)
-    4 - Snow/ice (*2)
-    5 - Water
-    6-7 - Aerosol quality:
-          00 - Climatology aerosol
-          01 - Low aerosol
-          10 - Moderate aerosol
-          11 - High aerosol
+        0 - Cirrus (reserved but not used)
+        1 - Cloud
+        2 - Adjacent to cloud/shadow 
+        3 - Cloud shadow (output bit 0)
+    (*) 4 - Snow/ice (maps to output bit 1)
+        5 - Water
+        6-7 - Aerosol quality:
+              00 - Climatology aerosol
+              01 - Low aerosol
+              10 - Moderate aerosol
+              11 - High aerosol
 
-    (*1) set output as WTR_CLOUD_MASKED
-    (*2) set output as WTR_SNOW_MASKED
-    (*3) mode dependent (mask_adjacent_to_cloud_mode)
+    (*) Updates the output CLOUD layer in this function
     '''
-
-    # If cloud (1) or cloud shadow (3), mark WTR as WTR_CLOUD_MASKED
-    wtr_layer[cloud_layer != 0] = WTR_CLOUD_MASKED
 
     # Check Fmask snow bit (4) => bit 1
     snow_mask = np.bitwise_and(fmask, 2**4) == 2**4
@@ -1831,9 +1827,9 @@ def _add_snow_to_cloud_layer_and_apply_cloud_masking(
         water, not-water areas should only grow over classes that are not
         marked as water in WTR-2 as that are likely covered by snow
         '''
-        areas_to_dilate &= ((wtr_layer >=
+        areas_to_dilate &= ((wtr_2_layer >=
                              FIRST_UNCOLLAPSED_WATER_CLASS) &
-                            (wtr_layer <=
+                            (wtr_2_layer <=
                              LAST_UNCOLLAPSED_WATER_CLASS))
         not_masked = (~snow_mask) & (cloud_layer == 0)
         not_masked = binary_dilation(not_masked, iterations=7,
@@ -1844,18 +1840,55 @@ def _add_snow_to_cloud_layer_and_apply_cloud_masking(
     # Add snow class to CLOUD mask
     cloud_layer[snow_mask] += 2
 
-    # Update WTR with ocean mask
+    # Copy masked values from WTR-2 to CLOUD and WTR
+    cloud_layer[wtr_2_layer == UINT8_FILL_VALUE] = UINT8_FILL_VALUE
+
+    return cloud_layer
+
+
+def _apply_cloud_masking(wtr_2_layer, cloud_layer):
+    """Apply CLOUD masking to the interpreted water layer WTR-2
+       creating the layer WTR.
+       This function succeeds the function _add_snow_to_cloud_layer().
+
+       Parameters
+       ----------
+       wtr_2_layer: numpy.ndarray
+            Cloud-unmasked interpreted water layer
+       cloud_layer : numpy.ndarray
+            Preliminary cloud mask (without the snow/ice class)
+
+       Returns
+       -------
+       wtr_layer : numpy.ndarray
+              Cloud-masked interpreted water layer
+    """
+    wtr_layer = np.zeros_like(wtr_2_layer)
+
+    '''
+    Cloud layer:
+    BITS:
+    0 - Cloud shadow or adjacent to cloud/cloud shadow
+    1 - Snow
+    2 - Cloud
+    '''
+
+    # If there's cloud shadow/adjacent to cloud/cloud shadow or
+    # cloud, then mark output as WTR_CLOUD_MASKED
+    wtr_layer[cloud_layer != 0] = WTR_CLOUD_MASKED
+
+    # If there's snow only (i.e., no cloud/cloud shadow),
+    # the mark output as WTR_SNOW_MASKED
     wtr_layer[cloud_layer == 2] = WTR_SNOW_MASKED
 
     # Apply the ocean mask on the WTR layer
     wtr_layer[wtr_2_layer == WTR_OCEAN_MASKED] = WTR_OCEAN_MASKED
 
-    # Copy masked values from WTR-2 to CLOUD and WTR
-    invalid_ind = np.where(wtr_2_layer == UINT8_FILL_VALUE)
-    cloud_layer[invalid_ind] = UINT8_FILL_VALUE
-    wtr_layer[invalid_ind] = UINT8_FILL_VALUE
+    # Copy masked values from WTR-2
+    wtr_layer[wtr_2_layer == UINT8_FILL_VALUE] = UINT8_FILL_VALUE
 
-    return cloud_layer, wtr_layer
+    return wtr_layer
+
 
 
 
@@ -4468,10 +4501,12 @@ def generate_dswx_layers(input_list,
                           flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
                           output_files_list=build_vrt_list)
 
-    cloud, wtr_layer = _add_snow_to_cloud_layer_and_apply_cloud_masking(
+    cloud = _add_snow_to_cloud_layer(
         wtr_2_layer, preliminary_cloud_layer, fmask,
         mask_adjacent_to_cloud_mode)
     del preliminary_cloud_layer
+
+    wtr_layer = _apply_cloud_masking(wtr_2_layer, cloud)
 
     if output_interpreted_band:
         save_dswx_product(wtr_layer, 'WTR',
