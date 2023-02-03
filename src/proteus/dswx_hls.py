@@ -3573,8 +3573,11 @@ def _populate_dswx_metadata_processing_parameters(
         mask_adjacent_to_cloud_mode
 
     # Copernicus class for forest masking
-    dswx_metadata_dict['FOREST_MASK_LANDCOVER_CLASSES'] = \
-        ','.join([str(c) for c in forest_mask_landcover_classes])
+    if forest_mask_landcover_classes:
+        dswx_metadata_dict['FOREST_MASK_LANDCOVER_CLASSES'] = \
+            ','.join([str(c) for c in forest_mask_landcover_classes])
+    else:
+        dswx_metadata_dict['FOREST_MASK_LANDCOVER_CLASSES'] = '-'
 
     # ocean masking distance from shoreline in km
     if shoreline_shapefile:
