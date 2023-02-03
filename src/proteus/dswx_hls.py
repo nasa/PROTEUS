@@ -1697,8 +1697,7 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
 def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
     """Compute a preliminary CLOUD layer without the snow/ice
        class. The CLOUD layer will be completed by a subsequent function
-       _add_snow_to_cloud_layer_and_apply_cloud_masking()
-       after the WTR-2 layer is generated.
+       _add_snow_to_cloud_layer().
 
        Parameters
        ----------
@@ -1710,13 +1709,21 @@ def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
             shadow (default); "ignore" - ignore the adjacent to cloud/
             cloud shadow classification; and 'cover' - covers these areas
             with a dilation algorithm (this option will be handled in
-            the subsequent function
-            _add_snow_to_cloud_layer_and_apply_cloud_masking())
+            the subsequent function _add_snow_to_cloud_layer())
 
        Returns
        -------
-       preliminary_cloud_layer : numpy.ndarray
             Preliminary cloud mask (without the snow/ice class)
+            with dtype of uint8 and values assigned as follows:
+                0: Not masked
+                1: Cloud shadow or adjacent to cloud/cloud shadow
+                4: Cloud
+                5: Cloud and class 1 (cloud shadow or adjacent to cloud/cloud shadow)
+                255: Fill value (no data)
+       See Also
+       ---------
+       _add_snow_to_cloud_layer : Add the snow bit encodings from `fmask` to
+       `preliminary_cloud_layer`
     """
     preliminary_cloud_layer = np.zeros(fmask.shape, dtype = np.uint8)
 
@@ -1730,7 +1737,7 @@ def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
          else: ignore this class)
     (*) 3 - Cloud shadow (output bit 0)
         4 - Snow/ice (output bit 1, will be assigned in the subsequent function:
-            _add_snow_to_cloud_layer_and_apply_cloud_masking())
+            _add_snow_to_cloud_layer())
         5 - Water
         6-7 - Aerosol quality:
               00 - Climatology aerosol
@@ -1766,7 +1773,6 @@ def _add_snow_to_cloud_layer(wtr_2_layer, cloud_layer, fmask,
     """Finish computing the CLOUD layer by adding the snow/ice class
        to the CLOUD layer.
        This function succeeds the function _compute_preliminary_cloud_layer()
-       and preceeds _apply_cloud_masking()
 
        Parameters
        ----------
