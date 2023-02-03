@@ -4544,7 +4544,6 @@ def generate_dswx_layers(input_list,
     cloud = _add_snow_to_cloud_layer(
         wtr_2_layer, preliminary_cloud_layer, fmask,
         mask_adjacent_to_cloud_mode)
-    del preliminary_cloud_layer
 
     wtr_layer = _apply_cloud_masking(wtr_2_layer, cloud)
 
