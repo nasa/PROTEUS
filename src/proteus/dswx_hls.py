@@ -4355,14 +4355,31 @@ def generate_dswx_layers(input_list,
 
     # use floor integer to compute spatial and cloud coverage
     spatial_coverage = int(100 * float(n_valid) / total_number_of_pixels)
-    cloud_coverage = int(100 * float(n_cloud_and_valid) / n_valid)
+    if n_valid == 0:
+        cloud_coverage = 0
+    else:
+        cloud_coverage = int(100 * float(n_cloud_and_valid) / n_valid)
+
+    if ocean_mask is not None:
+        n_not_ocean = np.sum(ocean_mask) 
+    else:
+        n_not_ocean = total_number_of_pixels
+
+    if n_not_ocean == 0:
+        spatial_coverage_after_ocean_masking = 0
+    else:
+        spatial_coverage_after_ocean_masking = int(100 * float(n_valid) / n_not_ocean)
 
     # print spatial and cloud coverage
     logger.info(f'    spatial coverage [%]:  {spatial_coverage}')
+    logger.info(f'    spatial coverage after ocean masking [%]:'
+                f' {spatial_coverage_after_ocean_masking}')
     logger.info(f'    cloud coverage [%]:  {cloud_coverage}')
 
     # update DSWx-HLS metadata dictionary
     dswx_metadata_dict['SPATIAL_COVERAGE'] = spatial_coverage
+    dswx_metadata_dict['SPATIAL_COVERAGE_AFTER_OCEAN_MASKING'] = \
+        spatial_coverage_after_ocean_masking
     dswx_metadata_dict['CLOUD_COVERAGE'] = cloud_coverage
 
     if dem_file is not None:
