@@ -1713,17 +1713,19 @@ def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
 
        Returns
        -------
-            Preliminary cloud mask (without the snow/ice class)
-            with dtype of uint8 and values assigned as follows:
+            preliminary_cloud_layer : numpy.ndarray
+                Preliminary cloud mask (without the snow/ice class)
+                with dtype of uint8 and values assigned as follows:
                 0: Not masked
                 1: Cloud shadow or adjacent to cloud/cloud shadow
                 4: Cloud
                 5: Cloud and class 1 (cloud shadow or adjacent to cloud/cloud shadow)
                 255: Fill value (no data)
+
        See Also
        ---------
-       _add_snow_to_cloud_layer : Add the snow bit encodings from `fmask` to
-       `preliminary_cloud_layer`
+            _add_snow_to_cloud_layer : Add the snow bit encodings from `fmask` to
+            `preliminary_cloud_layer`
     """
     preliminary_cloud_layer = np.zeros(fmask.shape, dtype = np.uint8)
 
@@ -1792,20 +1794,21 @@ def _add_snow_to_cloud_layer(wtr_2_layer, cloud_layer, fmask,
        Returns
        -------
        cloud_layer : numpy.ndarray
-            Cloud mask (without the snow/ice class)
-            with dtype of uint8 and values assigned as follows:
-        0: Not masked
-        1: Cloud shadow or adjacent to cloud/cloud shadow
-        2: Snow/ice
-        3: Snow/ice and class 1 (cloud shadow or adjacent to cloud/cloud
-        shadow)
-        4: Cloud
-        5: Cloud and class 1 (cloud shadow or adjacent to cloud/cloud
-        shadow)
-        6: Cloud and snow/ice
-        7: Cloud, snow/ice, and class 1 (cloud shadow or adjacent to
-        cloud/cloud shadow)
-        255: Fill value (no data)
+            Cloud mask (without the snow/ice class) with dtype of uint8 and
+            values assigned as follows:
+
+            0: Not masked
+            1: Cloud shadow or adjacent to cloud/cloud shadow
+            2: Snow/ice
+            3: Snow/ice and class 1 (cloud shadow or adjacent to cloud/cloud
+                shadow)
+            4: Cloud
+            5: Cloud and class 1 (cloud shadow or adjacent to cloud/cloud
+                shadow)
+            6: Cloud and snow/ice
+            7: Cloud, snow/ice, and class 1 (cloud shadow or adjacent to
+                cloud/cloud shadow)
+            255: Fill value (no data)
 
     """
 
