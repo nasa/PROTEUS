@@ -1713,14 +1713,14 @@ def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
 
        Returns
        -------
-            preliminary_cloud_layer : numpy.ndarray
-                Preliminary cloud mask (without the snow/ice class)
-                with dtype of uint8 and values assigned as follows:
-                0: Not masked
-                1: Cloud shadow or adjacent to cloud/cloud shadow
-                4: Cloud
-                5: Cloud and class 1 (cloud shadow or adjacent to cloud/cloud shadow)
-                255: Fill value (no data)
+       preliminary_cloud_layer : numpy.ndarray
+           Preliminary cloud mask (without the snow/ice class)
+           with dtype of uint8 and values assigned as follows:
+           0: Not masked
+           1: Cloud shadow or adjacent to cloud/cloud shadow
+           4: Cloud
+           5: Cloud and class 1 (cloud shadow or adjacent to cloud/cloud shadow)
+           255: Fill value (no data)
 
        See Also
        ---------
