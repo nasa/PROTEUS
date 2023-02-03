@@ -1781,7 +1781,9 @@ def _add_snow_to_cloud_layer(wtr_2_layer, cloud_layer, fmask,
        wtr_2_layer: numpy.ndarray
             Cloud-unmasked interpreted water layer
        cloud_layer : numpy.ndarray
-            Preliminary cloud mask (without the snow/ice class)
+            Preliminary cloud mask (without the snow/ice class). This array
+            is updated within the function (mutable numpy.ndarray) and returned
+            after the snow/ice class is added to the layer.
        fmask: numpy ndarray
             HLS Fmask
        mask_adjacent_to_cloud_mode: str
