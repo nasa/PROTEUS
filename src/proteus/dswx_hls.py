@@ -1863,7 +1863,7 @@ def _apply_cloud_masking(wtr_2_layer, cloud_layer):
        wtr_layer : numpy.ndarray
               Cloud-masked interpreted water layer
     """
-    wtr_layer = np.zeros_like(wtr_2_layer)
+    wtr_layer = wtr_2_layer.copy()
 
     '''
     Cloud layer:
