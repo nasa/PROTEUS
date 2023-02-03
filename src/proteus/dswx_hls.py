@@ -3719,7 +3719,8 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
 def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
                                 min_slope_angle, max_sun_local_inc_angle,
                                 pixel_spacing_x = 30, pixel_spacing_y = 30):
-    """Compute hillshade using new OPERA shadow masking
+    """Compute shadow mask based on Sun local incidence angle and slope
+       angle.
 
        Parameters
        ----------
@@ -3742,8 +3743,8 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
 
        Returns
        -------
-       hillshade : numpy.ndarray
-              Hillshade
+       shadow_mask : numpy.ndarray
+              Shadow mask (1: not shadow, 0: shadow)
     """
     sun_azimuth = np.radians(sun_azimuth_angle)
     sun_zenith_degrees = 90 - sun_elevation_angle
