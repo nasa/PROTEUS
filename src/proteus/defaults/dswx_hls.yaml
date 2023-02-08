@@ -66,6 +66,22 @@ runconfig:
             # Check if ancillary inputs cover entirely the output product
             check_ancillary_inputs_coverage: True
 
+            # HLS Fmask values to convert not-water to high-confidence water
+            # in the presence of high aerosol
+            aerosol_not_water_to_high_conf_water_fmask_values: [224, 160, 96]
+
+            # HLS Fmask values to convert moderate-confidence water to
+            # high-confidence water in the presence of high aerosol
+            aerosol_water_moderate_conf_to_high_conf_water_fmask_values: [224, 160, 96]
+
+            # HLS Fmask values to convert partial surface water conservative to
+            # high-confidence water in the presence of high aerosol
+            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: [224, 160]
+
+            # HLS Fmask values to convert partial surface water aggressive to
+            # high-confidence water in the presence of high aerosol
+            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: [224, 160]
+
             # Select shadow masking algorithm
             shadow_masking_algorithm: sun_local_inc_angle
 
