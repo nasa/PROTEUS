@@ -67,6 +67,9 @@ runconfig:
             # Check if ancillary inputs cover entirely the output product
             check_ancillary_inputs_coverage: bool(required=False)
 
+            # Apply aeresol masking
+            apply_aerosol_masking: bool(required=False)
+
             # HLS Fmask values to convert not-water to high-confidence water
             # in the presence of high aerosol
             aerosol_not_water_to_high_conf_water_fmask_values: list(int(), min=0, required=False)

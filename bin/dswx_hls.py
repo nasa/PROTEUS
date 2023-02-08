@@ -82,6 +82,7 @@ def main():
         product_id=args.product_id,
         product_version=args.product_version,
         check_ancillary_inputs_coverage=args.check_ancillary_inputs_coverage,
+        apply_aerosol_masking=args.apply_aerosol_masking,
         aerosol_not_water_to_high_conf_water_fmask_values =
             args.aerosol_not_water_to_high_conf_water_fmask_values,
         aerosol_water_moderate_conf_to_high_conf_water_fmask_values =

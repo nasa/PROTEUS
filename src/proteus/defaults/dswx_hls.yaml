@@ -66,6 +66,9 @@ runconfig:
             # Check if ancillary inputs cover entirely the output product
             check_ancillary_inputs_coverage: True
 
+            # Apply aeresol masking
+            apply_aerosol_masking: True
+
             # HLS Fmask values to convert not-water to high-confidence water
             # in the presence of high aerosol
             aerosol_not_water_to_high_conf_water_fmask_values: [224, 160, 96]

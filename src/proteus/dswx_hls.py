@@ -315,6 +315,8 @@ class RunConfigConstants:
         HLS reflectance thresholds for generating DSWx-HLS products
     check_ancillary_inputs_coverage: bool
         Check if ancillary inputs cover entirely the output product
+    apply_aerosol_masking: bool
+        Apply aerosol masking
     aerosol_not_water_to_high_conf_water_fmask_values: list(int)
          HLS Fmask values to convert not-water to high-confidence water
          in the presence of high aerosol
@@ -370,12 +372,13 @@ class RunConfigConstants:
     """
     def __init__(self):
         self.hls_thresholds = HlsThresholds()
+        self.check_ancillary_inputs_coverage = None
+        self.apply_aerosol_masking = None
         self.aerosol_not_water_to_high_conf_water_fmask_values = None
         self.aerosol_water_moderate_conf_to_high_conf_water_fmask_values = None
         self.aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values = None
         self.aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values = None
         self.shadow_masking_algorithm = None
-        self.check_ancillary_inputs_coverage = None
         self.min_slope_angle = None
         self.max_sun_local_inc_angle = None
         self.mask_adjacent_to_cloud_mode = None
@@ -613,6 +616,12 @@ def get_dswx_hls_cli_parser():
                         default=None,
                         help=('Check if ancillary inputs cover entirely'
                               ' the output product'))
+
+    parser.add_argument('--apply-aerosol-masking',
+                        dest='apply_aerosol_masking',
+                        action='store_true',
+                        default=None,
+                        help='Apply aerosol masking')
 
     parser.add_argument('--shadow-masking-algorithm',
                         dest='shadow_masking_algorithm',
@@ -4135,6 +4144,7 @@ def generate_dswx_layers(input_list,
                          product_id=None,
                          product_version=SOFTWARE_VERSION,
                          check_ancillary_inputs_coverage=None,
+                         apply_aerosol_masking=None,
                          aerosol_not_water_to_high_conf_water_fmask_values=None,
                          aerosol_water_moderate_conf_to_high_conf_water_fmask_values=None,
                          aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values=None,
@@ -4226,16 +4236,18 @@ def generate_dswx_layers(input_list,
               metadata
        check_ancillary_inputs_coverage: bool (optional)
               Check if ancillary inputs cover entirely the output product
-       aerosol_not_water_to_high_conf_water_fmask_values: list(int)
+       apply_aerosol_masking: bool (optional)
+              Apply aerosol masking
+       aerosol_not_water_to_high_conf_water_fmask_values: list(int) (optional)
               HLS Fmask values to convert not-water to high-confidence water
               in the presence of high aerosol
-       aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int)
+       aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int) (optional)
               HLS Fmask values to convert moderate-confidence water to
               high-confidence water in the presence of high aerosol
-       aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int)
+       aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int) (optional)
               HLS Fmask values to convert partial surface water conservative to
               high-confidence water in the presence of high aerosol
-       aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: list(int)
+       aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: list(int) (optional)
               HLS Fmask values to convert partial surface water aggressive to
               high-confidence water in the presence of high aerosol
        shadow_masking_algorithm: str (optional)
@@ -4263,6 +4275,7 @@ def generate_dswx_layers(input_list,
     flag_read_runconfig_constants = \
         any([p is None for p in [hls_thresholds,
                                  check_ancillary_inputs_coverage,
+                                 apply_aerosol_masking,
                                  aerosol_not_water_to_high_conf_water_fmask_values,
                                  aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
                                  aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
@@ -4287,6 +4300,8 @@ def generate_dswx_layers(input_list,
         if check_ancillary_inputs_coverage is None:
             check_ancillary_inputs_coverage = \
                 runconfig_constants.check_ancillary_inputs_coverage
+        if apply_aerosol_masking is None:
+            apply_aerosol_masking = runconfig.constants.apply_aerosol_masking
         if aerosol_not_water_to_high_conf_water_fmask_values is None:
             aerosol_not_water_to_high_conf_water_fmask_values = \
                 runconfig_constants.aerosol_not_water_to_high_conf_water_fmask_values
@@ -4362,8 +4377,33 @@ def generate_dswx_layers(input_list,
     logger.info(f'processing parameters:')
     logger.info(f'    scratch directory: {scratch_dir}')
     logger.info(f'    check ancillary coverage:'
-                f'{check_ancillary_inputs_coverage}')
-
+                f' {check_ancillary_inputs_coverage}')
+                
+    logger.info(f'    apply aerosol masking:'
+                f' {apply_aerosol_masking}')
+    if apply_aerosol_masking:
+        aerosol_masking_unused_parameters_str = ''
+    else:
+        aerosol_masking_unused_parameters_str = ' (unused)'
+    logger.info(
+        f'        not-water to high-confidence water Fmask values:' +
+        f' {aerosol_not_water_to_high_conf_water_fmask_values}' +
+        aerosol_masking_unused_parameters_str)
+    logger.info(
+        f'        moderate confidence water to'
+        f' high-confidence water Fmask values:' +
+        f' {aerosol_water_moderate_conf_to_high_conf_water_fmask_values}' +
+        aerosol_masking_unused_parameters_str)
+    logger.info(
+        f'        partial surface water conservative to'
+        f' high-confidence water Fmask values:' +
+        f' {aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values}' +
+        aerosol_masking_unused_parameters_str)
+    logger.info(
+        f'        partial surface water aggressive to'
+        f' high-confidence water Fmask values:' +
+        f' {aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values}' +
+        aerosol_masking_unused_parameters_str)
     logger.info(f'    shadow masking algorithm: {shadow_masking_algorithm}')
     if shadow_masking_algorithm == 'otsu':
         terrain_masking_parameters_str = ' (unused)'
@@ -4694,11 +4734,12 @@ def generate_dswx_layers(input_list,
                           scratch_dir=scratch_dir,
                           output_files_list=build_vrt_list)
 
-    _apply_aerosol_masking(wtr_1_layer, fmask,
-        aerosol_not_water_to_high_conf_water_fmask_values,
-        aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
-        aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
-        aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values)
+    if apply_aerosol_masking:
+        _apply_aerosol_masking(wtr_1_layer, fmask,
+            aerosol_not_water_to_high_conf_water_fmask_values,
+            aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
+            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values)
 
     wtr_2_layer = _apply_landcover_and_shadow_masks(
         wtr_1_layer, nir, landcover_mask, shadow_layer,
