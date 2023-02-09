@@ -1135,8 +1135,8 @@ def _is_landcover_class_high_intensity_developed(landcover_mask):
     return high_intensity_developed_mask
 
 
-def _apply_aerosol_masking_wtr1_class(wtr_1_layer, fmask, wtr1_class,
-        fmask_values):
+def _apply_aerosol_masking_wtr1_class(wtr_1_layer, fmask,
+        fmask_values, input_wtr1_class, output_wtr1_class):
     """Apply aerosol masking onto interpreted layer (WTR-1) given a
        WTR-1 class and fmask values
 
@@ -1146,12 +1146,13 @@ def _apply_aerosol_masking_wtr1_class(wtr_1_layer, fmask, wtr1_class,
             Interpreted layer (WTR-1) (mutable numpy.ndarray)
        fmask: numpy.ndarray
             HLS Fmask
-       wtr1_class: int
-            WTR-1 class that may be converted to high-confidence water
-            given HLS Fmask values
        fmask_values: list(int)
             HLS Fmask values to convert not-water to high-confidence water
             in the presence of high aerosol
+       input_wtr1_class: int
+            Input WTR-1 class that is being evaluated for high-aerosol
+       output_wtr1_class: int
+            Output WTR-1 class if input WTR-1 class has high-aerosol
     """
 
     to_mask_array = None
@@ -1160,8 +1161,8 @@ def _apply_aerosol_masking_wtr1_class(wtr_1_layer, fmask, wtr1_class,
             to_mask_array = fmask == fmask_value
         else:
             to_mask_array |= fmask == fmask_value
-    to_mask_array &= wtr_1_layer == wtr1_class
-    wtr_1_layer[to_mask_array] = WATER_UNCOLLAPSED_HIGH_CONF_CLEAR
+    to_mask_array &= wtr_1_layer == input_wtr1_class
+    wtr_1_layer[to_mask_array] = output_wtr1_class
 
 
 def _apply_aerosol_masking(wtr_1_layer, fmask,
@@ -1193,18 +1194,23 @@ def _apply_aerosol_masking(wtr_1_layer, fmask,
 
     wtr1_class_fmask_values_dict = {
         WATER_NOT_WATER_CLEAR:
-            aerosol_not_water_to_high_conf_water_fmask_values,
+            (aerosol_not_water_to_high_conf_water_fmask_values,
+             WATER_UNCOLLAPSED_HIGH_CONF_CLEAR),
         WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR:
-            aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
+            (aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
+             WATER_UNCOLLAPSED_HIGH_CONF_CLEAR),
         WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR:
-            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+            (aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+             WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR),
         WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR:
-            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values
+            (aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
+             WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR)
         }
 
-    for wtr1_class, fmask_values in wtr1_class_fmask_values_dict.items():
-        _apply_aerosol_masking_wtr1_class(wtr_1_layer, fmask, wtr1_class,
-            fmask_values)
+    for input_wtr1_class, (fmask_values, output_wtr1_class) in \
+            wtr1_class_fmask_values_dict.items():
+        _apply_aerosol_masking_wtr1_class(wtr_1_layer, fmask,
+            fmask_values, input_wtr1_class, output_wtr1_class)
 
 
 def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
