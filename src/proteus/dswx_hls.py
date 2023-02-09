@@ -1154,9 +1154,13 @@ def _apply_aerosol_masking_wtr1_class(wtr_1_layer, fmask, wtr1_class,
             in the presence of high aerosol
     """
 
-    to_mask_array = wtr_1_layer == wtr1_class
+    to_mask_array = None
     for fmask_value in fmask_values:
-        to_mask_array &= fmask == fmask_value
+        if to_mask_array is None:
+            to_mask_array = fmask == fmask_value
+        else:
+            to_mask_array |= fmask == fmask_value
+    to_mask_array &= wtr_1_layer == wtr1_class
     wtr_1_layer[to_mask_array] = WATER_UNCOLLAPSED_HIGH_CONF_CLEAR
 
 
