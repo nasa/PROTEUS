@@ -4576,6 +4576,9 @@ def generate_dswx_layers(input_list,
     preliminary_cloud_layer = _compute_preliminary_cloud_layer(
         fmask, mask_adjacent_to_cloud_mode)
 
+    # compute total number of pixels
+    total_number_of_pixels = length * width
+
     # create ocean mask
     if shoreline_shapefile is not None:
         ocean_mask = _create_ocean_mask(shoreline_shapefile,
@@ -4586,12 +4589,14 @@ def generate_dswx_layers(input_list,
 
         # update valid_array
         valid_array = np.logical_and(valid_array, ocean_mask)
+        n_not_ocean = np.sum(ocean_mask)
+    else:
+        n_not_ocean = total_number_of_pixels
 
     # create variables to compute spatial and cloud coverage
     n_valid = np.sum(valid_array)
     n_cloud_and_valid = np.sum(((preliminary_cloud_layer) != 0) & (valid_array))
     del valid_array
-    total_number_of_pixels = length * width
 
     # use floor integer to compute spatial and cloud coverage
     spatial_coverage = int(100 * float(n_valid) / total_number_of_pixels)
@@ -4599,11 +4604,6 @@ def generate_dswx_layers(input_list,
         cloud_coverage = 0
     else:
         cloud_coverage = int(100 * float(n_cloud_and_valid) / n_valid)
-
-    if ocean_mask is not None:
-        n_not_ocean = np.sum(ocean_mask) 
-    else:
-        n_not_ocean = total_number_of_pixels
 
     if n_not_ocean == 0:
         spatial_coverage_after_ocean_masking = 0
