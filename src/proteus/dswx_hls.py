@@ -1174,8 +1174,8 @@ def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer,
                             (preliminary_cloud_layer != UINT8_FILL_VALUE)] += 8
 
 
-def _apply_aerosol_class_remapping(wtr_1_layer, fmask,
-        preliminary_cloud_layer,
+def _apply_aerosol_class_remapping(wtr_1_layer,
+        preliminary_cloud_layer, fmask,
         aerosol_not_water_to_moderate_conf_water_fmask_values,
         aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
         aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values,
@@ -1475,7 +1475,6 @@ def _get_cloud_layer_ctable():
     # - Mask snow/ice bit (1)
     # - Mask cloud bit (2)
     # - Class reassignment due to aerosol interpolation errors (3)
-    # rusty ocre / gray green / grayish yellow
 
     # White - Not masked
     mask_ctable.SetColorEntry(0, (255, 255, 255))
@@ -1495,7 +1494,7 @@ def _get_cloud_layer_ctable():
     mask_ctable.SetColorEntry(7, (127, 127, 255))
 
     # Light ocre - Aerosol reassignment ("0xE4CDA7")
-    mask_ctable.SetColorEntry(8, (288, 205, 167))
+    mask_ctable.SetColorEntry(8, (228, 205, 167))
     # Dark gray - Cloud shadow
     mask_ctable.SetColorEntry(9, (64, 64, 64))
     # Cyan - snow/ice
