@@ -1195,7 +1195,7 @@ def _apply_aerosol_masking(wtr_1_layer, fmask,
     wtr1_class_fmask_values_dict = {
         WATER_NOT_WATER_CLEAR:
             (aerosol_not_water_to_high_conf_water_fmask_values,
-             WATER_UNCOLLAPSED_HIGH_CONF_CLEAR),
+             WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR),
         WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR:
             (aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
              WATER_UNCOLLAPSED_HIGH_CONF_CLEAR),
