@@ -1135,15 +1135,20 @@ def _is_landcover_class_high_intensity_developed(landcover_mask):
     return high_intensity_developed_mask
 
 
-def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer, fmask,
+def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer,
+        preliminary_cloud_layer, fmask,
         fmask_values, input_wtr1_class, output_wtr1_class):
-    """Apply aerosol masking onto interpreted layer (WTR-1) given a
-       WTR-1 class and fmask values
+    """Apply aerosol remapping onto interpreted layer (WTR-1) given a
+       WTR-1 class and fmask values. The function also sets
+       the third bit of the CLOUD layer in remmaped areas
 
        Parameters
        ----------
        wtr_1_layer: numpy.ndarray
             Interpreted layer (WTR-1) (mutable numpy.ndarray)
+       preliminary_cloud_layer : numpy.ndarray
+            Preliminary cloud mask aerosol remapping bit (mutable
+            numpy.ndarray)
        fmask: numpy.ndarray
             HLS Fmask
        fmask_values: list(int)
@@ -1164,8 +1169,13 @@ def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer, fmask,
     to_mask_array &= wtr_1_layer == input_wtr1_class
     wtr_1_layer[to_mask_array] = output_wtr1_class
 
+    # set CLOUD layer bit (3): 2**3 = 8
+    preliminary_cloud_layer[(to_mask_array) &
+                            (preliminary_cloud_layer != UINT8_FILL_VALUE)] += 8
+
 
 def _apply_aerosol_class_remapping(wtr_1_layer, fmask,
+        preliminary_cloud_layer,
         aerosol_not_water_to_moderate_conf_water_fmask_values,
         aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
         aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values,
@@ -1176,6 +1186,9 @@ def _apply_aerosol_class_remapping(wtr_1_layer, fmask,
        ----------
        wtr_1_layer: numpy.ndarray
             Interpreted layer (WTR-1) (mutable numpy.ndarray)
+       preliminary_cloud_layer : numpy.ndarray
+            Preliminary cloud mask aerosol remapping bit (mutable
+            numpy.ndarray)
        fmask: numpy.ndarray
             HLS Fmask
        aerosol_not_water_to_moderate_conf_water_fmask_values: list(int)
@@ -1192,7 +1205,7 @@ def _apply_aerosol_class_remapping(wtr_1_layer, fmask,
            moderate-confidence water in the presence of high aerosol
     """
 
-    # add a not here that nothing changes for high-conf. water
+    # add a not here that nothing changes for high-confidence water
     wtr1_class_fmask_values_dict = {
         WATER_NOT_WATER_CLEAR:
             (aerosol_not_water_to_moderate_conf_water_fmask_values,
@@ -1210,7 +1223,8 @@ def _apply_aerosol_class_remapping(wtr_1_layer, fmask,
 
     for input_wtr1_class, (fmask_values, output_wtr1_class) in \
             wtr1_class_fmask_values_dict.items():
-        _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer, fmask,
+        _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer,
+            preliminary_cloud_layer, fmask,
             fmask_values, input_wtr1_class, output_wtr1_class)
 
 
@@ -1460,7 +1474,7 @@ def _get_cloud_layer_ctable():
     # - Mask cloud shadow bit (0)
     # - Mask snow/ice bit (1)
     # - Mask cloud bit (2)
-    # - Class re-assignment due to aerosol interpolation errors (3)
+    # - Class reassignment due to aerosol interpolation errors (3)
     # rusty ocre / gray green / grayish yellow
 
     # White - Not masked
@@ -1479,9 +1493,26 @@ def _get_cloud_layer_ctable():
     mask_ctable.SetColorEntry(6, (255, 0, 255))
     # Light blue - Cloud, cloud shadow, and snow/ice
     mask_ctable.SetColorEntry(7, (127, 127, 255))
+
+    # Light ocre - Aerosol reassignment ("0xE4CDA7")
+    mask_ctable.SetColorEntry(8, (288, 205, 167))
+    # Dark gray - Cloud shadow
+    mask_ctable.SetColorEntry(9, (64, 64, 64))
+    # Cyan - snow/ice
+    mask_ctable.SetColorEntry(10, (0, 255, 255))
+    # Dark cyan - Cloud shadow and snow/ice
+    mask_ctable.SetColorEntry(11, (0, 127, 127))
+    # Light gray - Cloud
+    mask_ctable.SetColorEntry(12, (192, 192, 192))
+    # Gray - Cloud and cloud shadow
+    mask_ctable.SetColorEntry(13, (127, 127, 127))
+    # Magenta - Cloud and snow/ice
+    mask_ctable.SetColorEntry(14, (255, 0, 255))
+    # Light blue - Cloud, cloud shadow, and snow/ice
+    mask_ctable.SetColorEntry(15, (127, 127, 255))
+
     # Dark blue - Ocean masked
     mask_ctable.SetColorEntry(CLOUD_OCEAN_MASKED, OCEAN_MASKED_RGBA)
-
     # Black - Fill value
     mask_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
     return mask_ctable
@@ -1676,7 +1707,13 @@ def _get_confidence_layer(wtr_2_layer, cloud_layer):
                  (cloud_layer == 4) |
                  (cloud_layer == 5) |
                  (cloud_layer == 6) |
-                 (cloud_layer == 7))
+                 (cloud_layer == 7) |
+                 (cloud_layer == 9) | 
+                 (cloud_layer == 11) |
+                 (cloud_layer == 12) |
+                 (cloud_layer == 13) |
+                 (cloud_layer == 14) |
+                 (cloud_layer == 15))
 
     idx = ((conf_layer == WATER_NOT_WATER_CLEAR) & cloud_idx)
     conf_layer[idx] = WATER_NOT_WATER_CLOUD
@@ -1802,8 +1839,9 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
 
 
 def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
-    """Compute a preliminary CLOUD layer without the snow/ice
-       class. The CLOUD layer will be completed by a subsequent function
+    """Compute a preliminary CLOUD layer without snow/ice and aerosol
+       remmapping classes. The CLOUD layer will be completed by the subsequent
+       functions _apply_aerosol_class_remapping() and
        _add_snow_to_cloud_layer().
 
        Parameters
@@ -1833,12 +1871,13 @@ def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
        ---------
             _add_snow_to_cloud_layer : Add the snow bit encodings from `fmask` to
             `preliminary_cloud_layer`
+            _apply_aerosol_class_remapping: Add bit indicating class
+                reassignment due to aerosol interpolation errors
     """
     preliminary_cloud_layer = np.zeros(fmask.shape, dtype = np.uint8)
 
     '''
-    HLS Fmask
-    BITS:
+    Input HLS Fmask bit encoding:
         0 - Cirrus (reserved but not used)
     (*) 1 - Cloud (maps to output bit 2)
     (*) 2 - Adjacent to cloud/shadow 
@@ -1881,7 +1920,8 @@ def _add_snow_to_cloud_layer(wtr_2_layer, cloud_layer, fmask,
                              mask_adjacent_to_cloud_mode):
     """Finish computing the CLOUD layer by adding the snow/ice class
        to the CLOUD layer.
-       This function succeeds the function _compute_preliminary_cloud_layer()
+       This function succeeds the functions _compute_preliminary_cloud_layer()
+       and _apply_aerosol_class_remapping()
 
        Parameters
        ----------
@@ -1904,26 +1944,18 @@ def _add_snow_to_cloud_layer(wtr_2_layer, cloud_layer, fmask,
        -------
        cloud_layer : numpy.ndarray
             Cloud mask (without the snow/ice class) with dtype of uint8 and
-            values assigned as follows:
+            values assigned following the bit encoding:
 
-            0: Not masked
-            1: Cloud shadow or adjacent to cloud/cloud shadow
-            2: Snow/ice
-            3: Snow/ice and class 1 (cloud shadow or adjacent to cloud/cloud
-                shadow)
-            4: Cloud
-            5: Cloud and class 1 (cloud shadow or adjacent to cloud/cloud
-                shadow)
-            6: Cloud and snow/ice
-            7: Cloud, snow/ice, and class 1 (cloud shadow or adjacent to
-                cloud/cloud shadow)
+            0: Cloud shadow or adjacent to cloud/cloud shadow
+            1: Snow/ice
+            2: Cloud
+            3: Class reassignment due to aerosol interpolation errors (3)
             255: Fill value (no data)
 
     """
 
     '''
-    HLS Fmask
-    BITS:
+    Input HLS Fmask bit encoding:
         0 - Cirrus (reserved but not used)
         1 - Cloud
         2 - Adjacent to cloud/shadow 
@@ -1980,14 +2012,13 @@ def _add_snow_to_cloud_layer(wtr_2_layer, cloud_layer, fmask,
 def _apply_cloud_masking(wtr_2_layer, cloud_layer):
     """Apply CLOUD masking to the interpreted water layer WTR-2
        creating the layer WTR.
-       This function succeeds the function _add_snow_to_cloud_layer().
 
        Parameters
        ----------
        wtr_2_layer: numpy.ndarray
             Cloud-unmasked interpreted water layer
        cloud_layer : numpy.ndarray
-            Preliminary cloud mask (without the snow/ice class)
+            Cloud layer
 
        Returns
        -------
@@ -1997,11 +2028,11 @@ def _apply_cloud_masking(wtr_2_layer, cloud_layer):
     wtr_layer = wtr_2_layer.copy()
 
     '''
-    Cloud layer:
-    BITS:
+    Cloud layer bit encoding:
     0 - Cloud shadow or adjacent to cloud/cloud shadow
     1 - Snow
     2 - Cloud
+    3 - Class reassignment due to aerosol interpolation errors (3)
     '''
 
     # If there's cloud shadow/adjacent to cloud/cloud shadow or
@@ -2010,7 +2041,8 @@ def _apply_cloud_masking(wtr_2_layer, cloud_layer):
 
     # If there's snow only (i.e., no cloud/cloud shadow),
     # the mark output as WTR_SNOW_MASKED
-    wtr_layer[cloud_layer == 2] = WTR_SNOW_MASKED
+    wtr_layer[(cloud_layer == 2) |
+              (cloud_layer == 10)] = WTR_SNOW_MASKED
 
     # Apply the ocean mask on the WTR layer
     wtr_layer[wtr_2_layer == WTR_OCEAN_MASKED] = WTR_OCEAN_MASKED
@@ -4749,7 +4781,8 @@ def generate_dswx_layers(input_list,
                           output_files_list=build_vrt_list)
 
     if apply_aerosol_class_remapping:
-        _apply_aerosol_class_remapping(wtr_1_layer, fmask,
+        _apply_aerosol_class_remapping(wtr_1_layer,
+            preliminary_cloud_layer, fmask,
             aerosol_not_water_to_moderate_conf_water_fmask_values,
             aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
             aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values,
