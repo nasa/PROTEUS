@@ -4347,7 +4347,7 @@ def generate_dswx_layers(input_list,
             check_ancillary_inputs_coverage = \
                 runconfig_constants.check_ancillary_inputs_coverage
         if apply_aerosol_class_remapping is None:
-            apply_aerosol_class_remapping = runconfig.constants.apply_aerosol_class_remapping
+            apply_aerosol_class_remapping = runconfig_constants.apply_aerosol_class_remapping
         if aerosol_not_water_to_moderate_conf_water_fmask_values is None:
             aerosol_not_water_to_moderate_conf_water_fmask_values = \
                 runconfig_constants.aerosol_not_water_to_moderate_conf_water_fmask_values
