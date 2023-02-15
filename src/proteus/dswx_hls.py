@@ -2035,8 +2035,11 @@ def _apply_cloud_masking(wtr_2_layer, cloud_layer):
     '''
 
     # If there's cloud shadow/adjacent to cloud/cloud shadow or
-    # cloud, then mark output as WTR_CLOUD_MASKED
-    wtr_layer[cloud_layer != 0] = WTR_CLOUD_MASKED
+    # cloud, and there was no remapping due to high aerosol
+    # bit 3 (value 2**3 = 8),
+    # then mark output as WTR_CLOUD_MASKED
+    wtr_layer[(cloud_layer != 0) &
+              (cloud_layer != 8)] = WTR_CLOUD_MASKED
 
     # If there's snow only (i.e., no cloud/cloud shadow),
     # the mark output as WTR_SNOW_MASKED
