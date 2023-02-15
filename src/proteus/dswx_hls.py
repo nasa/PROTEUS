@@ -1170,8 +1170,10 @@ def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer,
     wtr_1_layer[to_mask_array] = output_wtr1_class
 
     # set CLOUD layer bit (3): 2**3 = 8
-    preliminary_cloud_layer[(to_mask_array) &
-                            (preliminary_cloud_layer != UINT8_FILL_VALUE)] += 8
+    ind = np.where((to_mask_array) &
+                   (preliminary_cloud_layer != UINT8_FILL_VALUE))
+    preliminary_cloud_layer[ind] = np.bitwise_or(
+        preliminary_cloud_layer[ind], 2**3)
 
 
 def _apply_aerosol_class_remapping(wtr_1_layer,
