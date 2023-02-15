@@ -1496,7 +1496,9 @@ def _get_cloud_layer_ctable():
     mask_ctable.SetColorEntry(7, (127, 127, 255))
 
     # Light ocre - Aerosol reassignment ("0xE4CDA7")
-    mask_ctable.SetColorEntry(8, (228, 205, 167))
+    # mask_ctable.SetColorEntry(8, (228, 205, 167))
+    # Grayish blue - Aerosol reassignment ("0x7393B3")
+    mask_ctable.SetColorEntry(8, (115, 147, 179))
     # Dark gray - Cloud shadow
     mask_ctable.SetColorEntry(9, (64, 64, 64))
     # Cyan - snow/ice
