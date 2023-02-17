@@ -1345,24 +1345,24 @@ def _get_interpreted_dswx_ctable(
     if flag_collapse_wtr_classes:
         # Blue - Open water
         dswx_ctable.SetColorEntry(WATER_COLLAPSED_OPEN_WATER,
-                                  (0, 0, 255)) 
-        # Light Blue - Partial surface water
+                                  (0, 0, 255))
+        # Light blue - Partial surface water
         dswx_ctable.SetColorEntry(WATER_COLLAPSED_PARTIAL_SURFACE_WATER,
                                   (180, 213, 244))
     else:
         # Blue - Water (high confidence)
         dswx_ctable.SetColorEntry(WATER_UNCOLLAPSED_HIGH_CONF_CLEAR,
-                                  (0, 0, 255)) 
+                                  (0, 0, 255))
         # Light blue - Water (moderate conf.)
         dswx_ctable.SetColorEntry(WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR,
-                                  (0, 127, 255))
+                                  (95, 127, 255))
         # Dark green - Partial surface water conservative
         dswx_ctable.SetColorEntry(
-            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR, 
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR,
                                   (0, 195, 0)) # 225 ok
         # Light green - Partial surface water aggressive
         dswx_ctable.SetColorEntry(
-            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR, 
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR,
                                   (150, 255, 150))
 
     # Dark blue - Ocean masked
