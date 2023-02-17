@@ -1346,7 +1346,7 @@ def _get_interpreted_dswx_ctable(
                                   (0, 0, 255)) 
         # Light blue - Water (moderate conf.)
         dswx_ctable.SetColorEntry(WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR,
-                                  (173, 173, 252))
+                                  (0, 127, 255))
         # Dark green - Partial surface water conservative
         dswx_ctable.SetColorEntry(
             WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR, 
