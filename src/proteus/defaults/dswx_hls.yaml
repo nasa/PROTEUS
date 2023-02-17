@@ -66,6 +66,9 @@ runconfig:
             # Check if ancillary inputs cover entirely the output product
             check_ancillary_inputs_coverage: True
 
+            # Apply ocean masking
+            apply_ocean_masking: True
+
             # Apply aeresol masking
             apply_aerosol_class_remapping: True
 

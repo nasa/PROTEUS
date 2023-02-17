@@ -315,6 +315,8 @@ class RunConfigConstants:
         HLS reflectance thresholds for generating DSWx-HLS products
     check_ancillary_inputs_coverage: bool
         Check if ancillary inputs cover entirely the output product
+    apply_ocean_masking: bool
+        Apply ocean masking
     apply_aerosol_class_remapping: bool
         Apply aerosol masking
     aerosol_not_water_to_moderate_conf_water_fmask_values: list(int)
@@ -373,6 +375,7 @@ class RunConfigConstants:
     def __init__(self):
         self.hls_thresholds = HlsThresholds()
         self.check_ancillary_inputs_coverage = None
+        self.apply_ocean_masking = None
         self.apply_aerosol_class_remapping = None
         self.aerosol_not_water_to_moderate_conf_water_fmask_values = None
         self.aerosol_water_moderate_conf_to_high_conf_water_fmask_values = None
@@ -616,6 +619,12 @@ def get_dswx_hls_cli_parser():
                         default=None,
                         help=('Check if ancillary inputs cover entirely'
                               ' the output product'))
+
+    parser.add_argument('--apply-ocean-masking',
+                        dest='apply_ocean_masking',
+                        action='store_true',
+                        default=None,
+                        help='Apply ocean masking')
 
     parser.add_argument('--apply-aerosol-masking',
                         dest='apply_aerosol_class_remapping',
@@ -4049,8 +4058,11 @@ def _crop_2d_array_all_sides(input_2d_array, margin):
     return cropped_2d_array
 
 
-def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
-        shoreline_shapefile, geotransform, projection, length, width):
+def _check_ancillary_inputs(check_ancillary_inputs_coverage,
+                            check_shoreline_shapefile,
+                            dem_file, landcover_file, worldcover_file,
+                            shoreline_shapefile, geotransform, projection,
+                            length, width):
     """
     Check for existence and coverage of provided ancillary inputs: DEM,
     Copernicus CGLS Land Cover 100m, and
@@ -4058,6 +4070,11 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
 
        Parameters
        ----------
+       check_ancillary_inputs_coverage: bool
+              Flag that enable/disable checks for all ancillary inputs
+              excluding the shoreline shapefile
+       check_shoreline_shapefile: bool
+              Flag that checks for the shoreline shapefile
        dem_file: str
               DEM filename
        landcover_file: str
@@ -4075,6 +4092,8 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
        width: int
               DSWx-HLS product's width (number of columns)
     """
+    if not check_ancillary_inputs_coverage and not check_shoreline_shapefile:
+        return
 
     # file description (to be printed to the user if an error happens)
     dem_file_description = 'DEM file'
@@ -4082,12 +4101,17 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
     worldcover_file_description = 'ESA WorldCover 10m file'
     shoreline_shapefile_description = 'NOAA shoreline shapefile'
 
-    rasters_to_check_dict = {
-        dem_file_description: dem_file,
-        landcover_file_description: landcover_file,
-        worldcover_file_description: worldcover_file,
-        shoreline_shapefile_description: shoreline_shapefile
-    }
+    if check_ancillary_inputs_coverage:
+        rasters_to_check_dict = {
+            dem_file_description: dem_file,
+            landcover_file_description: landcover_file,
+            worldcover_file_description: worldcover_file,
+        }
+    else:
+        rasters_to_check_dict = {}
+    if check_shoreline_shapefile:
+        rasters_to_check_dict[shoreline_shapefile_description] = \
+            shoreline_shapefile
 
     tile_min_x_utm, tile_dx_utm, _, tile_max_y_utm, _, tile_dy_utm = \
         geotransform
@@ -4112,7 +4136,7 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
 
         if file_description == shoreline_shapefile_description:
             continue
-            
+
         # test if tile is fully covered by the ancillary input
         # by checking all ancillary input vertices are located
         # outside of the tile grid.
@@ -4194,6 +4218,7 @@ def generate_dswx_layers(input_list,
                          product_id=None,
                          product_version=SOFTWARE_VERSION,
                          check_ancillary_inputs_coverage=None,
+                         apply_ocean_masking=None,
                          apply_aerosol_class_remapping=None,
                          aerosol_not_water_to_moderate_conf_water_fmask_values=None,
                          aerosol_water_moderate_conf_to_high_conf_water_fmask_values=None,
@@ -4286,6 +4311,8 @@ def generate_dswx_layers(input_list,
               metadata
        check_ancillary_inputs_coverage: bool (optional)
               Check if ancillary inputs cover entirely the output product
+       apply_ocean_masking: bool (optional)
+              Apply ocean masking
        apply_aerosol_class_remapping: bool (optional)
               Apply aerosol masking
        aerosol_not_water_to_moderate_conf_water_fmask_values: list(int) (optional)
@@ -4325,6 +4352,7 @@ def generate_dswx_layers(input_list,
     flag_read_runconfig_constants = \
         any([p is None for p in [hls_thresholds,
                                  check_ancillary_inputs_coverage,
+                                 apply_ocean_masking,
                                  apply_aerosol_class_remapping,
                                  aerosol_not_water_to_moderate_conf_water_fmask_values,
                                  aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
@@ -4350,6 +4378,8 @@ def generate_dswx_layers(input_list,
         if check_ancillary_inputs_coverage is None:
             check_ancillary_inputs_coverage = \
                 runconfig_constants.check_ancillary_inputs_coverage
+        if apply_ocean_masking is None:
+            apply_ocean_masking = runconfig_constants.apply_ocean_masking
         if apply_aerosol_class_remapping is None:
             apply_aerosol_class_remapping = runconfig_constants.apply_aerosol_class_remapping
         if aerosol_not_water_to_moderate_conf_water_fmask_values is None:
@@ -4402,6 +4432,11 @@ def generate_dswx_layers(input_list,
     elif product_id is None:
         product_id = 'dswx_hls'
 
+    if apply_ocean_masking:
+        ocean_masking_unused_parameters_str = ''
+    else:
+        ocean_masking_unused_parameters_str = ' (unused)'
+
     logger.info(f'PROTEUS software version: {SOFTWARE_VERSION}')
     logger.info('input files:')
     logger.info('    HLS product file(s):')
@@ -4417,7 +4452,8 @@ def generate_dswx_layers(input_list,
     logger.info(f'    ESA WorldCover 10m file: {worldcover_file}')
     logger.info(f'        description:'
                 f' {worldcover_file_description}')
-    logger.info(f'    NOAA shoreline shapefile: {shoreline_shapefile}')
+    logger.info(f'    NOAA shoreline shapefile: {shoreline_shapefile}'
+                f'{ocean_masking_unused_parameters_str}')
     logger.info(f'        description:'
                 f' {shoreline_shapefile_description}')
     logger.info(f'product parameters:')
@@ -4428,9 +4464,16 @@ def generate_dswx_layers(input_list,
     logger.info(f'    scratch directory: {scratch_dir}')
     logger.info(f'    check ancillary coverage:'
                 f' {check_ancillary_inputs_coverage}')
-                
-    logger.info(f'    apply aerosol masking:'
+
+    logger.info(f'    apply ocean masking: {apply_ocean_masking}')
+
+    logger.info(f'        ocean masking distance from shoreline in km:'
+                f' {ocean_masking_shoreline_distance_km}'
+                f'{ocean_masking_unused_parameters_str}')
+
+    logger.info(f'    apply aerosol water class remapping:'
                 f' {apply_aerosol_class_remapping}')
+
     if apply_aerosol_class_remapping:
         aerosol_class_remapping_unused_parameters_str = ''
     else:
@@ -4474,8 +4517,6 @@ def generate_dswx_layers(input_list,
                 f' {mask_adjacent_to_cloud_mode}')
     logger.info(f'    CGLS Land Cover 100m forest classes:'
                 f' {forest_mask_landcover_classes}')
-    logger.info(f'    Ocean masking distance from shoreline in km:'
-                f' {ocean_masking_shoreline_distance_km}')
 
     if output_browse_image:
         logger.info(f'browse image:')
@@ -4593,10 +4634,11 @@ def generate_dswx_layers(input_list,
     logger.info(f'    mean elevation angle: {sun_elevation_angle}')
 
     # check ancillary inputs
-    if check_ancillary_inputs_coverage:
-        _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
-                                shoreline_shapefile, geotransform,
-                                projection, length, width)
+    _check_ancillary_inputs(check_ancillary_inputs_coverage,
+                            apply_ocean_masking,
+                            dem_file, landcover_file, worldcover_file,
+                            shoreline_shapefile, geotransform,
+                            projection, length, width)
 
     # print input HLS product spatial and cloud coverage
     logger.info(f'data coverage:')
