@@ -3677,7 +3677,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['DEM_SOURCE'] = \
             os.path.basename(dem_file)
     else:
-        dswx_metadata_dict['DEM_SOURCE'] = '(not provided)'
+        dswx_metadata_dict['DEM_SOURCE'] = '-'
 
     if landcover_file_description:
         dswx_metadata_dict['LANDCOVER_SOURCE'] = landcover_file_description
@@ -3685,7 +3685,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['LANDCOVER_SOURCE'] = \
             os.path.basename(landcover_file)
     else:
-        dswx_metadata_dict['LANDCOVER_SOURCE'] = '(not provided)'
+        dswx_metadata_dict['LANDCOVER_SOURCE'] = '-'
 
     if worldcover_file_description:
         dswx_metadata_dict['WORLDCOVER_SOURCE'] = worldcover_file_description
@@ -3693,7 +3693,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['WORLDCOVER_SOURCE'] = \
             os.path.basename(worldcover_file)
     else:
-        dswx_metadata_dict['WORLDCOVER_SOURCE'] = '(not provided)'
+        dswx_metadata_dict['WORLDCOVER_SOURCE'] = '-'
 
     if shoreline_shapefile_description:
         dswx_metadata_dict['SHORELINE_SOURCE'] = \
@@ -3702,7 +3702,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['SHORELINE_SOURCE'] = \
             os.path.basename(shoreline_shapefile)
     else:
-        dswx_metadata_dict['SHORELINE_SOURCE'] = '(not provided)'
+        dswx_metadata_dict['SHORELINE_SOURCE'] = '-'
 
 
 def _populate_dswx_metadata_processing_parameters(
@@ -4470,6 +4470,9 @@ def generate_dswx_layers(input_list,
     logger.info(f'        ocean masking distance from shoreline in km:'
                 f' {ocean_masking_shoreline_distance_km}'
                 f'{ocean_masking_unused_parameters_str}')
+    if not apply_ocean_masking:
+        shoreline_shapefile = None
+        shoreline_shapefile_description = None
 
     logger.info(f'    apply aerosol water class remapping:'
                 f' {apply_aerosol_class_remapping}')
