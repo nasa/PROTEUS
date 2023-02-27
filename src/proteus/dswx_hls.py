@@ -2944,7 +2944,9 @@ def _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
         try:
             polygon_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         except AttributeError:
-            pass
+            logger.warning('WARNING Could not set the ancillary input SRS axis'
+                           ' mapping strategy (SetAxisMappingStrategy())'
+                           ' to osr.OAMS_TRADITIONAL_GIS_ORDER')
     transformation = osr.CoordinateTransformation(tile_srs, polygon_srs)
 
     elevation = 0
@@ -4021,7 +4023,7 @@ def generate_dswx_layers(input_list,
     logger.info(f'    ESA WorldCover 10m file: {worldcover_file}')
     logger.info(f'        description:'
                 f' {worldcover_file_description}')
-    logger.info(f'     NOAA shoreline shapefile: {shoreline_shapefile}')
+    logger.info(f'    NOAA shoreline shapefile: {shoreline_shapefile}')
     logger.info(f'        description:'
                 f' {shoreline_shapefile_description}')
     logger.info(f'product parameters:')
