@@ -2810,10 +2810,7 @@ def get_projection_proj4(projection):
               Projection in proj4 format
     """
     srs = osr.SpatialReference()
-    if projection.upper() == 'WGS84':
-        srs.SetWellKnownGeogCS(projection)
-    else:
-        srs.ImportFromProj4(projection)
+    srs.ImportFromProj4(projection)
     projection_proj4 = srs.ExportToProj4()
     projection_proj4 = projection_proj4.strip()
     return projection_proj4
@@ -2924,7 +2921,9 @@ def _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
        tile_srs: osr.SpatialReference
               Tile original spatial reference system (SRS)
        polygon_srs: osr.SpatialReference
-              Polygon (shoreline) spatial reference system (SRS)
+              Polygon spatial reference system (SRS). If the polygon
+              SRS is geographic, its Axis Mapping Strategy will
+              be updated to osr.OAMS_TRADITIONAL_GIS_ORDER
        Returns
        -------
        tile_polygon: ogr.Geometry
@@ -2939,6 +2938,15 @@ def _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
               Tile maximum X-coordinate (polygon SRS)
     """
 
+    # forces returned values from TransformPoint() to be (x, y, z)
+    # rather than (y, x, z) for geographic SRS
+    if polygon_srs.IsGeographic():
+        try:
+            polygon_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        except AttributeError:
+            logger.warning('WARNING Could not set the ancillary input SRS axis'
+                           ' mapping strategy (SetAxisMappingStrategy())'
+                           ' to osr.OAMS_TRADITIONAL_GIS_ORDER')
     transformation = osr.CoordinateTransformation(tile_srs, polygon_srs)
 
     elevation = 0
@@ -3014,10 +3022,7 @@ def _create_ocean_mask(shapefile, margin_km, scratch_dir,
     tile_min_y_utm = tile_max_y_utm + length * tile_dy_utm
 
     tile_srs = osr.SpatialReference()
-    if projection.upper() == 'WGS84':
-        tile_srs.SetWellKnownGeogCS(projection)
-    else:
-        tile_srs.ImportFromProj4(projection)
+    tile_srs.ImportFromProj4(projection)
 
     # convert margin from km to meters
     margin_m = int(1000 * margin_km)
@@ -3733,10 +3738,7 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
     tile_max_x_utm = tile_min_x_utm + width * tile_dx_utm
     tile_min_y_utm = tile_max_y_utm + length * tile_dy_utm
     tile_srs = osr.SpatialReference()
-    if projection.upper() == 'WGS84':
-        tile_srs.SetWellKnownGeogCS(projection)
-    else:
-        tile_srs.ImportFromProj4(projection)
+    tile_srs.ImportFromProj4(projection)
 
     for file_description, file_name in rasters_to_check_dict.items():
 
@@ -3772,33 +3774,33 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
         min_y = max_y + file_length * dy
 
         file_srs = osr.SpatialReference()
-        if file_projection.upper() == 'WGS84':
-            file_srs.SetWellKnownGeogCS(file_projection)
-        else:
-            file_srs.ImportFromProj4(file_projection)
+        file_srs.ImportFromProj4(file_projection)
         tile_polygon, tile_min_y, tile_max_y, tile_min_x, tile_max_x = \
             _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
                                tile_min_x_utm, tile_max_x_utm,
                                tile_srs, file_srs)
 
-        for pos_x in [min_x, max_x]:
-            for pos_y in [min_y, max_y]:
-                file_vertex = ogr.Geometry(ogr.wkbPoint)
-                file_vertex.AssignSpatialReference(file_srs)
-                file_vertex.SetPoint(0, pos_x, pos_y)
+        # Create input ancillary polygon
+        file_ring = ogr.Geometry(ogr.wkbLinearRing)
+        file_ring.AddPoint(min_x, max_y)
+        file_ring.AddPoint(max_x, max_y)
+        file_ring.AddPoint(max_x, min_y)
+        file_ring.AddPoint(min_x, min_y)
+        file_ring.AddPoint(min_x, max_y)
+        file_polygon = ogr.Geometry(ogr.wkbPolygon)
+        file_polygon.AddGeometry(file_ring)
+        file_polygon.AssignSpatialReference(file_srs)
+        assert file_polygon.IsValid()
 
-                # test if any of the ancillary input vertices is within
-                # the tile. If so, raise an error 
-                if not file_vertex.Within(tile_polygon):
-                    continue
-                error_msg = f'ERROR the {file_description} with extents'
-                error_msg += f' S/N: [{min_y},{max_y}]'
-                error_msg += f' W/E: [{min_x},{max_x}],'
-                error_msg += f' does not fully cover input tile with'
-                error_msg += f' extents S/N: [{tile_min_y},{tile_max_y}]'
-                error_msg += f' W/E: [{tile_min_x},{tile_max_x}],'
-                logger.error(error_msg)
-                raise ValueError(error_msg)
+        if not tile_polygon.Within(file_polygon):
+            error_msg = f'ERROR the {file_description} with extents'
+            error_msg += f' S/N: [{min_y},{max_y}]'
+            error_msg += f' W/E: [{min_x},{max_x}],'
+            error_msg += ' does not fully cover input tile with'
+            error_msg += f' extents S/N: [{tile_min_y},{tile_max_y}]'
+            error_msg += f' W/E: [{tile_min_x},{tile_max_x}]'
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
 
 def generate_dswx_layers(input_list,
@@ -4021,7 +4023,7 @@ def generate_dswx_layers(input_list,
     logger.info(f'    ESA WorldCover 10m file: {worldcover_file}')
     logger.info(f'        description:'
                 f' {worldcover_file_description}')
-    logger.info(f'     NOAA shoreline shapefile: {shoreline_shapefile}')
+    logger.info(f'    NOAA shoreline shapefile: {shoreline_shapefile}')
     logger.info(f'        description:'
                 f' {shoreline_shapefile_description}')
     logger.info(f'product parameters:')
