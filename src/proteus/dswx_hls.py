@@ -947,8 +947,9 @@ def create_landcover_mask(copernicus_landcover_file,
         dir=scratch_dir, suffix='.tif').name
 
     copernicus_landcover_array = _warp(copernicus_landcover_file,
-        geotransform, projection,
-        length, width, scratch_dir, resample_algorithm='nearest',
+        geotransform, projection, length, width,
+        flag_crosses_antimeridian,
+        scratch_dir, resample_algorithm='nearest',
         relocated_file=copernicus_landcover_reprojected_file,
         temp_files_list=temp_files_list)
     temp_files_list.append(copernicus_landcover_reprojected_file)
@@ -962,8 +963,8 @@ def create_landcover_mask(copernicus_landcover_file,
     worldcover_reprojected_up_3_file = tempfile.NamedTemporaryFile(
         dir=scratch_dir, suffix='.tif').name
     worldcover_array_up_3 = _warp(worldcover_file, geotransform_up_3,
-        projection, length_up_3, width_up_3, scratch_dir,
-        resample_algorithm='nearest',
+        projection, length_up_3, width_up_3, flag_crosses_antimeridian,
+        scratch_dir, resample_algorithm='nearest',
         relocated_file=worldcover_reprojected_up_3_file,
         temp_files_list=temp_files_list)
     temp_files_list.append(worldcover_reprojected_up_3_file)
@@ -3082,10 +3083,11 @@ def get_projection_proj4(projection):
 
 
 def _warp(input_file, geotransform, projection,
-              length, width, scratch_dir = '.',
-              resample_algorithm='nearest',
-              relocated_file=None, margin_in_pixels=0,
-              temp_files_list = None):
+          length, width, flag_crosses_antimeridian,
+          scratch_dir = '.',
+          resample_algorithm='nearest',
+          relocated_file=None, margin_in_pixels=0,
+          temp_files_list = None):
     """Relocate/reproject a file (e.g., landcover or DEM) based on geolocation
        defined by a geotransform, output dimensions (length and width)
        and projection
@@ -3104,6 +3106,9 @@ def _warp(input_file, geotransform, projection,
        width: int
               Output width before adding the margin defined by
               `margin_in_pixels`
+       flag_crosses_antimeridian: bool
+              Flag that indicates if the HLS product crosses
+              the anti-meridian ("dateline")
        scratch_dir: str (optional)
               Directory for temporary files
        resample_algorithm: str
@@ -3128,16 +3133,16 @@ def _warp(input_file, geotransform, projection,
     dx = geotransform[1]
 
     # Output Y-coordinate start (North) position with margin
-    y0 = geotransform[3] - margin_in_pixels * dy
+    y_max = geotransform[3] - margin_in_pixels * dy
 
     # Output X-coordinate start (West) position with margin
-    x0 = geotransform[0] - margin_in_pixels * dx
+    x_min = geotransform[0] - margin_in_pixels * dx
 
     # Output Y-coordinate end (South) position with margin
-    yf = y0 + (length + 2 * margin_in_pixels) * dy
+    y_min = y_max + (length + 2 * margin_in_pixels) * dy
 
     # Output X-coordinate end (East) position with margin
-    xf = x0 + (width + 2 * margin_in_pixels) * dx
+    x_max = x_min + (width + 2 * margin_in_pixels) * dx
 
     # Set output spatial reference system (SRS) from projection
     dstSRS = get_projection_proj4(projection)
@@ -3155,11 +3160,90 @@ def _warp(input_file, geotransform, projection,
 
     _makedirs(relocated_file)
 
-    gdal.Warp(relocated_file, input_file, format='GTiff',
-              dstSRS=dstSRS,
-              outputBounds=[x0, yf, xf, y0], multithread=True,
-              xRes=dx, yRes=abs(dy), resampleAlg=resample_algorithm,
-              errorThreshold=0)
+    if not flag_crosses_antimeridian:
+        gdal.Warp(relocated_file, input_file, format='GTiff',
+                dstSRS=dstSRS,
+                outputBounds=[x_min, y_min, x_max, y_max], multithread=True,
+                xRes=dx, yRes=abs(dy), resampleAlg=resample_algorithm,
+                errorThreshold=0)
+        gdal_ds = gdal.Open(relocated_file, gdal.GA_ReadOnly)
+        relocated_array = gdal_ds.ReadAsArray()
+        del gdal_ds
+
+        return relocated_array
+
+    # get input's bounding box (bbox) and its bbox polygon
+    gdal_ds = gdal.Open(input_file, gdal.GA_ReadOnly)
+
+    file_geotransform = gdal_ds.GetGeoTransform()
+    file_projection = gdal_ds.GetProjection()
+    min_x, dx, _, max_y, _, dy = file_geotransform
+
+    file_width = gdal_ds.GetRasterBand(1).XSize
+    file_length = gdal_ds.GetRasterBand(1).YSize
+
+    del gdal_ds
+
+    max_x = min_x + file_width * dx
+    min_y = max_y + file_length * dy
+
+    file_srs = osr.SpatialReference()
+    file_srs.ImportFromProj4(file_projection)
+    tile_polygon, tile_min_y, tile_max_y, tile_min_x, tile_max_x = \
+        _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
+                           tile_min_x_utm, tile_max_x_utm,
+                           tile_srs, file_srs)
+
+    # Create input ancillary polygon
+    file_polygon = _get_ogr_polygon(min_x, max_y, max_x, min_y, file_srs)
+
+
+
+    logger.info(f'The input HLS product crosses the anti-meridian'
+                ' (dateline). Verifying the'
+                f' {file_description}: {file_name}')
+
+    # Left side of the anti-meridian crossing: -180 -> +180
+    file_polygon_1 = _get_ogr_polygon(-180, 90, max_x, -90, file_srs)
+    intersection_1 = tile_polygon.Intersection(file_polygon_1)
+    flag_1_ok = intersection_1.Within(file_polygon)
+    check_1_str = 'ok' if flag_1_ok else 'fail'
+    logger.info(f'    left side (-180 -> +180): {check_1_str}')
+
+    # Right side of the anti-meridian crossing: +180 -> +360
+    buffer_in_degrees = 0.0002777  # buffer of 1 arcsec: ~ 30m
+    file_polygon_2 = _get_ogr_polygon(
+        max_x + buffer_in_degrees, 90, max_x + 360, -90, file_srs)
+    intersection_2 = tile_polygon.Intersection(file_polygon_2)
+    file_polygon_2 = _get_ogr_polygon(min_x + 360, max_y,
+                                            max_x + 360, min_y,
+                                            file_srs)
+    flag_2_ok = intersection_2.Within(file_polygon_2)
+    check_2_str = 'ok' if flag_2_ok else 'fail'
+    logger.info(f'    right side (+180 -> +360): {check_2_str}')
+
+
+    # temporary files
+    cropped_input_antimeridian_left_temp = tempfile.NamedTemporaryFile(
+                dir=scratch_dir, suffix='.tif').name
+    logger.info(f'    relocating file: {input_file} to'
+                f' temporary file: {cropped_input_antimeridian_left_temp}')
+    if temp_files_list is not None:
+        temp_files_list.append(cropped_input_antimeridian_left_temp)
+    cropped_input_antimeridian_right_temp = tempfile.NamedTemporaryFile(
+                dir=scratch_dir, suffix='.tif').name
+    logger.info(f'    relocating file: {input_file} to'
+                f' temporary file: {cropped_input_antimeridian_right_temp}')
+    if temp_files_list is not None:
+        temp_files_list.append(cropped_input_antimeridian_right_temp)
+
+    gdal.Translate(cropped_input_antimeridian_left_temp, input_file)
+    gdal.Translate(cropped_input_antimeridian_right_temp, input_file)
+
+
+
+
+
 
     gdal_ds = gdal.Open(relocated_file, gdal.GA_ReadOnly)
     relocated_array = gdal_ds.ReadAsArray()
@@ -4161,26 +4245,61 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
                                tile_srs, file_srs)
 
         # Create input ancillary polygon
-        file_ring = ogr.Geometry(ogr.wkbLinearRing)
-        file_ring.AddPoint(min_x, max_y)
-        file_ring.AddPoint(max_x, max_y)
-        file_ring.AddPoint(max_x, min_y)
-        file_ring.AddPoint(min_x, min_y)
-        file_ring.AddPoint(min_x, max_y)
-        file_polygon = ogr.Geometry(ogr.wkbPolygon)
-        file_polygon.AddGeometry(file_ring)
-        file_polygon.AssignSpatialReference(file_srs)
-        assert file_polygon.IsValid()
+        file_polygon = _get_ogr_polygon(min_x, max_y, max_x, min_y, file_srs)
 
-        if not tile_polygon.Within(file_polygon):
-            error_msg = f'ERROR the {file_description} with extents'
-            error_msg += f' S/N: [{min_y},{max_y}]'
-            error_msg += f' W/E: [{min_x},{max_x}],'
-            error_msg += ' does not fully cover input tile with'
-            error_msg += f' extents S/N: [{tile_min_y},{tile_max_y}]'
-            error_msg += f' W/E: [{tile_min_x},{tile_max_x}]'
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+        if tile_polygon.Within(file_polygon):
+            continue
+
+        # Handle anti-meridian ("dateline") crossing
+        if file_srs.IsGeographic() and tile_min_x < 180 and tile_max_x >= 180:
+
+            logger.info(f'The input HLS product crosses the anti-meridian'
+                        ' (dateline). Verifying the'
+                        f' {file_description}: {file_name}')
+
+            # Left side of the anti-meridian crossing: -180 -> +180
+            file_polygon_1 = _get_ogr_polygon(-180, 90, max_x, -90, file_srs)
+            intersection_1 = tile_polygon.Intersection(file_polygon_1)
+            flag_1_ok = intersection_1.Within(file_polygon)
+            check_1_str = 'ok' if flag_1_ok else 'fail'
+            logger.info(f'    left side (-180 -> +180): {check_1_str}')
+
+            # Right side of the anti-meridian crossing: +180 -> +360
+            buffer_in_degrees = 0.0002777  # buffer of 1 arcsec: ~ 30m
+            file_polygon_2 = _get_ogr_polygon(
+                max_x + buffer_in_degrees, 90, max_x + 360, -90, file_srs)
+            intersection_2 = tile_polygon.Intersection(file_polygon_2)
+            file_polygon_2 = _get_ogr_polygon(min_x + 360, max_y,
+                                                    max_x + 360, min_y,
+                                                    file_srs)
+            flag_2_ok = intersection_2.Within(file_polygon_2)
+            check_2_str = 'ok' if flag_2_ok else 'fail'
+            logger.info(f'    right side (+180 -> +360): {check_2_str}')
+
+            if flag_1_ok and flag_2_ok:
+                continue
+
+        error_msg = f'ERROR the {file_description} with extents'
+        error_msg += f' S/N: [{min_y},{max_y}]'
+        error_msg += f' W/E: [{min_x},{max_x}],'
+        error_msg += ' does not fully cover input tile with'
+        error_msg += f' extents S/N: [{tile_min_y},{tile_max_y}]'
+        error_msg += f' W/E: [{tile_min_x},{tile_max_x}]'
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+def _get_ogr_polygon(min_x, max_y, max_x, min_y, file_srs):
+    file_ring = ogr.Geometry(ogr.wkbLinearRing)
+    file_ring.AddPoint(min_x, max_y)
+    file_ring.AddPoint(max_x, max_y)
+    file_ring.AddPoint(max_x, min_y)
+    file_ring.AddPoint(min_x, min_y)
+    file_ring.AddPoint(min_x, max_y)
+    file_polygon = ogr.Geometry(ogr.wkbPolygon)
+    file_polygon.AddGeometry(file_ring)
+    file_polygon.AssignSpatialReference(file_srs)
+    assert file_polygon.IsValid()
+    return file_polygon
 
 
 def generate_dswx_layers(input_list,
@@ -4715,8 +4834,8 @@ def generate_dswx_layers(input_list,
             temp_files_list.append(dem_cropped_file)
         logger.info(f'Preparing DEM file: {dem_file}')
         dem_with_margin = _warp(dem_file, geotransform, projection,
-                                    length, width, scratch_dir,
-                                    resample_algorithm='cubic',
+                                    length, width, flag_crosses_antimeridian,
+                                    scratch_dir, resample_algorithm='cubic',
                                     relocated_file=dem_cropped_file,
                                     margin_in_pixels=DEM_MARGIN_IN_PIXELS,
                                     temp_files_list=temp_files_list)
