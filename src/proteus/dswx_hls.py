@@ -319,18 +319,18 @@ class RunConfigConstants:
         Apply ocean masking
     apply_aerosol_class_remapping: bool
         Apply aerosol masking
-    aerosol_not_water_to_moderate_conf_water_fmask_values: list(int)
-         HLS Fmask values to convert not-water to moderate-confidence water
+    aerosol_not_water_to_high_conf_water_fmask_values: list(int)
+         HLS Fmask values to convert not-water to high-confidence water
          in the presence of high aerosol
     aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int)
          HLS Fmask values to convert moderate-confidence water to
          high-confidence water in the presence of high aerosol
-    aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values: list(int)
+    aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int)
          HLS Fmask values to convert partial surface water conservative to
-         moderate-confidence water in the presence of high aerosol
-    aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values: list(int)
+         high-confidence water in the presence of high aerosol
+    aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: list(int)
          HLS Fmask values to convert partial surface water aggressive to
-         moderate-confidence water in the presence of high aerosol
+         high-confidence water in the presence of high aerosol
     shadow_masking_algorithm: str
         Shadow masking algorithm
     min_slope_angle: float
@@ -377,10 +377,10 @@ class RunConfigConstants:
         self.check_ancillary_inputs_coverage = None
         self.apply_ocean_masking = None
         self.apply_aerosol_class_remapping = None
-        self.aerosol_not_water_to_moderate_conf_water_fmask_values = None
+        self.aerosol_not_water_to_high_conf_water_fmask_values = None
         self.aerosol_water_moderate_conf_to_high_conf_water_fmask_values = None
-        self.aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values = None
-        self.aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values = None
+        self.aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values = None
+        self.aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values = None
         self.shadow_masking_algorithm = None
         self.min_slope_angle = None
         self.max_sun_local_inc_angle = None
@@ -1187,10 +1187,10 @@ def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer,
 
 def _apply_aerosol_class_remapping(wtr_1_layer,
         preliminary_cloud_layer, fmask,
-        aerosol_not_water_to_moderate_conf_water_fmask_values,
+        aerosol_not_water_to_high_conf_water_fmask_values,
         aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
-        aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values,
-        aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values):
+        aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+        aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values):
     """Apply aerosol masking onto interpreted layer (WTR-1)
 
        Parameters
@@ -1202,33 +1202,33 @@ def _apply_aerosol_class_remapping(wtr_1_layer,
             numpy.ndarray)
        fmask: numpy.ndarray
             HLS Fmask
-       aerosol_not_water_to_moderate_conf_water_fmask_values: list(int)
-           HLS Fmask values to convert not-water to moderate-confidence water
+       aerosol_not_water_to_high_conf_water_fmask_values: list(int)
+           HLS Fmask values to convert not-water to high-confidence water
            in the presence of high aerosol
        aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int)
            HLS Fmask values to convert moderate-confidence water to
            high-confidence water in the presence of high aerosol
-       aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values: list(int)
+       aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int)
            HLS Fmask values to convert partial surface water conservative to
-           moderate-confidence water in the presence of high aerosol
-       aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values: list(int)
+           high-confidence water in the presence of high aerosol
+       aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: list(int)
            HLS Fmask values to convert partial surface water aggressive to
-           moderate-confidence water in the presence of high aerosol
+           high-confidence water in the presence of high aerosol
     """
 
     # add a not here that nothing changes for high-confidence water
     wtr1_class_fmask_values_dict = {
         WATER_NOT_WATER_CLEAR:
-            (aerosol_not_water_to_moderate_conf_water_fmask_values,
+            (aerosol_not_water_to_high_conf_water_fmask_values,
              WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR),
         WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR:
             (aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
              WATER_UNCOLLAPSED_HIGH_CONF_CLEAR),
         WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR:
-            (aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values,
+            (aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
              WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR),
         WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR:
-            (aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values,
+            (aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
              WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR)
         }
 
@@ -3707,10 +3707,10 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
 
 def _populate_dswx_metadata_processing_parameters(
         dswx_metadata_dict,
-        aerosol_not_water_to_moderate_conf_water_fmask_values,
+        aerosol_not_water_to_high_conf_water_fmask_values,
         aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
-        aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values,
-        aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values,
+        aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+        aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
         shadow_masking_algorithm,
         min_slope_angle,
         max_sun_local_inc_angle,
@@ -3724,18 +3724,18 @@ def _populate_dswx_metadata_processing_parameters(
        ----------
        dswx_metadata_dict : collections.OrderedDict
               Metadata dictionary
-       aerosol_not_water_to_moderate_conf_water_fmask_values: list(int)
-              HLS Fmask values to convert not-water to moderate-confidence water
+       aerosol_not_water_to_high_conf_water_fmask_values: list(int)
+              HLS Fmask values to convert not-water to high-confidence water
               in the presence of high aerosol
        aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int)
               HLS Fmask values to convert moderate-confidence water to
               high-confidence water in the presence of high aerosol
-       aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values: list(int)
+       aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int)
               HLS Fmask values to convert partial surface water conservative to
-              moderate-confidence water in the presence of high aerosol
-       aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values: list(int)
+              high-confidence water in the presence of high aerosol
+       aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: list(int)
               HLS Fmask values to convert partial surface water aggressive to
-              moderate-confidence water in the presence of high aerosol
+              high-confidence water in the presence of high aerosol
        shadow_masking_algorithm: str
               Shadow masking algorithm
        min_slope_angle: float
@@ -3756,14 +3756,14 @@ def _populate_dswx_metadata_processing_parameters(
 
     # aerosol metadata fields
     aerosol_metadata_dict = {
-        'aerosol_not_water_to_moderate_conf_water_fmask_values':
-            aerosol_not_water_to_moderate_conf_water_fmask_values,
+        'aerosol_not_water_to_high_conf_water_fmask_values':
+            aerosol_not_water_to_high_conf_water_fmask_values,
         'aerosol_water_moderate_conf_to_high_conf_water_fmask_values':
             aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
-        'aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values':
-            aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values,
-        'aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values':
-            aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values,
+        'aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values':
+            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+        'aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values':
+            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
     }
 
     for aerosol_metadata_field_lower, fmask_values in aerosol_metadata_dict.items():
@@ -4220,10 +4220,10 @@ def generate_dswx_layers(input_list,
                          check_ancillary_inputs_coverage=None,
                          apply_ocean_masking=None,
                          apply_aerosol_class_remapping=None,
-                         aerosol_not_water_to_moderate_conf_water_fmask_values=None,
+                         aerosol_not_water_to_high_conf_water_fmask_values=None,
                          aerosol_water_moderate_conf_to_high_conf_water_fmask_values=None,
-                         aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values=None,
-                         aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values=None,
+                         aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values=None,
+                         aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values=None,
                          shadow_masking_algorithm=None,
                          min_slope_angle=None,
                          max_sun_local_inc_angle=None,
@@ -4315,18 +4315,18 @@ def generate_dswx_layers(input_list,
               Apply ocean masking
        apply_aerosol_class_remapping: bool (optional)
               Apply aerosol masking
-       aerosol_not_water_to_moderate_conf_water_fmask_values: list(int) (optional)
-              HLS Fmask values to convert not-water to moderate-confidence water
+       aerosol_not_water_to_high_conf_water_fmask_values: list(int) (optional)
+              HLS Fmask values to convert not-water to high-confidence water
               in the presence of high aerosol
        aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int) (optional)
               HLS Fmask values to convert moderate-confidence water to
               high-confidence water in the presence of high aerosol
-       aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values: list(int) (optional)
+       aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int) (optional)
               HLS Fmask values to convert partial surface water conservative to
-              moderate-confidence water in the presence of high aerosol
-       aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values: list(int) (optional)
+              high-confidence water in the presence of high aerosol
+       aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: list(int) (optional)
               HLS Fmask values to convert partial surface water aggressive to
-              moderate-confidence water in the presence of high aerosol
+              high-confidence water in the presence of high aerosol
        shadow_masking_algorithm: str (optional)
               Shadow masking algorithm. Choices: "otsu" or "sun_local_inc_angle"
        min_slope_angle: float (optional)
@@ -4354,10 +4354,10 @@ def generate_dswx_layers(input_list,
                                  check_ancillary_inputs_coverage,
                                  apply_ocean_masking,
                                  apply_aerosol_class_remapping,
-                                 aerosol_not_water_to_moderate_conf_water_fmask_values,
+                                 aerosol_not_water_to_high_conf_water_fmask_values,
                                  aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
-                                 aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values,
-                                 aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values,
+                                 aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+                                 aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
                                  shadow_masking_algorithm,
                                  min_slope_angle,
                                  max_sun_local_inc_angle,
@@ -4382,18 +4382,18 @@ def generate_dswx_layers(input_list,
             apply_ocean_masking = runconfig_constants.apply_ocean_masking
         if apply_aerosol_class_remapping is None:
             apply_aerosol_class_remapping = runconfig_constants.apply_aerosol_class_remapping
-        if aerosol_not_water_to_moderate_conf_water_fmask_values is None:
-            aerosol_not_water_to_moderate_conf_water_fmask_values = \
-                runconfig_constants.aerosol_not_water_to_moderate_conf_water_fmask_values
+        if aerosol_not_water_to_high_conf_water_fmask_values is None:
+            aerosol_not_water_to_high_conf_water_fmask_values = \
+                runconfig_constants.aerosol_not_water_to_high_conf_water_fmask_values
         if aerosol_water_moderate_conf_to_high_conf_water_fmask_values is None:
             aerosol_water_moderate_conf_to_high_conf_water_fmask_values = \
                 runconfig_constants.aerosol_water_moderate_conf_to_high_conf_water_fmask_values
-        if aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values is None:
-            aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values = \
-                runconfig_constants.aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values
-        if aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values is None:
-            aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values = \
-                runconfig_constants.aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values
+        if aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values is None:
+            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values = \
+                runconfig_constants.aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values
+        if aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values is None:
+            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values = \
+                runconfig_constants.aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values
         if shadow_masking_algorithm is None:
             shadow_masking_algorithm = \
                 runconfig_constants.shadow_masking_algorithm
@@ -4482,8 +4482,8 @@ def generate_dswx_layers(input_list,
     else:
         aerosol_class_remapping_unused_parameters_str = ' (unused)'
     logger.info(
-        f'        not-water to moderate-confidence water Fmask values:' +
-        f' {aerosol_not_water_to_moderate_conf_water_fmask_values}' +
+        f'        not-water to high-confidence water Fmask values:' +
+        f' {aerosol_not_water_to_high_conf_water_fmask_values}' +
         aerosol_class_remapping_unused_parameters_str)
     logger.info(
         f'        moderate confidence water to'
@@ -4492,13 +4492,13 @@ def generate_dswx_layers(input_list,
         aerosol_class_remapping_unused_parameters_str)
     logger.info(
         f'        partial surface water conservative to'
-        f' moderate-confidence water Fmask values:' +
-        f' {aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values}' +
+        f' high-confidence water Fmask values:' +
+        f' {aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values}' +
         aerosol_class_remapping_unused_parameters_str)
     logger.info(
         f'        partial surface water aggressive to'
-        f' moderate-confidence water Fmask values:' +
-        f' {aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values}' +
+        f' high-confidence water Fmask values:' +
+        f' {aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values}' +
         aerosol_class_remapping_unused_parameters_str)
     logger.info(f'    shadow masking algorithm: {shadow_masking_algorithm}')
     if shadow_masking_algorithm == 'otsu':
@@ -4581,14 +4581,14 @@ def generate_dswx_layers(input_list,
 
     _populate_dswx_metadata_processing_parameters(
         dswx_metadata_dict,
-        aerosol_not_water_to_moderate_conf_water_fmask_values =
-            aerosol_not_water_to_moderate_conf_water_fmask_values,
+        aerosol_not_water_to_high_conf_water_fmask_values =
+            aerosol_not_water_to_high_conf_water_fmask_values,
         aerosol_water_moderate_conf_to_high_conf_water_fmask_values =
             aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
-        aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values =
-            aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values,
-        aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values =
-            aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values,
+        aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values =
+            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+        aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values =
+            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
         shadow_masking_algorithm=shadow_masking_algorithm,
         min_slope_angle=min_slope_angle,
         max_sun_local_inc_angle=max_sun_local_inc_angle,
@@ -4832,10 +4832,10 @@ def generate_dswx_layers(input_list,
     if apply_aerosol_class_remapping:
         _apply_aerosol_class_remapping(wtr_1_layer,
             preliminary_cloud_layer, fmask,
-            aerosol_not_water_to_moderate_conf_water_fmask_values,
+            aerosol_not_water_to_high_conf_water_fmask_values,
             aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
-            aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values,
-            aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values)
+            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values)
 
     wtr_2_layer = _apply_landcover_and_shadow_masks(
         wtr_1_layer, nir, landcover_mask, shadow_layer,
