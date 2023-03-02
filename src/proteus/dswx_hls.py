@@ -32,6 +32,8 @@ FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 
 landcover_mask_type = 'standard'
 
+AEROSOL_REMAPPING_MAX_NIR = 0.1
+
 COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE = 1e-6
 
 UINT8_FILL_VALUE = 255
@@ -1144,7 +1146,7 @@ def _is_landcover_class_high_intensity_developed(landcover_mask):
     return high_intensity_developed_mask
 
 
-def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer,
+def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer, nir,
         preliminary_cloud_layer, fmask,
         fmask_values, input_wtr1_class, output_wtr1_class):
     """Apply aerosol remapping onto interpreted layer (WTR-1) given a
@@ -1155,6 +1157,8 @@ def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer,
        ----------
        wtr_1_layer: numpy.ndarray
             Interpreted layer (WTR-1) (mutable numpy.ndarray)
+       nir: numpy.ndarray
+              Near infrared (NIR) channel
        preliminary_cloud_layer : numpy.ndarray
             Preliminary cloud mask aerosol remapping bit (mutable
             numpy.ndarray)
@@ -1169,23 +1173,24 @@ def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer,
             Remapped WTR-1 class
     """
 
-    to_mask_array = None
+    to_remap_array = None
     for fmask_value in fmask_values:
-        if to_mask_array is None:
-            to_mask_array = fmask == fmask_value
+        if to_remap_array is None:
+            to_remap_array = fmask == fmask_value
         else:
-            to_mask_array |= fmask == fmask_value
-    to_mask_array &= wtr_1_layer == input_wtr1_class
-    wtr_1_layer[to_mask_array] = output_wtr1_class
+            to_remap_array |= fmask == fmask_value
+    to_remap_array &= wtr_1_layer == input_wtr1_class
+    to_remap_array &= nir <= AEROSOL_REMAPPING_MAX_NIR
+    wtr_1_layer[to_remap_array] = output_wtr1_class
 
     # set CLOUD layer bit (3): 2**3 = 8
-    ind = np.where((to_mask_array) &
+    ind = np.where((to_remap_array) &
                    (preliminary_cloud_layer != UINT8_FILL_VALUE))
     preliminary_cloud_layer[ind] = np.bitwise_or(
         preliminary_cloud_layer[ind], 2**3)
 
 
-def _apply_aerosol_class_remapping(wtr_1_layer,
+def _apply_aerosol_class_remapping(wtr_1_layer, nir,
         preliminary_cloud_layer, fmask,
         aerosol_not_water_to_high_conf_water_fmask_values,
         aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
@@ -1197,6 +1202,8 @@ def _apply_aerosol_class_remapping(wtr_1_layer,
        ----------
        wtr_1_layer: numpy.ndarray
             Interpreted layer (WTR-1) (mutable numpy.ndarray)
+       nir: numpy.ndarray
+              Near infrared (NIR) channel
        preliminary_cloud_layer : numpy.ndarray
             Preliminary cloud mask aerosol remapping bit (mutable
             numpy.ndarray)
@@ -1235,7 +1242,7 @@ def _apply_aerosol_class_remapping(wtr_1_layer,
     for input_wtr1_class, (fmask_values, output_wtr1_class) in \
             wtr1_class_fmask_values_dict.items():
         _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer,
-            preliminary_cloud_layer, fmask,
+            nir, preliminary_cloud_layer, fmask,
             fmask_values, input_wtr1_class, output_wtr1_class)
 
 
@@ -4830,7 +4837,7 @@ def generate_dswx_layers(input_list,
                           output_files_list=build_vrt_list)
 
     if apply_aerosol_class_remapping:
-        _apply_aerosol_class_remapping(wtr_1_layer,
+        _apply_aerosol_class_remapping(wtr_1_layer, nir,
             preliminary_cloud_layer, fmask,
             aerosol_not_water_to_high_conf_water_fmask_values,
             aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
