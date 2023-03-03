@@ -33,7 +33,7 @@ FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 landcover_mask_type = 'standard'
 
 
-# HLS thresholds are evaluated over unscalled reflactance values
+# HLS thresholds are evaluated over unscaled reflactance values
 SCALE_FACTOR = 0.0001
 AEROSOL_REMAPPING_MAX_NIR = 0.1 / SCALE_FACTOR
 
@@ -1230,16 +1230,16 @@ def _apply_aerosol_class_remapping(wtr_1_layer, nir,
     wtr1_class_fmask_values_dict = {
         WATER_NOT_WATER_CLEAR:
             (aerosol_not_water_to_high_conf_water_fmask_values,
-             WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR),
+             WATER_UNCOLLAPSED_HIGH_CONF_CLEAR),
         WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR:
             (aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
              WATER_UNCOLLAPSED_HIGH_CONF_CLEAR),
         WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR:
             (aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
-             WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR),
+             WATER_UNCOLLAPSED_HIGH_CONF_CLEAR),
         WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR:
             (aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
-             WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR)
+             WATER_UNCOLLAPSED_HIGH_CONF_CLEAR)
         }
 
     for input_wtr1_class, (fmask_values, output_wtr1_class) in \
