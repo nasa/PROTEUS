@@ -6,7 +6,7 @@ import glob
 import numpy as np
 import argparse
 import yamale
-import datetime
+from datetime import datetime
 from collections import OrderedDict
 from ruamel.yaml import YAML as ruamel_yaml
 from osgeo.gdalconst import GDT_Float32, GDT_Byte
@@ -996,8 +996,21 @@ def create_landcover_mask(copernicus_landcover_file,
     _update_landcover_array(hierarchy_combined, tree_aggregate_sum,
                             threshold_list[0], evergreen_forest_class)
 
+    # extract the year of the WorldCover dataset
+    worldcover_gdal_ds = gdal.Open(worldcover_file, gdal.GA_ReadOnly)
+    worldcover_metadata = worldcover_gdal_ds.GetMetadata()
+    del worldcover_gdal_ds
+    worldcover_datetime_format = '%Y-%m-%dT%H:%M:%SZ'
+    worldcover_time_start = datetime.strptime(worldcover_metadata['time_start'],
+                                              worldcover_datetime_format)
+    worldcover_time_end = datetime.strptime(worldcover_metadata['time_end'],
+                                            worldcover_datetime_format)
+
+    # the Worldcover dataset year is extracted from the average date times
+    worldcover_time_range = (worldcover_time_end - worldcover_time_start)
+    year = (worldcover_time_start + worldcover_time_range / 2.0).year - 2000
+
     # majority of pixels are urban
-    year = datetime.date.today().year - 2000
     low_intensity_developed_class = \
         (dswx_hls_landcover_classes_dict['low_intensity_developed_offset'] +
          year)
@@ -1016,9 +1029,9 @@ def create_landcover_mask(copernicus_landcover_file,
         dswx_hls_landcover_classes_dict['water']
     _update_landcover_array(hierarchy_combined, water_aggregate_sum,
                             threshold_list[3], water_class)
-    
+
     ctable = _get_landcover_mask_ctable()
-    
+
     description = band_description_dict['LAND']
 
     if output_file is not None:
@@ -3361,7 +3374,7 @@ def _get_dswx_metadata_dict(product_id, product_version):
 
     # save datetime 'YYYY-MM-DD HH:MM:SS'
     dswx_metadata_dict['PROCESSING_DATETIME'] = \
-        datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+        datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
 
     return dswx_metadata_dict
 
