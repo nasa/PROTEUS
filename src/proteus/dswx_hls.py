@@ -3159,7 +3159,8 @@ def _warp(input_file, geotransform, projection,
     file_srs = osr.SpatialReference()
     file_srs.ImportFromProj4(file_projection)
 
-    margin_m = 200
+    margin_m = 250
+
     tile_polygon, tile_min_y, tile_max_y, tile_min_x, tile_max_x = \
         _get_tile_srs_bbox(tile_min_y_utm - margin_m,
                            tile_max_y_utm + margin_m,
@@ -3194,25 +3195,29 @@ def _warp(input_file, geotransform, projection,
     logger.info(f'    tile crosses the antimeridian')
 
     file_geotransform = gdal_ds.GetGeoTransform()
-    min_x, dx, _, max_y, _, dy = file_geotransform
+    file_min_x, file_dx, _, file_max_y, _, file_dy = file_geotransform
 
     file_width = gdal_ds.GetRasterBand(1).XSize
     file_length = gdal_ds.GetRasterBand(1).YSize
 
     del gdal_ds
 
-    max_x = min_x + file_width * dx
-    min_y = max_y + file_length * dy
+    file_max_x = file_min_x + file_width * file_dx
+    file_min_y = file_max_y + file_length * file_dy
 
+    # 10 arcsec ~= 300m
+    margin_deg = 10./3600
 
     # Crop input at the two sides of the antimeridian:
-    # left side: use tile bbox with max_x from input
-    proj_win_antimeridian_left = [tile_min_x, tile_max_y, max_x,
-                                    tile_min_y]
+    # left side: use tile bbox with file_max_x from input
+    proj_win_antimeridian_left = [tile_min_x - margin_deg,
+                                  tile_max_y + margin_deg,
+                                  file_max_x + margin_deg,
+                                  tile_min_y - margin_deg]
 
     cropped_input_antimeridian_left_temp = tempfile.NamedTemporaryFile(
                 dir=scratch_dir, suffix='.tif').name
-    logger.info(f'    cropping file: {input_file} to'
+    logger.info(f'    cropping antimeridian-left side: {input_file} to'
                 f' temporary file: {cropped_input_antimeridian_left_temp}'
                 ' with indexes (ulx uly lrx lry):'
                 f'{proj_win_antimeridian_left}')
@@ -3221,17 +3226,17 @@ def _warp(input_file, geotransform, projection,
                 projWin=proj_win_antimeridian_left,
                 outputSRS=file_srs)
 
-    # right side: use tile bbox with min_x from input and tile_max_x
+    # right side: use tile bbox with file_min_x from input and tile_max_x
     # with subtracted 360 (lon) degrees
-    proj_win_antimeridian_right = [min_x, tile_max_y, tile_max_x - 360,
-                                    tile_min_y]
+    proj_win_antimeridian_right = [file_min_x - margin_deg,
+                                   tile_max_y + margin_deg,
+                                   tile_max_x - 360 + margin_deg,
+                                   tile_min_y - margin_deg]
     cropped_input_antimeridian_right_temp = tempfile.NamedTemporaryFile(
                 dir=scratch_dir, suffix='.tif').name
-    if temp_files_list is not None:
-        temp_files_list.append(cropped_input_antimeridian_left_temp)
-        temp_files_list.append(cropped_input_antimeridian_right_temp)
 
-    logger.info(f'    cropping file: {input_file} to'
+
+    logger.info(f'    cropping antimeridian-right side: {input_file} to'
                 f' temporary file: {cropped_input_antimeridian_right_temp}'
                 ' with indexes (ulx uly lrx lry):'
                 f'{proj_win_antimeridian_right}')
@@ -3247,15 +3252,14 @@ def _warp(input_file, geotransform, projection,
     gdal_ds.SetGeoTransform(geotransform_antimeridian_right)
     del gdal_ds
 
-    if relocated_file is None:
-        logger.info(f'    relocating file: {input_file} to'
-                    f' temporary file: {relocated_file}')
-    else:
-        logger.info(f'    relocating file: {input_file} to'
-                    f' file: {relocated_file}')
+    if temp_files_list is not None:
+        temp_files_list.append(cropped_input_antimeridian_left_temp)
+        temp_files_list.append(cropped_input_antimeridian_right_temp)
 
-    gdal.Warp(relocated_file, [cropped_input_antimeridian_left_temp,
-              cropped_input_antimeridian_right_temp],
+    gdalwarp_input_file_list = [cropped_input_antimeridian_left_temp,
+                                cropped_input_antimeridian_right_temp]
+
+    gdal.Warp(relocated_file, gdalwarp_input_file_list,
               format='GTiff',
               dstSRS=tile_srs_str,
               outputBounds=[tile_min_x_utm, tile_min_y_utm,
