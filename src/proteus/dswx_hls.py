@@ -3159,7 +3159,8 @@ def _warp(input_file, geotransform, projection,
     file_srs = osr.SpatialReference()
     file_srs.ImportFromProj4(file_projection)
 
-    margin_m = 250
+    # margin 5km
+    margin_m = 5000
 
     tile_polygon, tile_min_y, tile_max_y, tile_min_x, tile_max_x = \
         _get_tile_srs_bbox(tile_min_y_utm - margin_m,
@@ -3167,6 +3168,9 @@ def _warp(input_file, geotransform, projection,
                            tile_min_x_utm - margin_m,
                            tile_max_x_utm + margin_m,
                            tile_srs, file_srs)
+
+    # if it doesn't cross the antimeridian, reproject
+    # input file using gdalwarp
     if not (file_srs.IsGeographic() and tile_min_x < 180 and
             tile_max_x >= 180):
 
@@ -3199,21 +3203,19 @@ def _warp(input_file, geotransform, projection,
 
     file_width = gdal_ds.GetRasterBand(1).XSize
     file_length = gdal_ds.GetRasterBand(1).YSize
+    no_data = gdal_ds.GetRasterBand(1).GetNoDataValue()
 
     del gdal_ds
 
     file_max_x = file_min_x + file_width * file_dx
     file_min_y = file_max_y + file_length * file_dy
 
-    # 10 arcsec ~= 300m
-    margin_deg = 10./3600
-
     # Crop input at the two sides of the antimeridian:
     # left side: use tile bbox with file_max_x from input
-    proj_win_antimeridian_left = [tile_min_x - margin_deg,
-                                  tile_max_y + margin_deg,
-                                  file_max_x + margin_deg,
-                                  tile_min_y - margin_deg]
+    proj_win_antimeridian_left = [tile_min_x,
+                                  tile_max_y,
+                                  file_max_x,
+                                  tile_min_y]
 
     cropped_input_antimeridian_left_temp = tempfile.NamedTemporaryFile(
                 dir=scratch_dir, suffix='.tif').name
@@ -3223,18 +3225,18 @@ def _warp(input_file, geotransform, projection,
                 f'{proj_win_antimeridian_left}')
 
     gdal.Translate(cropped_input_antimeridian_left_temp, input_file,
-                projWin=proj_win_antimeridian_left,
-                outputSRS=file_srs)
+                   projWin=proj_win_antimeridian_left,
+                   outputSRS=file_srs,
+                   noData=no_data)
 
     # right side: use tile bbox with file_min_x from input and tile_max_x
     # with subtracted 360 (lon) degrees
-    proj_win_antimeridian_right = [file_min_x - margin_deg,
-                                   tile_max_y + margin_deg,
-                                   tile_max_x - 360 + margin_deg,
-                                   tile_min_y - margin_deg]
+    proj_win_antimeridian_right = [file_min_x,
+                                   tile_max_y,
+                                   tile_max_x - 360,
+                                   tile_min_y]
     cropped_input_antimeridian_right_temp = tempfile.NamedTemporaryFile(
                 dir=scratch_dir, suffix='.tif').name
-
 
     logger.info(f'    cropping antimeridian-right side: {input_file} to'
                 f' temporary file: {cropped_input_antimeridian_right_temp}'
@@ -3242,15 +3244,9 @@ def _warp(input_file, geotransform, projection,
                 f'{proj_win_antimeridian_right}')
 
     gdal.Translate(cropped_input_antimeridian_right_temp, input_file,
-                projWin=proj_win_antimeridian_right,
-                outputSRS=file_srs)
-    
-    # update geotransform (shift image to the right by 360 degrees in longitude)
-    gdal_ds = gdal.Open(cropped_input_antimeridian_right_temp, gdal.GA_Update)
-    geotransform_antimeridian_right = list(gdal_ds.GetGeoTransform())
-    geotransform_antimeridian_right[0] += 360
-    gdal_ds.SetGeoTransform(geotransform_antimeridian_right)
-    del gdal_ds
+                   projWin=proj_win_antimeridian_right,
+                   outputSRS=file_srs,
+                   noData=no_data)
 
     if temp_files_list is not None:
         temp_files_list.append(cropped_input_antimeridian_left_temp)
@@ -3273,11 +3269,6 @@ def _warp(input_file, geotransform, projection,
     del gdal_ds
 
     return relocated_array
-
-
-
-
-
 
 
 def _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
