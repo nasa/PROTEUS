@@ -1149,7 +1149,7 @@ def _is_landcover_class_high_intensity_developed(landcover_mask):
     return high_intensity_developed_mask
 
 
-def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer, nir,
+def _apply_aerosol_class_remapping_single_class(wtr_1_layer, nir,
         preliminary_cloud_layer, fmask,
         fmask_values, input_wtr1_class, output_wtr1_class):
     """Apply aerosol remapping onto interpreted layer (WTR-1) given a
@@ -1176,14 +1176,9 @@ def _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer, nir,
             Remapped WTR-1 class
     """
 
-    to_remap_array = None
-    for fmask_value in fmask_values:
-        if to_remap_array is None:
-            to_remap_array = fmask == fmask_value
-        else:
-            to_remap_array |= fmask == fmask_value
-    to_remap_array &= wtr_1_layer == input_wtr1_class
-    to_remap_array &= nir <= AEROSOL_REMAPPING_MAX_NIR
+    to_remap_array = ((np.isin(fmask, fmask_values)) &
+                      (wtr_1_layer == input_wtr1_class) &
+                      (nir <= AEROSOL_REMAPPING_MAX_NIR))
     wtr_1_layer[to_remap_array] = output_wtr1_class
 
     # set CLOUD layer bit (3): 2**3 = 8
@@ -1244,7 +1239,7 @@ def _apply_aerosol_class_remapping(wtr_1_layer, nir,
 
     for input_wtr1_class, (fmask_values, output_wtr1_class) in \
             wtr1_class_fmask_values_dict.items():
-        _apply_aerosol_class_remapping_wtr1_class(wtr_1_layer,
+        _apply_aerosol_class_remapping_single_class(wtr_1_layer,
             nir, preliminary_cloud_layer, fmask,
             fmask_values, input_wtr1_class, output_wtr1_class)
 
