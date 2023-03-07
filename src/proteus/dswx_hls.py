@@ -1486,6 +1486,7 @@ def _get_cloud_layer_ctable():
     mask_ctable = gdal.ColorTable()
 
     # set color for each value
+    # Bit encoding:
     # - Mask cloud shadow bit (0)
     # - Mask snow/ice bit (1)
     # - Mask cloud bit (2)
@@ -1691,7 +1692,13 @@ def _get_confidence_layer(wtr_2_layer, cloud_layer):
 
     Notes
     -----
-    CLOUD layer classifications (as of Nov. 2022)
+    CLOUD layer classifications
+    Bit encoding:
+    - Mask cloud shadow bit (0)
+    - Mask snow/ice bit (1)
+    - Mask cloud bit (2)
+    - Class reassignment due to aerosol interpolation errors (3)
+    CLOUD classes
     0: Not masked
     1: Cloud shadow
     2: Snow/ice
@@ -1700,14 +1707,14 @@ def _get_confidence_layer(wtr_2_layer, cloud_layer):
     5: Cloud and cloud shadow
     6: Cloud and snow/ice
     7: Cloud, cloud shadow, and snow/ice
-    8: Aerosol remapped
-    9: Aerosol remapped and cloud shadow
-    10: Aerosol remapped and snow/ice
-    11: Aerosol remapped, cloud shadow and snow/ice
-    12: Aerosol remapped and cloud
-    13: Aerosol remapped, cloud, and cloud shadow
-    14: Aerosol remapped, cloud ,and snow/ice
-    15: Aerosol remapped, cloud, cloud shadow, and snow/ice
+    8: Aerosol reassigned class
+    9: Aerosol reassigned class and cloud shadow
+    10: Aerosol reassigned class and snow/ice
+    11: Aerosol reassigned class, cloud shadow and snow/ice
+    12: Aerosol reassigned class and cloud
+    13: Aerosol reassigned class, cloud, and cloud shadow
+    14: Aerosol reassigned class, cloud ,and snow/ice
+    15: Aerosol reassigned class, cloud, cloud shadow, and snow/ice
     255: Fill value (no data)
     The cloud classification in the CONF layer represents
     the ensemble of cloud, cloud shadow, or adjacent-to-cloud
