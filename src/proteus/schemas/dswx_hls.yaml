@@ -70,24 +70,25 @@ runconfig:
             # Apply ocean masking
             apply_ocean_masking: bool(required=False)
 
-            # Apply aeresol masking
+            # Apply aeresol class remapping
             apply_aerosol_class_remapping: bool(required=False)
 
-            # HLS Fmask values to convert not-water to moderate-confidence water
+            # HLS Fmask values to convert not-water to high-confidence water
             # in the presence of high aerosol
-            aerosol_not_water_to_moderate_conf_water_fmask_values: list(int(), min=0, required=False)
+            aerosol_not_water_to_high_conf_water_fmask_values: list(int(), min=0, required=False)
 
             # HLS Fmask values to convert moderate-confidence water to
             # high-confidence water in the presence of high aerosol
             aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int(), min=0, required=False)
 
             # HLS Fmask values to convert partial surface water conservative to
-            # moderate-confidence water in the presence of high aerosol
-            aerosol_partial_surface_water_conservative_to_moderate_conf_water_fmask_values: list(int(), min=0, required=False)
+
+            # high-confidence water in the presence of high aerosol
+            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int(), min=0, required=False)
 
             # HLS Fmask values to convert partial surface water aggressive to
-            # moderate-confidence water in the presence of high aerosol
-            aerosol_partial_surface_aggressive_to_moderate_conf_water_fmask_values: list(int(), min=0, required=False)
+            # high-confidence water in the presence of high aerosol
+            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: list(int(), min=0, required=False)
 
             # Select shadow masking algorithm
             shadow_masking_algorithm: enum('otsu', 'sun_local_inc_angle', required=False)
