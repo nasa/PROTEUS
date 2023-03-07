@@ -32,6 +32,11 @@ FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 
 landcover_mask_type = 'standard'
 
+
+# HLS thresholds are evaluated over unscaled reflectance values
+SCALE_FACTOR = 0.0001
+AEROSOL_REMAPPING_MAX_NIR = 0.1 / SCALE_FACTOR
+
 COMPARE_DSWX_HLS_PRODUCTS_ERROR_TOLERANCE = 1e-6
 
 UINT8_FILL_VALUE = 255
@@ -228,9 +233,7 @@ layer_names_to_args_dict = {
     'INFRARED_RGB': 'output_infrared_rgb_file'}
 
 
-METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['SPATIAL_COVERAGE',
-                                         'CLOUD_COVERAGE',
-                                         'MEAN_SUN_AZIMUTH_ANGLE',
+METADATA_FIELDS_TO_COPY_FROM_HLS_LIST = ['MEAN_SUN_AZIMUTH_ANGLE',
                                          'MEAN_SUN_ZENITH_ANGLE',
                                          'MEAN_VIEW_AZIMUTH_ANGLE',
                                          'MEAN_VIEW_ZENITH_ANGLE',
@@ -317,6 +320,22 @@ class RunConfigConstants:
         HLS reflectance thresholds for generating DSWx-HLS products
     check_ancillary_inputs_coverage: bool
         Check if ancillary inputs cover entirely the output product
+    apply_ocean_masking: bool
+        Apply ocean masking
+    apply_aerosol_class_remapping: bool
+        Apply aerosol masking
+    aerosol_not_water_to_high_conf_water_fmask_values: list(int)
+         HLS Fmask values to convert not-water to high-confidence water
+         in the presence of high aerosol
+    aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int)
+         HLS Fmask values to convert moderate-confidence water to
+         high-confidence water in the presence of high aerosol
+    aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int)
+         HLS Fmask values to convert partial surface water conservative to
+         high-confidence water in the presence of high aerosol
+    aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: list(int)
+         HLS Fmask values to convert partial surface water aggressive to
+         high-confidence water in the presence of high aerosol
     shadow_masking_algorithm: str
         Shadow masking algorithm
     min_slope_angle: float
@@ -326,7 +345,7 @@ class RunConfigConstants:
     mask_adjacent_to_cloud_mode: str
         Define how areas adjacent to cloud/cloud-shadow should be handled.
         Options: "mask", "ignore", and "cover"
-    copernicus_forest_classes: list(int)
+    forest_mask_landcover_classes: list(int)
         Copernicus CGLS Land Cover 100m forest classes
     ocean_masking_shoreline_distance_km: float
         Ocean masking distance from shoreline in km
@@ -360,12 +379,18 @@ class RunConfigConstants:
     """
     def __init__(self):
         self.hls_thresholds = HlsThresholds()
-        self.shadow_masking_algorithm = None
         self.check_ancillary_inputs_coverage = None
+        self.apply_ocean_masking = None
+        self.apply_aerosol_class_remapping = None
+        self.aerosol_not_water_to_high_conf_water_fmask_values = None
+        self.aerosol_water_moderate_conf_to_high_conf_water_fmask_values = None
+        self.aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values = None
+        self.aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values = None
+        self.shadow_masking_algorithm = None
         self.min_slope_angle = None
         self.max_sun_local_inc_angle = None
         self.mask_adjacent_to_cloud_mode = None
-        self.copernicus_forest_classes = None
+        self.forest_mask_landcover_classes = None
         self.ocean_masking_shoreline_distance_km = None
         self.browse_image_height = None
         self.browse_image_width = None
@@ -600,6 +625,18 @@ def get_dswx_hls_cli_parser():
                         help=('Check if ancillary inputs cover entirely'
                               ' the output product'))
 
+    parser.add_argument('--apply-ocean-masking',
+                        dest='apply_ocean_masking',
+                        action='store_true',
+                        default=None,
+                        help='Apply ocean masking')
+
+    parser.add_argument('--apply-aerosol-masking',
+                        dest='apply_aerosol_class_remapping',
+                        action='store_true',
+                        default=None,
+                        help='Apply aerosol masking')
+
     parser.add_argument('--shadow-masking-algorithm',
                         dest='shadow_masking_algorithm',
                         type=str,
@@ -625,9 +662,11 @@ def get_dswx_hls_cli_parser():
                         ' "cover"')
 
     parser.add_argument('--copernicus-forest-classes',
-                        dest='copernicus_forest_classes',
+                        dest='forest_mask_landcover_classes',
                         type=list,
-                        help='Copernicus CGLS Land Cover 100m forest classes')
+                        help='Copernicus CGLS Land Cover 100m forest classes'
+                        ' to mask out from the WTR-2 and WTR layer due to dark'
+                        ' reflectance that is usually misinterpreted as water.')
 
     parser.add_argument('--ocean-masking-distance-km',
                         dest='ocean_masking_shoreline_distance_km',
@@ -857,7 +896,7 @@ def _update_landcover_array(conglomerate_array, agg_sum, threshold,
 def create_landcover_mask(copernicus_landcover_file,
                           worldcover_file, output_file, scratch_dir,
                           mask_type, geotransform, projection, length, width,
-                          copernicus_forest_classes,
+                          forest_mask_landcover_classes,
                           dswx_metadata_dict = None, output_files_list = None,
                           temp_files_list = None):
     """
@@ -885,7 +924,7 @@ def create_landcover_mask(copernicus_landcover_file,
               DSWx-HLS product's length (number of lines)
        width: int
               DSWx-HLS product's width (number of columns)
-       copernicus_forest_classes: list(int)
+       forest_mask_landcover_classes: list(int)
               Copernicus CGLS Land Cover 100m forest classes
        dswx_metadata_dict: dict (optional)
               Metadata dictionary that will store band metadata 
@@ -943,9 +982,8 @@ def create_landcover_mask(copernicus_landcover_file,
     # WorldCover class 80: permanent water bodies
     # WorldCover class 90: herbaceous wetland
     # WorldCover class 95: mangroves
-    water_binary_mask = ((worldcover_array_up_3 == 80) |
-                         (worldcover_array_up_3 == 90) |
-                         (worldcover_array_up_3 == 95)).astype(np.uint8)
+    water_binary_mask = (np.isin(worldcover_array_up_3, [80, 90, 95])).astype(
+        np.uint8)
     water_aggregate_sum = decimate_by_summation(water_binary_mask,
                                               size_y, size_x)
     del water_binary_mask
@@ -970,10 +1008,10 @@ def create_landcover_mask(copernicus_landcover_file,
     copernicus_forest = np.zeros_like(tree_aggregate_sum, dtype=np.uint8)
 
     logger.info('    CGLS Land Cover 100m forest classes:'
-                f' {copernicus_forest_classes}')
+                f' {forest_mask_landcover_classes}')
 
-    if copernicus_forest_classes is not None:
-        for copernicus_forest_class in copernicus_forest_classes:
+    if forest_mask_landcover_classes is not None:
+        for copernicus_forest_class in forest_mask_landcover_classes:
             copernicus_forest |= (copernicus_landcover_array ==
                                   copernicus_forest_class)
 
@@ -981,7 +1019,7 @@ def create_landcover_mask(copernicus_landcover_file,
     del copernicus_forest
 
     logger.info(f'    combining masks')
-    # create array filled with 30000
+    # create array filled with "fill value"
     landcover_fill_value = \
         dswx_hls_landcover_classes_dict['fill_value']
     hierarchy_combined = np.full(water_aggregate_sum.shape,
@@ -1027,7 +1065,8 @@ def create_landcover_mask(copernicus_landcover_file,
                     projection, description = description,
                     scratch_dir=scratch_dir,
                     output_files_list = output_files_list,
-                    ctable=ctable)
+                    ctable=ctable,
+                    no_data_value=landcover_fill_value)
 
     return hierarchy_combined
 
@@ -1109,9 +1148,104 @@ def _is_landcover_class_high_intensity_developed(landcover_mask):
     return high_intensity_developed_mask
 
 
+def _apply_aerosol_class_remapping_single_class(wtr_1_layer, nir,
+        preliminary_cloud_layer, fmask,
+        fmask_values, input_wtr1_class, output_wtr1_class):
+    """Apply aerosol remapping onto interpreted layer (WTR-1) given a
+       WTR-1 class and fmask values. The function also sets
+       the third bit of the CLOUD layer in remmaped areas
+
+       Parameters
+       ----------
+       wtr_1_layer: numpy.ndarray
+            Interpreted layer (WTR-1) (mutable numpy.ndarray)
+       nir: numpy.ndarray
+            Near infrared (NIR) channel
+       preliminary_cloud_layer : numpy.ndarray
+            Preliminary cloud mask aerosol remapping bit (mutable
+            numpy.ndarray)
+       fmask: numpy.ndarray
+            HLS Fmask
+       fmask_values: list(int)
+            HLS Fmask values to remap interpreted water classes
+            in the presence of high aerosol
+       input_wtr1_class: int
+            Input WTR-1 class that is being evaluated for high-aerosol
+       output_wtr1_class: int
+            Remapped WTR-1 class
+    """
+
+    to_remap_array = ((np.isin(fmask, fmask_values)) &
+                      (wtr_1_layer == input_wtr1_class) &
+                      (nir <= AEROSOL_REMAPPING_MAX_NIR))
+    wtr_1_layer[to_remap_array] = output_wtr1_class
+
+    # set CLOUD layer bit (3): 2**3 = 8
+    ind = np.where((to_remap_array) &
+                   (preliminary_cloud_layer != UINT8_FILL_VALUE))
+    preliminary_cloud_layer[ind] = np.bitwise_or(
+        preliminary_cloud_layer[ind], 2**3)
+
+
+def _apply_aerosol_class_remapping(wtr_1_layer, nir,
+        preliminary_cloud_layer, fmask,
+        aerosol_not_water_to_high_conf_water_fmask_values,
+        aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
+        aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+        aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values):
+    """Apply aerosol masking onto interpreted layer (WTR-1)
+
+       Parameters
+       ----------
+       wtr_1_layer: numpy.ndarray
+            Interpreted layer (WTR-1) (mutable numpy.ndarray)
+       nir: numpy.ndarray
+            Near infrared (NIR) channel
+       preliminary_cloud_layer : numpy.ndarray
+            Preliminary cloud mask aerosol remapping bit (mutable
+            numpy.ndarray)
+       fmask: numpy.ndarray
+            HLS Fmask
+       aerosol_not_water_to_high_conf_water_fmask_values: list(int)
+           HLS Fmask values to convert not-water to high-confidence water
+           in the presence of high aerosol
+       aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int)
+           HLS Fmask values to convert moderate-confidence water to
+           high-confidence water in the presence of high aerosol
+       aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int)
+           HLS Fmask values to convert partial surface water conservative to
+           high-confidence water in the presence of high aerosol
+       aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: list(int)
+           HLS Fmask values to convert partial surface water aggressive to
+           high-confidence water in the presence of high aerosol
+    """
+
+    # Note: high-confidence water does not need to be changed
+    wtr1_class_fmask_values_dict = {
+        WATER_NOT_WATER_CLEAR:
+            (aerosol_not_water_to_high_conf_water_fmask_values,
+             WATER_UNCOLLAPSED_HIGH_CONF_CLEAR),
+        WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR:
+            (aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
+             WATER_UNCOLLAPSED_HIGH_CONF_CLEAR),
+        WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR:
+            (aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+             WATER_UNCOLLAPSED_HIGH_CONF_CLEAR),
+        WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR:
+            (aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
+             WATER_UNCOLLAPSED_HIGH_CONF_CLEAR)
+        }
+
+    for input_wtr1_class, (fmask_values, output_wtr1_class) in \
+            wtr1_class_fmask_values_dict.items():
+        _apply_aerosol_class_remapping_single_class(wtr_1_layer,
+            nir, preliminary_cloud_layer, fmask,
+            fmask_values, input_wtr1_class, output_wtr1_class)
+
+
 def _apply_landcover_and_shadow_masks(interpreted_layer, nir,
         landcover_mask, shadow_layer, hls_thresholds):
-    """Apply landcover and shadow masks onto interpreted layer
+    """Apply landcover and shadow masks onto interpreted layer (WTR-1)
 
        Parameters
        ----------
@@ -1215,24 +1349,24 @@ def _get_interpreted_dswx_ctable(
     if flag_collapse_wtr_classes:
         # Blue - Open water
         dswx_ctable.SetColorEntry(WATER_COLLAPSED_OPEN_WATER,
-                                  (0, 0, 255)) 
-        # Light Blue - Partial surface water
+                                  (0, 0, 255))
+        # Light blue - Partial surface water
         dswx_ctable.SetColorEntry(WATER_COLLAPSED_PARTIAL_SURFACE_WATER,
                                   (180, 213, 244))
     else:
         # Blue - Water (high confidence)
         dswx_ctable.SetColorEntry(WATER_UNCOLLAPSED_HIGH_CONF_CLEAR,
-                                  (0, 0, 255)) 
+                                  (0, 0, 255))
         # Light blue - Water (moderate conf.)
         dswx_ctable.SetColorEntry(WATER_UNCOLLAPSED_MODERATE_CONF_CLEAR,
-                                  (173, 173, 252))
+                                  (95, 127, 255))
         # Dark green - Partial surface water conservative
         dswx_ctable.SetColorEntry(
-            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR, 
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_CONSERVATIVE_CLEAR,
                                   (0, 195, 0)) # 225 ok
         # Light green - Partial surface water aggressive
         dswx_ctable.SetColorEntry(
-            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR, 
+            WATER_UNCOLLAPSED_PARTIAL_SURFACE_WATER_AGGRESSIVE_CLEAR,
                                   (150, 255, 150))
 
     # Dark blue - Ocean masked
@@ -1352,9 +1486,11 @@ def _get_cloud_layer_ctable():
     mask_ctable = gdal.ColorTable()
 
     # set color for each value
+    # Bit encoding:
     # - Mask cloud shadow bit (0)
     # - Mask snow/ice bit (1)
     # - Mask cloud bit (2)
+    # - Class reassignment due to aerosol interpolation errors (3)
 
     # White - Not masked
     mask_ctable.SetColorEntry(0, (255, 255, 255))
@@ -1372,6 +1508,24 @@ def _get_cloud_layer_ctable():
     mask_ctable.SetColorEntry(6, (255, 0, 255))
     # Light blue - Cloud, cloud shadow, and snow/ice
     mask_ctable.SetColorEntry(7, (127, 127, 255))
+
+    # Light ocre - Aerosol reassignment ("0xE4CDA7")
+    mask_ctable.SetColorEntry(8, (228, 205, 167))
+    # Dark gray - Cloud shadow
+    mask_ctable.SetColorEntry(9, (64, 64, 64))
+    # Cyan - snow/ice
+    mask_ctable.SetColorEntry(10, (0, 255, 255))
+    # Dark cyan - Cloud shadow and snow/ice
+    mask_ctable.SetColorEntry(11, (0, 127, 127))
+    # Light gray - Cloud
+    mask_ctable.SetColorEntry(12, (192, 192, 192))
+    # Gray - Cloud and cloud shadow
+    mask_ctable.SetColorEntry(13, (127, 127, 127))
+    # Magenta - Cloud and snow/ice
+    mask_ctable.SetColorEntry(14, (255, 0, 255))
+    # Light blue - Cloud, cloud shadow, and snow/ice
+    mask_ctable.SetColorEntry(15, (127, 127, 255))
+
     # Dark blue - Ocean masked
     mask_ctable.SetColorEntry(CLOUD_OCEAN_MASKED, OCEAN_MASKED_RGBA)
     # Black - Fill value
@@ -1401,9 +1555,6 @@ def _get_landcover_mask_ctable():
     high_intensity_developed_class_offset = \
         dswx_hls_landcover_classes_dict['high_intensity_developed_offset']
 
-    # White - Not masked (fill_value)
-    mask_ctable.SetColorEntry(fill_value, (255, 255, 255))
-
     # Green - Evergreen forest class
     mask_ctable.SetColorEntry(evergreen_forest_class, (0, 255, 0))
 
@@ -1419,6 +1570,9 @@ def _get_landcover_mask_ctable():
     for i in range(100):
         mask_ctable.SetColorEntry(high_intensity_developed_class_offset + i, 
                                   (255, 0, 0))
+
+    # Fill value
+    mask_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
 
     return mask_ctable
 
@@ -1538,7 +1692,13 @@ def _get_confidence_layer(wtr_2_layer, cloud_layer):
 
     Notes
     -----
-    CLOUD layer classifications (as of Nov. 2022)
+    CLOUD layer classifications
+    Bit encoding:
+    - Mask cloud shadow bit (0)
+    - Mask snow/ice bit (1)
+    - Mask cloud bit (2)
+    - Class reassignment due to aerosol interpolation errors (3)
+    CLOUD classes
     0: Not masked
     1: Cloud shadow
     2: Snow/ice
@@ -1547,6 +1707,14 @@ def _get_confidence_layer(wtr_2_layer, cloud_layer):
     5: Cloud and cloud shadow
     6: Cloud and snow/ice
     7: Cloud, cloud shadow, and snow/ice
+    8: Aerosol reassigned class
+    9: Aerosol reassigned class and cloud shadow
+    10: Aerosol reassigned class and snow/ice
+    11: Aerosol reassigned class, cloud shadow and snow/ice
+    12: Aerosol reassigned class and cloud
+    13: Aerosol reassigned class, cloud, and cloud shadow
+    14: Aerosol reassigned class, cloud ,and snow/ice
+    15: Aerosol reassigned class, cloud, cloud shadow, and snow/ice
     255: Fill value (no data)
     The cloud classification in the CONF layer represents
     the ensemble of cloud, cloud shadow, or adjacent-to-cloud
@@ -1563,12 +1731,8 @@ def _get_confidence_layer(wtr_2_layer, cloud_layer):
     conf_layer = wtr_2_layer.copy()
 
     # Update the pixels with cloud and/or cloud shadow
-    cloud_idx = ((cloud_layer == 1) | 
-                 (cloud_layer == 3) |
-                 (cloud_layer == 4) |
-                 (cloud_layer == 5) |
-                 (cloud_layer == 6) |
-                 (cloud_layer == 7))
+    cloud_idx = np.isin(cloud_layer, [1, 3, 4, 5, 6, 7,
+                                      9, 11, 12, 13, 14, 15])
 
     idx = ((conf_layer == WATER_NOT_WATER_CLEAR) & cloud_idx)
     conf_layer[idx] = WATER_NOT_WATER_CLOUD
@@ -1693,49 +1857,62 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
     return diagnostic_layer
 
 
-def _compute_and_apply_cloud_layer(wtr_2_layer, fmask,
-                                  mask_adjacent_to_cloud_mode):
-    """Compute cloud/cloud-shadow mask and filter interpreted water layer
+def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
+    """Compute a preliminary CLOUD layer without snow/ice and aerosol
+       remmapping classes. The CLOUD layer will be completed by the subsequent
+       functions _apply_aerosol_class_remapping() and
+       _add_snow_to_cloud_layer().
 
        Parameters
        ----------
-       wtr_2_layer: numpy.ndarray
-              Cloud-unmasked interpreted water layer
        fmask: numpy ndarray
-              HLS Fmask
+            HLS Fmask
        mask_adjacent_to_cloud_mode: str
-              Define how areas adjacent to cloud/cloud-shadow should be handled.
-              Options: "mask", "ignore", and "cover"
+            Define how areas adjacent to cloud/cloud-shadow should be handled.
+            Options: "mask" - mask out these areas marking them as cloud
+            shadow (default); "ignore" - ignore the adjacent to cloud/
+            cloud shadow classification; and 'cover' - covers these areas
+            with a dilation algorithm (this option will be handled in
+            the subsequent function _add_snow_to_cloud_layer())
 
        Returns
        -------
-       cloud_layer : numpy.ndarray
-              Cloud mask
-       wtr_layer : numpy.ndarray
-              Cloud-masked interpreted water layer
+       preliminary_cloud_layer : numpy.ndarray
+           Preliminary cloud mask (without the snow/ice class)
+           with dtype of uint8 and values assigned as follows:
+           0: Not masked
+           1: Cloud shadow or adjacent to cloud/cloud shadow
+           4: Cloud
+           5: Cloud and class 1 (cloud shadow or adjacent to cloud/cloud shadow)
+           255: Fill value (no data)
+
+       See Also
+       ---------
+       _add_snow_to_cloud_layer : Add the snow bit encodings from `fmask` to
+            `preliminary_cloud_layer`
+       _apply_aerosol_class_remapping: Add bit indicating class
+            reassignment due to aerosol interpolation errors
     """
-    shape = wtr_2_layer.shape
-    wtr_layer = wtr_2_layer.copy()
-    cloud_layer = np.zeros(shape, dtype = np.uint8)
+    preliminary_cloud_layer = np.zeros(fmask.shape, dtype = np.uint8)
 
     '''
-    HLS Fmask
-    BITS:
-    0 - Cirrus (reserved but not used)
-    1 - Cloud (*1)
-    2 - Adjacent to cloud/shadow (*3)
-    3 - Cloud shadow (*1)
-    4 - Snow/ice (*2)
-    5 - Water
-    6-7 - Aerosol quality:
-          00 - Climatology aerosol
-          01 - Low aerosol
-          10 - Moderate aerosol
-          11 - High aerosol
-
-    (*1) set output as 9
-    (*2) set output as 8
-    (*3) mode dependent (mask_adjacent_to_cloud_mode)
+    Input HLS Fmask bit encoding:
+        0 - Cirrus (reserved but not used)
+    (*) 1 - Cloud (maps to output bit 2)
+    (*) 2 - Adjacent to cloud/shadow 
+        (if mask_adjacent_to_cloud_mode == "mask" then maps to output bit 1
+         else: ignore this class)
+    (*) 3 - Cloud shadow (output bit 0)
+        4 - Snow/ice (output bit 1, will be assigned in the subsequent function:
+            _add_snow_to_cloud_layer())
+        5 - Water
+        6-7 - Aerosol quality:
+              00 - Climatology aerosol
+              01 - Low aerosol
+              10 - Moderate aerosol
+              11 - High aerosol
+    
+    (*) Updates the preliminary CLOUD layer in this function
     '''
 
     if (mask_adjacent_to_cloud_mode not in ['mask', 'ignore', 'cover']):
@@ -1744,21 +1921,74 @@ def _compute_and_apply_cloud_layer(wtr_2_layer, fmask,
         logger.info(error_msg)
         raise Exception(error_msg)
 
-    logger.info(f'mask adjacent to cloud/cloud-shadow mode:'
-                f' {mask_adjacent_to_cloud_mode}')
- 
     # Check Fmask cloud shadow bit (3) => bit 0
-    cloud_layer[np.bitwise_and(fmask, 2**3) == 2**3] = 1
+    preliminary_cloud_layer[np.bitwise_and(fmask, 2**3) == 2**3] = 1
 
     if mask_adjacent_to_cloud_mode == 'mask':
         # Check Fmask adjacent to cloud/shadow bit (2) => bit 0
-       cloud_layer[np.bitwise_and(fmask, 2**2) == 2**2] = 1
+       preliminary_cloud_layer[np.bitwise_and(fmask, 2**2) == 2**2] = 1
 
     # Check Fmask cloud bit (1) => bit 2
-    cloud_layer[np.bitwise_and(fmask, 2**1) == 2**1] += 4
+    preliminary_cloud_layer[np.bitwise_and(fmask, 2**1) == 2**1] += 4
 
-    # If cloud (1) or cloud shadow (3), mark WTR as WTR_CLOUD_MASKED
-    wtr_layer[cloud_layer != 0] = WTR_CLOUD_MASKED
+    return preliminary_cloud_layer
+
+
+
+def _add_snow_to_cloud_layer(wtr_2_layer, cloud_layer, fmask,
+                             mask_adjacent_to_cloud_mode):
+    """Finish computing the CLOUD layer by adding the snow/ice class
+       to the CLOUD layer.
+       This function succeeds the functions _compute_preliminary_cloud_layer()
+       and _apply_aerosol_class_remapping()
+
+       Parameters
+       ----------
+       wtr_2_layer: numpy.ndarray
+            Cloud-unmasked interpreted water layer
+       cloud_layer : numpy.ndarray
+            Preliminary cloud mask (without the snow/ice class). This array
+            is updated within the function (mutable numpy.ndarray) and returned
+            after the snow/ice class is added to the layer.
+       fmask: numpy ndarray
+            HLS Fmask
+       mask_adjacent_to_cloud_mode: str
+            Define how areas adjacent to cloud/cloud-shadow should be handled.
+            Options: "mask" - mask out these areas marking them as cloud
+            shadow (default); "ignore" - ignore the adjacent to cloud/
+            cloud shadow classification; and 'cover' - covers these areas
+            with a dilation algorithm
+
+       Returns
+       -------
+       cloud_layer : numpy.ndarray
+            Cloud mask (without the snow/ice class) with dtype of uint8 and
+            values assigned following the bit encoding:
+
+            0: Cloud shadow or adjacent to cloud/cloud shadow
+            1: Snow/ice
+            2: Cloud
+            3: Class reassignment due to aerosol interpolation errors (3)
+            255: Fill value (no data)
+
+    """
+
+    '''
+    Input HLS Fmask bit encoding:
+        0 - Cirrus (reserved but not used)
+        1 - Cloud
+        2 - Adjacent to cloud/shadow 
+        3 - Cloud shadow (output bit 0)
+    (*) 4 - Snow/ice (maps to output bit 1)
+        5 - Water
+        6-7 - Aerosol quality:
+              00 - Climatology aerosol
+              01 - Low aerosol
+              10 - Moderate aerosol
+              11 - High aerosol
+
+    (*) Updates the output CLOUD layer in this function
+    '''
 
     # Check Fmask snow bit (4) => bit 1
     snow_mask = np.bitwise_and(fmask, 2**4) == 2**4
@@ -1779,9 +2009,9 @@ def _compute_and_apply_cloud_layer(wtr_2_layer, fmask,
         water, not-water areas should only grow over classes that are not
         marked as water in WTR-2 as that are likely covered by snow
         '''
-        areas_to_dilate &= ((wtr_layer >=
+        areas_to_dilate &= ((wtr_2_layer >=
                              FIRST_UNCOLLAPSED_WATER_CLASS) &
-                            (wtr_layer <=
+                            (wtr_2_layer <=
                              LAST_UNCOLLAPSED_WATER_CLASS))
         not_masked = (~snow_mask) & (cloud_layer == 0)
         not_masked = binary_dilation(not_masked, iterations=7,
@@ -1792,18 +2022,59 @@ def _compute_and_apply_cloud_layer(wtr_2_layer, fmask,
     # Add snow class to CLOUD mask
     cloud_layer[snow_mask] += 2
 
-    # Update WTR with ocean mask
-    wtr_layer[cloud_layer == 2] = WTR_SNOW_MASKED
+    # Copy masked values from WTR-2 to CLOUD and WTR
+    cloud_layer[wtr_2_layer == UINT8_FILL_VALUE] = UINT8_FILL_VALUE
+
+    return cloud_layer
+
+
+def _apply_cloud_masking(wtr_2_layer, cloud_layer):
+    """Apply CLOUD masking to the interpreted water layer WTR-2
+       creating the layer WTR.
+
+       Parameters
+       ----------
+       wtr_2_layer: numpy.ndarray
+            Cloud-unmasked interpreted water layer
+       cloud_layer : numpy.ndarray
+            Cloud layer
+
+       Returns
+       -------
+       wtr_layer : numpy.ndarray
+              Cloud-masked interpreted water layer
+    """
+    wtr_layer = wtr_2_layer.copy()
+
+    '''
+    Cloud layer bit encoding:
+    0 - Cloud shadow or adjacent to cloud/cloud shadow
+    1 - Snow
+    2 - Cloud
+    3 - Class reassignment due to aerosol interpolation errors (3)
+    '''
+
+    # If there's cloud shadow/adjacent to cloud/cloud shadow or
+    # cloud, and there was no remapping due to high aerosol
+    # bit 3 (value 2**3 = 8),
+    # then mark output as WTR_CLOUD_MASKED
+    wtr_layer[(cloud_layer != 0) &
+              (cloud_layer != 8)] = WTR_CLOUD_MASKED
+
+    # If there's snow only (i.e., no cloud/cloud shadow),
+    # the mark output as WTR_SNOW_MASKED
+    wtr_layer[(cloud_layer == 2) |
+              (cloud_layer == 10)] = WTR_SNOW_MASKED
 
     # Apply the ocean mask on the WTR layer
     wtr_layer[wtr_2_layer == WTR_OCEAN_MASKED] = WTR_OCEAN_MASKED
 
-    # Copy masked values from WTR-2 to CLOUD and WTR
-    invalid_ind = np.where(wtr_2_layer == UINT8_FILL_VALUE)
-    cloud_layer[invalid_ind] = UINT8_FILL_VALUE
-    wtr_layer[invalid_ind] = UINT8_FILL_VALUE
+    # Copy masked values from WTR-2
+    wtr_layer[wtr_2_layer == UINT8_FILL_VALUE] = UINT8_FILL_VALUE
 
-    return cloud_layer, wtr_layer
+    return wtr_layer
+
+
 
 
 def _load_hls_band_from_file(filename, image_dict, offset_dict, scale_dict,
@@ -1905,6 +2176,9 @@ def _load_hls_band_from_file(filename, image_dict, offset_dict, scale_dict,
         for k, v in metadata.items():
             if k.upper() in METADATA_FIELDS_TO_COPY_FROM_HLS_LIST:
                 dswx_metadata_dict[k.upper()] = v
+            elif k.upper() in ['SPATIAL_COVERAGE', 'CLOUD_COVERAGE']:
+                dswx_metadata_key = 'INPUT_HLS_PRODUCT_'+k.upper()
+                dswx_metadata_dict[dswx_metadata_key] = v
             elif (k.upper() == 'LANDSAT_PRODUCT_ID' or
                     k.upper() == 'PRODUCT_URI'):
                 dswx_metadata_dict['SENSOR_PRODUCT_ID'] = v
@@ -3201,10 +3475,13 @@ def parse_runconfig_file(user_runconfig_file = None, args = None):
 
     # Update args with runconfig_constants attributes
     for key in runconfig_constants_dict.keys():
+        user_attr = None
         try:
             user_attr = getattr(args, key)
         except AttributeError:
-            continue
+            # `hls_thresholds` was handled previously
+            if key == 'hls_thresholds':
+                continue
         if user_attr is not None:
             continue
         setattr(args, key, getattr(runconfig_constants, key))
@@ -3409,7 +3686,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['DEM_SOURCE'] = \
             os.path.basename(dem_file)
     else:
-        dswx_metadata_dict['DEM_SOURCE'] = '(not provided)'
+        dswx_metadata_dict['DEM_SOURCE'] = '-'
 
     if landcover_file_description:
         dswx_metadata_dict['LANDCOVER_SOURCE'] = landcover_file_description
@@ -3417,7 +3694,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['LANDCOVER_SOURCE'] = \
             os.path.basename(landcover_file)
     else:
-        dswx_metadata_dict['LANDCOVER_SOURCE'] = '(not provided)'
+        dswx_metadata_dict['LANDCOVER_SOURCE'] = '-'
 
     if worldcover_file_description:
         dswx_metadata_dict['WORLDCOVER_SOURCE'] = worldcover_file_description
@@ -3425,7 +3702,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['WORLDCOVER_SOURCE'] = \
             os.path.basename(worldcover_file)
     else:
-        dswx_metadata_dict['WORLDCOVER_SOURCE'] = '(not provided)'
+        dswx_metadata_dict['WORLDCOVER_SOURCE'] = '-'
 
     if shoreline_shapefile_description:
         dswx_metadata_dict['SHORELINE_SOURCE'] = \
@@ -3434,7 +3711,103 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['SHORELINE_SOURCE'] = \
             os.path.basename(shoreline_shapefile)
     else:
-        dswx_metadata_dict['SHORELINE_SOURCE'] = '(not provided)'
+        dswx_metadata_dict['SHORELINE_SOURCE'] = '-'
+
+
+def _populate_dswx_metadata_processing_parameters(
+        dswx_metadata_dict,
+        aerosol_not_water_to_high_conf_water_fmask_values,
+        aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
+        aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+        aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
+        shadow_masking_algorithm,
+        min_slope_angle,
+        max_sun_local_inc_angle,
+        mask_adjacent_to_cloud_mode,
+        forest_mask_landcover_classes,
+        shoreline_shapefile,
+        ocean_masking_shoreline_distance_km):
+    """Populate metadata dictionary with processing parameters
+
+       Parameters
+       ----------
+       dswx_metadata_dict : collections.OrderedDict
+              Metadata dictionary
+       aerosol_not_water_to_high_conf_water_fmask_values: list(int)
+              HLS Fmask values to convert not-water to high-confidence water
+              in the presence of high aerosol
+       aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int)
+              HLS Fmask values to convert moderate-confidence water to
+              high-confidence water in the presence of high aerosol
+       aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int)
+              HLS Fmask values to convert partial surface water conservative to
+              high-confidence water in the presence of high aerosol
+       aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: list(int)
+              HLS Fmask values to convert partial surface water aggressive to
+              high-confidence water in the presence of high aerosol
+       shadow_masking_algorithm: str
+              Shadow masking algorithm
+       min_slope_angle: float
+              Minimum slope angle in degrees for terrain masking
+       max_sun_local_inc_angle: float
+              Maximum sun local-incidence angle in degrees for terrain masking
+       mask_adjacent_to_cloud_mode: bool
+              Define how areas adjacent to cloud/cloud-shadow should be handled
+       forest_mask_landcover_classes: list
+              Copernicus CGLS Land Cover 100m forest classes to mask out from
+              the WTR-2 and WTR layer due to dark reflectance that is usually
+              misinterpreted as water.
+       shoreline_shapefile:
+              NOAA shoreline shapefile
+       ocean_masking_shoreline_distance_km: float
+              Ocean masking distance from shoreline in km
+    """
+
+    # aerosol metadata fields
+    aerosol_metadata_dict = {
+        'aerosol_not_water_to_high_conf_water_fmask_values':
+            aerosol_not_water_to_high_conf_water_fmask_values,
+        'aerosol_water_moderate_conf_to_high_conf_water_fmask_values':
+            aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
+        'aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values':
+            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+        'aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values':
+            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
+    }
+
+    for aerosol_metadata_field_lower, fmask_values in aerosol_metadata_dict.items():
+        if forest_mask_landcover_classes:
+            dswx_metadata_dict[aerosol_metadata_field_lower.upper()] = \
+                ','.join([str(c) for c in fmask_values])
+        else:
+            dswx_metadata_dict[aerosol_metadata_field_lower.upper()] = '-'
+
+    # shadow masking algorithm and parameters
+    dswx_metadata_dict['SHADOW_MASKING_ALGORITHM'] = shadow_masking_algorithm
+    if shadow_masking_algorithm == 'sun_local_inc_angle':
+        dswx_metadata_dict['MIN_SLOPE_ANGLE'] = min_slope_angle
+        dswx_metadata_dict['MAX_SUN_LOCAL_INC_ANGLE'] = max_sun_local_inc_angle
+    else:
+        dswx_metadata_dict['MIN_SLOPE_ANGLE'] = '-'
+        dswx_metadata_dict['MAX_SUN_LOCAL_INC_ANGLE'] = '-'
+
+    # mask adjacent to cloud/cloud shadow mode
+    dswx_metadata_dict['MASK_ADJACENT_TO_CLOUD_MODE'] = \
+        mask_adjacent_to_cloud_mode
+
+    # Copernicus class for forest masking
+    if forest_mask_landcover_classes:
+        dswx_metadata_dict['FOREST_MASK_LANDCOVER_CLASSES'] = \
+            ','.join([str(c) for c in forest_mask_landcover_classes])
+    else:
+        dswx_metadata_dict['FOREST_MASK_LANDCOVER_CLASSES'] = '-'
+
+    # ocean masking distance from shoreline in km
+    if shoreline_shapefile:
+        dswx_metadata_dict['OCEAN_MASKING_SHORELINE_DISTANCE_KM'] = \
+            ocean_masking_shoreline_distance_km
+    else:
+        dswx_metadata_dict['OCEAN_MASKING_SHORELINE_DISTANCE_KM'] = '-'
 
 
 class Logger(object):
@@ -3572,7 +3945,8 @@ def _compute_hillshade(dem_file, scratch_dir, sun_azimuth_angle,
 def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
                                 min_slope_angle, max_sun_local_inc_angle,
                                 pixel_spacing_x = 30, pixel_spacing_y = 30):
-    """Compute hillshade using new OPERA shadow masking
+    """Compute shadow mask based on Sun local incidence angle and slope
+       angle.
 
        Parameters
        ----------
@@ -3595,8 +3969,8 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
 
        Returns
        -------
-       hillshade : numpy.ndarray
-              Hillshade
+       shadow_mask : numpy.ndarray
+              Shadow mask (1: not shadow, 0: shadow)
     """
     sun_azimuth = np.radians(sun_azimuth_angle)
     sun_zenith_degrees = 90 - sun_elevation_angle
@@ -3693,8 +4067,11 @@ def _crop_2d_array_all_sides(input_2d_array, margin):
     return cropped_2d_array
 
 
-def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
-        shoreline_shapefile, geotransform, projection, length, width):
+def _check_ancillary_inputs(check_ancillary_inputs_coverage,
+                            check_shoreline_shapefile,
+                            dem_file, landcover_file, worldcover_file,
+                            shoreline_shapefile, geotransform, projection,
+                            length, width):
     """
     Check for existence and coverage of provided ancillary inputs: DEM,
     Copernicus CGLS Land Cover 100m, and
@@ -3702,6 +4079,11 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
 
        Parameters
        ----------
+       check_ancillary_inputs_coverage: bool
+              Flag that enable/disable checks for all ancillary inputs
+              excluding the shoreline shapefile
+       check_shoreline_shapefile: bool
+              Flag that checks for the shoreline shapefile
        dem_file: str
               DEM filename
        landcover_file: str
@@ -3719,6 +4101,8 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
        width: int
               DSWx-HLS product's width (number of columns)
     """
+    if not check_ancillary_inputs_coverage and not check_shoreline_shapefile:
+        return
 
     # file description (to be printed to the user if an error happens)
     dem_file_description = 'DEM file'
@@ -3726,12 +4110,17 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
     worldcover_file_description = 'ESA WorldCover 10m file'
     shoreline_shapefile_description = 'NOAA shoreline shapefile'
 
-    rasters_to_check_dict = {
-        dem_file_description: dem_file,
-        landcover_file_description: landcover_file,
-        worldcover_file_description: worldcover_file,
-        shoreline_shapefile_description: shoreline_shapefile
-    }
+    if check_ancillary_inputs_coverage:
+        rasters_to_check_dict = {
+            dem_file_description: dem_file,
+            landcover_file_description: landcover_file,
+            worldcover_file_description: worldcover_file,
+        }
+    else:
+        rasters_to_check_dict = {}
+    if check_shoreline_shapefile:
+        rasters_to_check_dict[shoreline_shapefile_description] = \
+            shoreline_shapefile
 
     tile_min_x_utm, tile_dx_utm, _, tile_max_y_utm, _, tile_dy_utm = \
         geotransform
@@ -3756,7 +4145,7 @@ def _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
 
         if file_description == shoreline_shapefile_description:
             continue
-            
+
         # test if tile is fully covered by the ancillary input
         # by checking all ancillary input vertices are located
         # outside of the tile grid.
@@ -3838,11 +4227,17 @@ def generate_dswx_layers(input_list,
                          product_id=None,
                          product_version=SOFTWARE_VERSION,
                          check_ancillary_inputs_coverage=None,
+                         apply_ocean_masking=None,
+                         apply_aerosol_class_remapping=None,
+                         aerosol_not_water_to_high_conf_water_fmask_values=None,
+                         aerosol_water_moderate_conf_to_high_conf_water_fmask_values=None,
+                         aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values=None,
+                         aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values=None,
                          shadow_masking_algorithm=None,
                          min_slope_angle=None,
                          max_sun_local_inc_angle=None,
                          mask_adjacent_to_cloud_mode=None,
-                         copernicus_forest_classes=None,
+                         forest_mask_landcover_classes=None,
                          ocean_masking_shoreline_distance_km=None,
                          flag_debug=False):
     """Compute the DSWx-HLS product
@@ -3925,6 +4320,22 @@ def generate_dswx_layers(input_list,
               metadata
        check_ancillary_inputs_coverage: bool (optional)
               Check if ancillary inputs cover entirely the output product
+       apply_ocean_masking: bool (optional)
+              Apply ocean masking
+       apply_aerosol_class_remapping: bool (optional)
+              Apply aerosol masking
+       aerosol_not_water_to_high_conf_water_fmask_values: list(int) (optional)
+              HLS Fmask values to convert not-water to high-confidence water
+              in the presence of high aerosol
+       aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int) (optional)
+              HLS Fmask values to convert moderate-confidence water to
+              high-confidence water in the presence of high aerosol
+       aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int) (optional)
+              HLS Fmask values to convert partial surface water conservative to
+              high-confidence water in the presence of high aerosol
+       aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values: list(int) (optional)
+              HLS Fmask values to convert partial surface water aggressive to
+              high-confidence water in the presence of high aerosol
        shadow_masking_algorithm: str (optional)
               Shadow masking algorithm. Choices: "otsu" or "sun_local_inc_angle"
        min_slope_angle: float (optional)
@@ -3934,7 +4345,7 @@ def generate_dswx_layers(input_list,
        mask_adjacent_to_cloud_mode: str (optional)
               Define how areas adjacent to cloud/cloud-shadow should be handled.
               Options: "mask", "ignore", and "cover"
-       copernicus_forest_classes: list(int)
+       forest_mask_landcover_classes: list(int)
               Copernicus CGLS Land Cover 100m forest classes
        ocean_masking_shoreline_distance_km: float
               Ocean masking distance from shoreline in km
@@ -3950,11 +4361,17 @@ def generate_dswx_layers(input_list,
     flag_read_runconfig_constants = \
         any([p is None for p in [hls_thresholds,
                                  check_ancillary_inputs_coverage,
+                                 apply_ocean_masking,
+                                 apply_aerosol_class_remapping,
+                                 aerosol_not_water_to_high_conf_water_fmask_values,
+                                 aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
+                                 aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+                                 aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
                                  shadow_masking_algorithm,
                                  min_slope_angle,
                                  max_sun_local_inc_angle,
                                  mask_adjacent_to_cloud_mode,
-                                 copernicus_forest_classes,
+                                 forest_mask_landcover_classes,
                                  ocean_masking_shoreline_distance_km,
                                  browse_image_height,
                                  browse_image_width,
@@ -3970,6 +4387,22 @@ def generate_dswx_layers(input_list,
         if check_ancillary_inputs_coverage is None:
             check_ancillary_inputs_coverage = \
                 runconfig_constants.check_ancillary_inputs_coverage
+        if apply_ocean_masking is None:
+            apply_ocean_masking = runconfig_constants.apply_ocean_masking
+        if apply_aerosol_class_remapping is None:
+            apply_aerosol_class_remapping = runconfig_constants.apply_aerosol_class_remapping
+        if aerosol_not_water_to_high_conf_water_fmask_values is None:
+            aerosol_not_water_to_high_conf_water_fmask_values = \
+                runconfig_constants.aerosol_not_water_to_high_conf_water_fmask_values
+        if aerosol_water_moderate_conf_to_high_conf_water_fmask_values is None:
+            aerosol_water_moderate_conf_to_high_conf_water_fmask_values = \
+                runconfig_constants.aerosol_water_moderate_conf_to_high_conf_water_fmask_values
+        if aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values is None:
+            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values = \
+                runconfig_constants.aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values
+        if aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values is None:
+            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values = \
+                runconfig_constants.aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values
         if shadow_masking_algorithm is None:
             shadow_masking_algorithm = \
                 runconfig_constants.shadow_masking_algorithm
@@ -3981,8 +4414,8 @@ def generate_dswx_layers(input_list,
         if mask_adjacent_to_cloud_mode is None:
             mask_adjacent_to_cloud_mode = \
                 runconfig_constants.mask_adjacent_to_cloud_mode
-        if copernicus_forest_classes is None:
-            copernicus_forest_classes = runconfig_constants.copernicus_forest_classes
+        if forest_mask_landcover_classes is None:
+            forest_mask_landcover_classes = runconfig_constants.forest_mask_landcover_classes
         if ocean_masking_shoreline_distance_km is None:
             ocean_masking_shoreline_distance_km = \
                 runconfig_constants.ocean_masking_shoreline_distance_km
@@ -4008,6 +4441,11 @@ def generate_dswx_layers(input_list,
     elif product_id is None:
         product_id = 'dswx_hls'
 
+    if apply_ocean_masking:
+        ocean_masking_unused_parameters_str = ''
+    else:
+        ocean_masking_unused_parameters_str = ' (unused)'
+
     logger.info(f'PROTEUS software version: {SOFTWARE_VERSION}')
     logger.info('input files:')
     logger.info('    HLS product file(s):')
@@ -4023,7 +4461,8 @@ def generate_dswx_layers(input_list,
     logger.info(f'    ESA WorldCover 10m file: {worldcover_file}')
     logger.info(f'        description:'
                 f' {worldcover_file_description}')
-    logger.info(f'    NOAA shoreline shapefile: {shoreline_shapefile}')
+    logger.info(f'    NOAA shoreline shapefile: {shoreline_shapefile}'
+                f'{ocean_masking_unused_parameters_str}')
     logger.info(f'        description:'
                 f' {shoreline_shapefile_description}')
     logger.info(f'product parameters:')
@@ -4033,8 +4472,43 @@ def generate_dswx_layers(input_list,
     logger.info(f'processing parameters:')
     logger.info(f'    scratch directory: {scratch_dir}')
     logger.info(f'    check ancillary coverage:'
-                f'{check_ancillary_inputs_coverage}')
+                f' {check_ancillary_inputs_coverage}')
 
+    logger.info(f'    apply ocean masking: {apply_ocean_masking}')
+
+    logger.info(f'        ocean masking distance from shoreline in km:'
+                f' {ocean_masking_shoreline_distance_km}'
+                f'{ocean_masking_unused_parameters_str}')
+    if not apply_ocean_masking:
+        shoreline_shapefile = None
+        shoreline_shapefile_description = None
+
+    logger.info(f'    apply aerosol water class remapping:'
+                f' {apply_aerosol_class_remapping}')
+
+    if apply_aerosol_class_remapping:
+        aerosol_class_remapping_unused_parameters_str = ''
+    else:
+        aerosol_class_remapping_unused_parameters_str = ' (unused)'
+    logger.info(
+        f'        not-water to high-confidence water Fmask values:' +
+        f' {aerosol_not_water_to_high_conf_water_fmask_values}' +
+        aerosol_class_remapping_unused_parameters_str)
+    logger.info(
+        f'        moderate confidence water to'
+        f' high-confidence water Fmask values:' +
+        f' {aerosol_water_moderate_conf_to_high_conf_water_fmask_values}' +
+        aerosol_class_remapping_unused_parameters_str)
+    logger.info(
+        f'        partial surface water conservative to'
+        f' high-confidence water Fmask values:' +
+        f' {aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values}' +
+        aerosol_class_remapping_unused_parameters_str)
+    logger.info(
+        f'        partial surface water aggressive to'
+        f' high-confidence water Fmask values:' +
+        f' {aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values}' +
+        aerosol_class_remapping_unused_parameters_str)
     logger.info(f'    shadow masking algorithm: {shadow_masking_algorithm}')
     if shadow_masking_algorithm == 'otsu':
         terrain_masking_parameters_str = ' (unused)'
@@ -4052,11 +4526,9 @@ def generate_dswx_layers(input_list,
     logger.info(f'        max. sun local inc. angle: {max_sun_local_inc_angle}'
                 f'{terrain_masking_parameters_str}')
     logger.info(f'    mask adjacent cloud/cloud-shadow mode:'
-                f'{mask_adjacent_to_cloud_mode}')
+                f' {mask_adjacent_to_cloud_mode}')
     logger.info(f'    CGLS Land Cover 100m forest classes:'
-                f' {copernicus_forest_classes}')
-    logger.info(f'    Ocean masking distance from shoreline in km:'
-                f' {ocean_masking_shoreline_distance_km}')
+                f' {forest_mask_landcover_classes}')
 
     if output_browse_image:
         logger.info(f'browse image:')
@@ -4116,6 +4588,25 @@ def generate_dswx_layers(input_list,
         shoreline_shapefile=shoreline_shapefile,
         shoreline_shapefile_description=shoreline_shapefile_description)
 
+    _populate_dswx_metadata_processing_parameters(
+        dswx_metadata_dict,
+        aerosol_not_water_to_high_conf_water_fmask_values =
+            aerosol_not_water_to_high_conf_water_fmask_values,
+        aerosol_water_moderate_conf_to_high_conf_water_fmask_values =
+            aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
+        aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values =
+            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+        aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values =
+            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
+        shadow_masking_algorithm=shadow_masking_algorithm,
+        min_slope_angle=min_slope_angle,
+        max_sun_local_inc_angle=max_sun_local_inc_angle,
+        mask_adjacent_to_cloud_mode=mask_adjacent_to_cloud_mode,
+        forest_mask_landcover_classes=forest_mask_landcover_classes,
+        shoreline_shapefile = shoreline_shapefile,
+        ocean_masking_shoreline_distance_km =
+            ocean_masking_shoreline_distance_km)
+
     spacecraft_name = dswx_metadata_dict['SPACECRAFT_NAME']
     logger.info(f'processing HLS {spacecraft_name[0]}30 dataset v.{version}')
     blue = image_dict['blue']
@@ -4130,6 +4621,8 @@ def generate_dswx_layers(input_list,
     length = image_dict['length']
     width = image_dict['width']
     invalid_ind = np.where(image_dict['invalid_ind_array'])
+    valid_array = ~image_dict['invalid_ind_array']
+    del image_dict
 
     sun_azimuth_angle_meta = dswx_metadata_dict['MEAN_SUN_AZIMUTH_ANGLE'].split(', ')
     sun_zenith_angle_meta = dswx_metadata_dict['MEAN_SUN_ZENITH_ANGLE'].split(', ')
@@ -4153,10 +4646,75 @@ def generate_dswx_layers(input_list,
     logger.info(f'    mean elevation angle: {sun_elevation_angle}')
 
     # check ancillary inputs
-    if check_ancillary_inputs_coverage:
-        _check_ancillary_inputs(dem_file, landcover_file, worldcover_file,
-                                shoreline_shapefile, geotransform,
-                                projection, length, width)
+    _check_ancillary_inputs(check_ancillary_inputs_coverage,
+                            apply_ocean_masking,
+                            dem_file, landcover_file, worldcover_file,
+                            shoreline_shapefile, geotransform,
+                            projection, length, width)
+
+    # print input HLS product spatial and cloud coverage
+    logger.info(f'data coverage:')
+    if 'INPUT_HLS_PRODUCT_SPATIAL_COVERAGE' in dswx_metadata_dict.keys():
+        hls_product_spatial_coverage = dswx_metadata_dict[
+            'INPUT_HLS_PRODUCT_SPATIAL_COVERAGE']
+        logger.info(f'    input HLS product spatial coverage [%]:'
+                    f' {hls_product_spatial_coverage}')
+
+    if 'INPUT_HLS_PRODUCT_CLOUD_COVERAGE' in dswx_metadata_dict.keys():
+        hls_product_cloud_coverage = dswx_metadata_dict[
+            'INPUT_HLS_PRODUCT_CLOUD_COVERAGE']
+        logger.info(f'    input HLS product cloud coverage [%]:'
+                    f' {hls_product_cloud_coverage}')
+
+    # compute a preliminary cloud layer, i.e., without snow/ice class
+    preliminary_cloud_layer = _compute_preliminary_cloud_layer(
+        fmask, mask_adjacent_to_cloud_mode)
+
+    # compute total number of pixels
+    total_number_of_pixels = length * width
+
+    # create ocean mask
+    if shoreline_shapefile is not None:
+        ocean_mask = _create_ocean_mask(shoreline_shapefile,
+                                        ocean_masking_shoreline_distance_km,
+                                        scratch_dir, geotransform, projection,
+                                        length, width,
+                                        temp_files_list=temp_files_list)
+
+        # update valid_array
+        valid_array = np.logical_and(valid_array, ocean_mask)
+        n_not_ocean = np.sum(ocean_mask)
+    else:
+        n_not_ocean = total_number_of_pixels
+
+    # create variables to compute spatial and cloud coverage
+    n_valid = np.sum(valid_array)
+    n_cloud_and_valid = np.sum(((preliminary_cloud_layer) != 0) & (valid_array))
+    del valid_array
+
+    # use floor integer to compute spatial and cloud coverage
+    spatial_coverage = int(100 * float(n_valid) / total_number_of_pixels)
+    if n_valid == 0:
+        cloud_coverage = 0
+    else:
+        cloud_coverage = int(100 * float(n_cloud_and_valid) / n_valid)
+
+    if n_not_ocean == 0:
+        spatial_coverage_after_ocean_masking = 0
+    else:
+        spatial_coverage_after_ocean_masking = int(100 * float(n_valid) / n_not_ocean)
+
+    # print spatial and cloud coverage
+    logger.info(f'    spatial coverage [%]:  {spatial_coverage}')
+    logger.info(f'    spatial coverage after ocean masking [%]:'
+                f' {spatial_coverage_after_ocean_masking}')
+    logger.info(f'    cloud coverage [%]:  {cloud_coverage}')
+
+    # update DSWx-HLS metadata dictionary
+    dswx_metadata_dict['SPATIAL_COVERAGE'] = spatial_coverage
+    dswx_metadata_dict['SPATIAL_COVERAGE_EXCLUDING_MASKED_OCEAN'] = \
+        spatial_coverage_after_ocean_masking
+    dswx_metadata_dict['CLOUD_COVERAGE'] = cloud_coverage
 
     if dem_file is not None:
         # DEM
@@ -4219,7 +4777,7 @@ def generate_dswx_layers(input_list,
         landcover_mask = create_landcover_mask(
             landcover_file, worldcover_file, output_landcover,
             scratch_dir, landcover_mask_type, geotransform, projection,
-            length, width, copernicus_forest_classes,
+            length, width, forest_mask_landcover_classes,
             dswx_metadata_dict = dswx_metadata_dict,
             output_files_list=build_vrt_list, temp_files_list=temp_files_list)
 
@@ -4263,20 +4821,13 @@ def generate_dswx_layers(input_list,
                     output_dtype=gdal.GDT_UInt16,
                     no_data_value=DIAGNOSTIC_LAYER_NO_DATA_BINARY_REPR)
 
+    if shoreline_shapefile is not None:
+        # apply ocean mask
+        wtr_1_layer[(ocean_mask == 0)] = WTR_OCEAN_MASKED
 
     if invalid_ind is not None:
+        # apply cumulative invalid indexes mask
         wtr_1_layer[invalid_ind] = UINT8_FILL_VALUE
-
-    if shoreline_shapefile is not None:
-        ocean_mask = _create_ocean_mask(shoreline_shapefile,
-                                        ocean_masking_shoreline_distance_km,
-                                        scratch_dir, geotransform, projection,
-                                        length, width,
-                                        temp_files_list=temp_files_list)
-
-        # apply ocean mask where WTR-1 is different than fill value
-        wtr_1_layer[(ocean_mask == 0) & 
-                    (wtr_1_layer != UINT8_FILL_VALUE)] = WTR_OCEAN_MASKED
 
     if output_non_masked_dswx:
         save_dswx_product(wtr_1_layer, 'WTR-1',
@@ -4286,6 +4837,14 @@ def generate_dswx_layers(input_list,
                           projection,
                           scratch_dir=scratch_dir,
                           output_files_list=build_vrt_list)
+
+    if apply_aerosol_class_remapping:
+        _apply_aerosol_class_remapping(wtr_1_layer, nir,
+            preliminary_cloud_layer, fmask,
+            aerosol_not_water_to_high_conf_water_fmask_values,
+            aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
+            aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+            aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values)
 
     wtr_2_layer = _apply_landcover_and_shadow_masks(
         wtr_1_layer, nir, landcover_mask, shadow_layer,
@@ -4301,8 +4860,11 @@ def generate_dswx_layers(input_list,
                           flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
                           output_files_list=build_vrt_list)
 
-    cloud, wtr_layer = _compute_and_apply_cloud_layer(wtr_2_layer, fmask,
+    cloud_layer = _add_snow_to_cloud_layer(
+        wtr_2_layer, preliminary_cloud_layer, fmask,
         mask_adjacent_to_cloud_mode)
+
+    wtr_layer = _apply_cloud_masking(wtr_2_layer, cloud_layer)
 
     if output_interpreted_band:
         save_dswx_product(wtr_layer, 'WTR',
@@ -4368,11 +4930,11 @@ def generate_dswx_layers(input_list,
         output_files_list += [output_browse_image]
 
     if output_cloud_layer:
-        save_cloud_layer(cloud, output_cloud_layer, dswx_metadata_dict, geotransform,
-                        projection,
-                        description=band_description_dict['CLOUD'],
-                        scratch_dir=scratch_dir,
-                        output_files_list=build_vrt_list)
+        save_cloud_layer(cloud_layer, output_cloud_layer, dswx_metadata_dict,
+                         geotransform, projection,
+                         description=band_description_dict['CLOUD'],
+                         scratch_dir=scratch_dir,
+                         output_files_list=build_vrt_list)
 
     binary_water_layer = _get_binary_water_layer(wtr_layer)
     if output_binary_water:
@@ -4385,7 +4947,7 @@ def generate_dswx_layers(input_list,
 
     if output_confidence_layer:
         confidence_layer = _get_confidence_layer(wtr_2_layer=wtr_2_layer,
-                                                 cloud_layer=cloud)
+                                                 cloud_layer=cloud_layer)
         confidence_layer_ctable = _get_confidence_layer_ctable()
         _save_array(confidence_layer,
                     output_confidence_layer,
@@ -4410,7 +4972,7 @@ def generate_dswx_layers(input_list,
                           wtr_2=wtr_2_layer,
                           land=landcover_mask,
                           shad=shadow_layer,
-                          cloud=cloud,
+                          cloud=cloud_layer,
                           dem=dem,
                           scratch_dir=scratch_dir,
                           output_files_list=output_files_list)

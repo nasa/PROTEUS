@@ -82,11 +82,21 @@ def main():
         product_id=args.product_id,
         product_version=args.product_version,
         check_ancillary_inputs_coverage=args.check_ancillary_inputs_coverage,
+        apply_ocean_masking=args.apply_ocean_masking,
+        apply_aerosol_class_remapping=args.apply_aerosol_class_remapping,
+        aerosol_not_water_to_high_conf_water_fmask_values =
+            args.aerosol_not_water_to_high_conf_water_fmask_values,
+        aerosol_water_moderate_conf_to_high_conf_water_fmask_values =
+            args.aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
+        aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values =
+            args.aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
+        aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values =
+            args.aerosol_partial_surface_aggressive_to_high_conf_water_fmask_values,
         shadow_masking_algorithm=args.shadow_masking_algorithm,
         min_slope_angle = args.min_slope_angle,
         max_sun_local_inc_angle=args.max_sun_local_inc_angle,
         mask_adjacent_to_cloud_mode=args.mask_adjacent_to_cloud_mode,
-        copernicus_forest_classes=args.copernicus_forest_classes,
+        forest_mask_landcover_classes=args.forest_mask_landcover_classes,
         ocean_masking_shoreline_distance_km = \
             args.ocean_masking_shoreline_distance_km,
         flag_debug=args.flag_debug)
