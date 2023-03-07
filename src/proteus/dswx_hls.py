@@ -3182,12 +3182,8 @@ def _warp(input_file, geotransform, projection,
     if not (file_srs.IsGeographic() and tile_min_x < 180 and
             tile_max_x >= 180):
 
-        if relocated_file is None:
-            logger.info(f'    relocating file: {input_file} to'
-                        f' temporary file: {relocated_file}')
-        else:
-            logger.info(f'    relocating file: {input_file} to'
-                        f' file: {relocated_file}')
+        logger.info(f'    relocating file: {input_file} to'
+                    f' file: {relocated_file}')
 
         gdal.Warp(relocated_file, input_file,
                   format='GTiff',
@@ -3262,6 +3258,9 @@ def _warp(input_file, geotransform, projection,
 
     gdalwarp_input_file_list = [cropped_input_antimeridian_left_temp,
                                 cropped_input_antimeridian_right_temp]
+
+    logger.info(f'    relocating file: {input_file} to'
+                f' file: {relocated_file}')
 
     gdal.Warp(relocated_file, gdalwarp_input_file_list,
               format='GTiff',
