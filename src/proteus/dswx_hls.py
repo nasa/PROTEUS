@@ -1160,7 +1160,7 @@ def _apply_aerosol_class_remapping_single_class(wtr_1_layer, nir,
        wtr_1_layer: numpy.ndarray
             Interpreted layer (WTR-1) (mutable numpy.ndarray)
        nir: numpy.ndarray
-              Near infrared (NIR) channel
+            Near infrared (NIR) channel
        preliminary_cloud_layer : numpy.ndarray
             Preliminary cloud mask aerosol remapping bit (mutable
             numpy.ndarray)
@@ -1200,7 +1200,7 @@ def _apply_aerosol_class_remapping(wtr_1_layer, nir,
        wtr_1_layer: numpy.ndarray
             Interpreted layer (WTR-1) (mutable numpy.ndarray)
        nir: numpy.ndarray
-              Near infrared (NIR) channel
+            Near infrared (NIR) channel
        preliminary_cloud_layer : numpy.ndarray
             Preliminary cloud mask aerosol remapping bit (mutable
             numpy.ndarray)
@@ -1888,10 +1888,10 @@ def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
 
        See Also
        ---------
-            _add_snow_to_cloud_layer : Add the snow bit encodings from `fmask` to
+       _add_snow_to_cloud_layer : Add the snow bit encodings from `fmask` to
             `preliminary_cloud_layer`
-            _apply_aerosol_class_remapping: Add bit indicating class
-                reassignment due to aerosol interpolation errors
+       _apply_aerosol_class_remapping: Add bit indicating class
+            reassignment due to aerosol interpolation errors
     """
     preliminary_cloud_layer = np.zeros(fmask.shape, dtype = np.uint8)
 
@@ -4860,11 +4860,11 @@ def generate_dswx_layers(input_list,
                           flag_collapse_wtr_classes=FLAG_COLLAPSE_WTR_CLASSES,
                           output_files_list=build_vrt_list)
 
-    cloud = _add_snow_to_cloud_layer(
+    cloud_layer = _add_snow_to_cloud_layer(
         wtr_2_layer, preliminary_cloud_layer, fmask,
         mask_adjacent_to_cloud_mode)
 
-    wtr_layer = _apply_cloud_masking(wtr_2_layer, cloud)
+    wtr_layer = _apply_cloud_masking(wtr_2_layer, cloud_layer)
 
     if output_interpreted_band:
         save_dswx_product(wtr_layer, 'WTR',
@@ -4930,11 +4930,11 @@ def generate_dswx_layers(input_list,
         output_files_list += [output_browse_image]
 
     if output_cloud_layer:
-        save_cloud_layer(cloud, output_cloud_layer, dswx_metadata_dict, geotransform,
-                        projection,
-                        description=band_description_dict['CLOUD'],
-                        scratch_dir=scratch_dir,
-                        output_files_list=build_vrt_list)
+        save_cloud_layer(cloud_layer, output_cloud_layer, dswx_metadata_dict,
+                         geotransform, projection,
+                         description=band_description_dict['CLOUD'],
+                         scratch_dir=scratch_dir,
+                         output_files_list=build_vrt_list)
 
     binary_water_layer = _get_binary_water_layer(wtr_layer)
     if output_binary_water:
@@ -4947,7 +4947,7 @@ def generate_dswx_layers(input_list,
 
     if output_confidence_layer:
         confidence_layer = _get_confidence_layer(wtr_2_layer=wtr_2_layer,
-                                                 cloud_layer=cloud)
+                                                 cloud_layer=cloud_layer)
         confidence_layer_ctable = _get_confidence_layer_ctable()
         _save_array(confidence_layer,
                     output_confidence_layer,
@@ -4972,7 +4972,7 @@ def generate_dswx_layers(input_list,
                           wtr_2=wtr_2_layer,
                           land=landcover_mask,
                           shad=shadow_layer,
-                          cloud=cloud,
+                          cloud=cloud_layer,
                           dem=dem,
                           scratch_dir=scratch_dir,
                           output_files_list=output_files_list)
