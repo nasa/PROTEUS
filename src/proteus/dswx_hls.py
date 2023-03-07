@@ -1096,7 +1096,7 @@ def _is_landcover_class_evergreen(landcover_mask):
        -------
        evergreen_mask : numpy.ndarray
               Evergreen mask
-    """ 
+    """
     evergreen_forest_class = \
         dswx_hls_landcover_classes_dict['evergreen_forest']
     return landcover_mask == evergreen_forest_class
@@ -1113,7 +1113,7 @@ def _is_landcover_class_water_or_wetland(landcover_mask):
        -------
        evergreen_mask : numpy.ndarray
               Water or wetland mask
-    """ 
+    """
     water_class = \
         dswx_hls_landcover_classes_dict['water']
     return landcover_mask == water_class
@@ -1131,7 +1131,7 @@ def _is_landcover_class_low_intensity_developed(landcover_mask):
        -------
        low_intensity_developed_mask : numpy.ndarray
               Low-intensity developed
-    """ 
+    """
     low_intensity_developed_class_offset = \
         dswx_hls_landcover_classes_dict['low_intensity_developed_offset']
     low_intensity_developed_mask = (
@@ -1152,7 +1152,7 @@ def _is_landcover_class_high_intensity_developed(landcover_mask):
        -------
        high_intensity_developed_mask : numpy.ndarray
               High-intensity developed
-    """ 
+    """
     high_intensity_developed_class_offset = \
         dswx_hls_landcover_classes_dict['high_intensity_developed_offset']
     high_intensity_developed_mask = \
@@ -1585,7 +1585,7 @@ def _get_landcover_mask_ctable():
                                   (255, 0, 0))
 
     # Fill value
-    mask_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
+    mask_ctable.SetColorEntry(fill_value, FILL_VALUE_RGBA)
 
     return mask_ctable
 
@@ -1866,7 +1866,7 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
                    (swir2 < hls_thresholds.pswt_2_swir2) &
                    (nir < hls_thresholds.pswt_2_nir))
     diagnostic_layer[ind] += 16
-   
+ 
     return diagnostic_layer
 
 
@@ -2086,8 +2086,6 @@ def _apply_cloud_masking(wtr_2_layer, cloud_layer):
     wtr_layer[wtr_2_layer == UINT8_FILL_VALUE] = UINT8_FILL_VALUE
 
     return wtr_layer
-
-
 
 
 def _load_hls_band_from_file(filename, image_dict, offset_dict, scale_dict,
@@ -2442,7 +2440,7 @@ def _get_confidence_layer_ctable():
     # The CONF layer colors will be based off of these.
     conf_ctable = _get_interpreted_dswx_ctable(flag_collapse_wtr_classes=False,
                                                layer_name='WTR')
-    
+ 
     # Extract the RGB values from the DSWx color table.
     # These represent the rgb values for the "_CLEAR" classifications.
     # which have the same classificaion values for both WTR and CONF
@@ -2465,7 +2463,7 @@ def _get_confidence_layer_ctable():
 
     # Set "_CLOUD" color table entries
     alpha = 0.52
-    
+ 
     rgb = get_transparency_rgb_vals(cloud_rgb, not_water_rgb, alpha)
     conf_ctable.SetColorEntry(WATER_NOT_WATER_CLOUD, rgb)
 
@@ -2634,11 +2632,11 @@ def save_dswx_product(layer_image, layer_name,
             continue
 
         # index using processed key from band name (e.g., WTR-1 to wtr_1)
-        band_array = dswx_processed_bands[band_name.replace('-', '_').lower()]
+        band_array = dswx_processed_bands[layer_name.replace('-', '_').lower()]
 
         if description is None:
             description = description_from_dict
-            
+ 
         gdal_band = gdal_ds.GetRasterBand(band_index + 1)
         band_index += 1
 
@@ -3828,13 +3826,13 @@ class Logger(object):
     Class to redirect stdout and stderr to the logger
     """
     def __init__(self, logger, level, prefix=''):
-       """
-       Class constructor
-       """
-       self.logger = logger
-       self.level = level
-       self.prefix = prefix
-       self.buffer = ''
+        """
+        Class constructor
+        """
+        self.logger = logger
+        self.level = level
+        self.prefix = prefix
+        self.buffer = ''
 
     def write(self, message):
 
@@ -3993,7 +3991,7 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
     target_to_sun_unit_vector = [np.sin(sun_azimuth) * np.sin(sun_zenith),
                                  np.cos(sun_azimuth) * np.sin(sun_zenith),
                                  np.cos(sun_zenith)]
-    
+
     # numpy computes the gradient as (y, x)
     gradient_h = np.gradient(dem)
 
@@ -4014,7 +4012,7 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
          normalization_factor)
 
     sun_inc_angle_degrees = np.degrees(sun_inc_angle)
-        
+
     directional_slope_angle = np.degrees(np.arctan(
         terrain_normal_vector[0] * np.sin(sun_azimuth) +
         terrain_normal_vector[1] * np.cos(sun_azimuth)))
@@ -4445,7 +4443,7 @@ def generate_dswx_layers(input_list,
             cloud_in_browse = runconfig_constants.cloud_in_browse
         if snow_in_browse is None:
             snow_in_browse = runconfig_constants.snow_in_browse
-        
+
     if scratch_dir is None:
         scratch_dir = '.'
 
@@ -4765,13 +4763,13 @@ def generate_dswx_layers(input_list,
         dem = _crop_2d_array_all_sides(dem_with_margin, DEM_MARGIN_IN_PIXELS)
         del dem_with_margin
         if output_dem_layer is not None:
-           _save_array(dem, output_dem_layer,
-                       dswx_metadata_dict, geotransform, projection,
-                       description=band_description_dict['DEM'],
-                       output_dtype = gdal.GDT_Float32,
-                       scratch_dir=scratch_dir,
-                       output_files_list=build_vrt_list,
-                       no_data_value=np.nan)
+            _save_array(dem, output_dem_layer,
+                        dswx_metadata_dict, geotransform, projection,
+                        description=band_description_dict['DEM'],
+                        output_dtype = gdal.GDT_Float32,
+                        scratch_dir=scratch_dir,
+                        output_files_list=build_vrt_list,
+                        no_data_value=np.nan)
         if not output_file:
             del dem
 
@@ -4887,10 +4885,10 @@ def generate_dswx_layers(input_list,
                           projection,
                           scratch_dir=scratch_dir,
                           output_files_list=build_vrt_list)
-    
+
     # Output the WTR-2 w/ Translucent clouds layer as the browse image
-    # Note: The browse image will be saved as a separate full-res geotiff 
-    # and low-res png files; they will not included in the combined 
+    # Note: The browse image will be saved as a separate full-res geotiff
+    # and low-res png files; they will not included in the combined
     # `output_file`.
     if output_browse_image:
 
