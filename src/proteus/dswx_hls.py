@@ -33,7 +33,7 @@ FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 landcover_mask_type = 'standard'
 
 
-# HLS thresholds are evaluated over unscaled reflactance values
+# HLS thresholds are evaluated over unscaled reflectance values
 SCALE_FACTOR = 0.0001
 AEROSOL_REMAPPING_MAX_NIR = 0.1 / SCALE_FACTOR
 
