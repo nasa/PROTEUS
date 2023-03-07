@@ -982,9 +982,8 @@ def create_landcover_mask(copernicus_landcover_file,
     # WorldCover class 80: permanent water bodies
     # WorldCover class 90: herbaceous wetland
     # WorldCover class 95: mangroves
-    water_binary_mask = ((worldcover_array_up_3 == 80) |
-                         (worldcover_array_up_3 == 90) |
-                         (worldcover_array_up_3 == 95)).astype(np.uint8)
+    water_binary_mask = (np.isin(worldcover_array_up_3, [80, 90, 95])).astype(
+        np.uint8)
     water_aggregate_sum = decimate_by_summation(water_binary_mask,
                                               size_y, size_x)
     del water_binary_mask
@@ -1221,7 +1220,7 @@ def _apply_aerosol_class_remapping(wtr_1_layer, nir,
            high-confidence water in the presence of high aerosol
     """
 
-    # add a not here that nothing changes for high-confidence water
+    # Note: high-confidence water does not need to be changed
     wtr1_class_fmask_values_dict = {
         WATER_NOT_WATER_CLEAR:
             (aerosol_not_water_to_high_conf_water_fmask_values,
@@ -1701,6 +1700,14 @@ def _get_confidence_layer(wtr_2_layer, cloud_layer):
     5: Cloud and cloud shadow
     6: Cloud and snow/ice
     7: Cloud, cloud shadow, and snow/ice
+    8: Aerosol remapped
+    9: Aerosol remapped and cloud shadow
+    10: Aerosol remapped and snow/ice
+    11: Aerosol remapped, cloud shadow and snow/ice
+    12: Aerosol remapped and cloud
+    13: Aerosol remapped, cloud, and cloud shadow
+    14: Aerosol remapped, cloud ,and snow/ice
+    15: Aerosol remapped, cloud, cloud shadow, and snow/ice
     255: Fill value (no data)
     The cloud classification in the CONF layer represents
     the ensemble of cloud, cloud shadow, or adjacent-to-cloud
@@ -1717,18 +1724,8 @@ def _get_confidence_layer(wtr_2_layer, cloud_layer):
     conf_layer = wtr_2_layer.copy()
 
     # Update the pixels with cloud and/or cloud shadow
-    cloud_idx = ((cloud_layer == 1) | 
-                 (cloud_layer == 3) |
-                 (cloud_layer == 4) |
-                 (cloud_layer == 5) |
-                 (cloud_layer == 6) |
-                 (cloud_layer == 7) |
-                 (cloud_layer == 9) | 
-                 (cloud_layer == 11) |
-                 (cloud_layer == 12) |
-                 (cloud_layer == 13) |
-                 (cloud_layer == 14) |
-                 (cloud_layer == 15))
+    cloud_idx = np.isin(cloud_layer, [1, 3, 4, 5, 6, 7,
+                                      9, 11, 12, 13, 14, 15])
 
     idx = ((conf_layer == WATER_NOT_WATER_CLEAR) & cloud_idx)
     conf_layer[idx] = WATER_NOT_WATER_CLOUD

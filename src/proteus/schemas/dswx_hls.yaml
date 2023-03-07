@@ -70,7 +70,7 @@ runconfig:
             # Apply ocean masking
             apply_ocean_masking: bool(required=False)
 
-            # Apply aeresol masking
+            # Apply aeresol class remapping
             apply_aerosol_class_remapping: bool(required=False)
 
             # HLS Fmask values to convert not-water to high-confidence water
