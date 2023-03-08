@@ -1410,7 +1410,7 @@ def _get_browse_ctable(
                               valid data, and will be fully transparent
     cloud_color : str
         How to color cloud in the color table. Defaults to 'gray'. Options are:
-            'cyan'          : cloud will be opaque cyan
+            'gray'          : cloud will be opaque gray
             'nodata'        : cloud pixels will be marked as not having
                               valid data, and will be fully transparent
     snow_color : str
@@ -1460,8 +1460,8 @@ def _get_browse_ctable(
         # Make sure to do this step after parsing the gray color for snow.
         out_ctable.SetColorEntry(WTR_CLOUD_MASKED, FILL_VALUE_RGBA)
     else:
-        # Cloud color will remain the same as in WTR
-        pass
+        # Make the gray cloud color for the browse a lighter gray than in WTR
+        out_ctable.SetColorEntry(WTR_CLOUD_MASKED, (175,175,175))
 
     if not_water_color == 'nodata':
         # The no-data fill RGBA was set by `_get_interpreted_dswx_ctable`.
