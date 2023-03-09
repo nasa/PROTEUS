@@ -1425,7 +1425,7 @@ def _get_interpreted_dswx_ctable(
     if layer_name == 'WTR':
 
         # Gray - CLOUD masked (Cloud/cloud-shadow)
-        dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
+        dswx_ctable.SetColorEntry(WTR_CLOUD_MASKED, (175, 175, 175))
 
         # Cyan - CLOUD masked (Snow)
         dswx_ctable.SetColorEntry(WTR_SNOW_MASKED, (0, 255, 255))
@@ -1510,7 +1510,7 @@ def _get_browse_ctable(
         out_ctable.SetColorEntry(WTR_CLOUD_MASKED, FILL_VALUE_RGBA)
     else:
         # Make the gray cloud color for the browse a lighter gray than in WTR
-        out_ctable.SetColorEntry(WTR_CLOUD_MASKED, (175,175,175))
+        out_ctable.SetColorEntry(WTR_CLOUD_MASKED, (175, 175, 175))
 
     if not_water_color == 'nodata':
         # The no-data fill RGBA was set by `_get_interpreted_dswx_ctable`.
@@ -1569,7 +1569,7 @@ def _get_cloud_layer_ctable():
     # Light gray - Cloud
     mask_ctable.SetColorEntry(12, (192, 192, 192))
     # Gray - Cloud and cloud shadow
-    mask_ctable.SetColorEntry(13, (127, 127, 127))
+    mask_ctable.SetColorEntry(13, (175, 175, 175))
     # Magenta - Cloud and snow/ice
     mask_ctable.SetColorEntry(14, (255, 0, 255))
     # Light blue - Cloud, cloud shadow, and snow/ice
@@ -2455,7 +2455,7 @@ def _get_binary_water_ctable():
     # Cyan - CLOUD masked (snow)
     binary_water_ctable.SetColorEntry(WTR_SNOW_MASKED, (0, 255, 255))
     # Gray - CLOUD masked (cloud/cloud-shadow)
-    binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED, (127, 127, 127))
+    binary_water_ctable.SetColorEntry(WTR_CLOUD_MASKED, (175, 175, 175))
     # Black (transparent) - Fill value
     binary_water_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
     return binary_water_ctable
