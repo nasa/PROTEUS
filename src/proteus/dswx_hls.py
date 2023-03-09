@@ -1569,7 +1569,7 @@ def _get_cloud_layer_ctable():
     # Light gray - Cloud
     mask_ctable.SetColorEntry(12, (192, 192, 192))
     # Gray - Cloud and cloud shadow
-    mask_ctable.SetColorEntry(13, (175, 175, 175))
+    mask_ctable.SetColorEntry(13, (127, 127, 127))
     # Magenta - Cloud and snow/ice
     mask_ctable.SetColorEntry(14, (255, 0, 255))
     # Light blue - Cloud, cloud shadow, and snow/ice
