@@ -3684,7 +3684,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['DEM_SOURCE'] = \
             os.path.basename(dem_file)
     else:
-        dswx_metadata_dict['DEM_SOURCE'] = '-'
+        dswx_metadata_dict['DEM_SOURCE'] = 'NOT_PROVIDED'
 
     if landcover_file_description:
         dswx_metadata_dict['LANDCOVER_SOURCE'] = landcover_file_description
@@ -3692,7 +3692,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['LANDCOVER_SOURCE'] = \
             os.path.basename(landcover_file)
     else:
-        dswx_metadata_dict['LANDCOVER_SOURCE'] = '-'
+        dswx_metadata_dict['LANDCOVER_SOURCE'] = 'NOT_PROVIDED'
 
     if worldcover_file_description:
         dswx_metadata_dict['WORLDCOVER_SOURCE'] = worldcover_file_description
@@ -3700,7 +3700,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['WORLDCOVER_SOURCE'] = \
             os.path.basename(worldcover_file)
     else:
-        dswx_metadata_dict['WORLDCOVER_SOURCE'] = '-'
+        dswx_metadata_dict['WORLDCOVER_SOURCE'] = 'NOT_PROVIDED'
 
     if shoreline_shapefile_description:
         dswx_metadata_dict['SHORELINE_SOURCE'] = \
@@ -3709,11 +3709,13 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         dswx_metadata_dict['SHORELINE_SOURCE'] = \
             os.path.basename(shoreline_shapefile)
     else:
-        dswx_metadata_dict['SHORELINE_SOURCE'] = '-'
+        dswx_metadata_dict['SHORELINE_SOURCE'] = 'NOT_PROVIDED_OR_NOT_USED'
 
 
 def _populate_dswx_metadata_processing_parameters(
         dswx_metadata_dict,
+        apply_ocean_masking,
+        apply_aerosol_class_remapping,
         aerosol_not_water_to_high_conf_water_fmask_values,
         aerosol_water_moderate_conf_to_high_conf_water_fmask_values,
         aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values,
@@ -3731,6 +3733,10 @@ def _populate_dswx_metadata_processing_parameters(
        ----------
        dswx_metadata_dict : collections.OrderedDict
               Metadata dictionary
+       apply_ocean_masking: bool (optional)
+              Apply ocean masking
+       apply_aerosol_class_remapping: bool (optional)
+              Apply aerosol masking
        aerosol_not_water_to_high_conf_water_fmask_values: list(int)
               HLS Fmask values to convert not-water to high-confidence water
               in the presence of high aerosol
@@ -3761,7 +3767,11 @@ def _populate_dswx_metadata_processing_parameters(
               Ocean masking distance from shoreline in km
     """
 
-    # aerosol metadata fields
+    # aerosol remapping
+
+    dswx_metadata_dict['AEROSOL_CLASS_REMAPPING_ENABLED'] = \
+        'TRUE' if apply_aerosol_class_remapping else 'FALSE'
+
     aerosol_metadata_dict = {
         'aerosol_not_water_to_high_conf_water_fmask_values':
             aerosol_not_water_to_high_conf_water_fmask_values,
@@ -3778,7 +3788,7 @@ def _populate_dswx_metadata_processing_parameters(
             dswx_metadata_dict[aerosol_metadata_field_lower.upper()] = \
                 ','.join([str(c) for c in fmask_values])
         else:
-            dswx_metadata_dict[aerosol_metadata_field_lower.upper()] = '-'
+            dswx_metadata_dict[aerosol_metadata_field_lower.upper()] = 'EMPTY'
 
     # shadow masking algorithm and parameters
     dswx_metadata_dict['SHADOW_MASKING_ALGORITHM'] = shadow_masking_algorithm
@@ -3786,8 +3796,8 @@ def _populate_dswx_metadata_processing_parameters(
         dswx_metadata_dict['MIN_SLOPE_ANGLE'] = min_slope_angle
         dswx_metadata_dict['MAX_SUN_LOCAL_INC_ANGLE'] = max_sun_local_inc_angle
     else:
-        dswx_metadata_dict['MIN_SLOPE_ANGLE'] = '-'
-        dswx_metadata_dict['MAX_SUN_LOCAL_INC_ANGLE'] = '-'
+        dswx_metadata_dict['MIN_SLOPE_ANGLE'] = 'NOT_USED'
+        dswx_metadata_dict['MAX_SUN_LOCAL_INC_ANGLE'] = 'NOT_USED'
 
     # mask adjacent to cloud/cloud shadow mode
     dswx_metadata_dict['MASK_ADJACENT_TO_CLOUD_MODE'] = \
@@ -3798,14 +3808,17 @@ def _populate_dswx_metadata_processing_parameters(
         dswx_metadata_dict['FOREST_MASK_LANDCOVER_CLASSES'] = \
             ','.join([str(c) for c in forest_mask_landcover_classes])
     else:
-        dswx_metadata_dict['FOREST_MASK_LANDCOVER_CLASSES'] = '-'
+        dswx_metadata_dict['FOREST_MASK_LANDCOVER_CLASSES'] = 'EMPTY'
 
-    # ocean masking distance from shoreline in km
+    # ocean masking
+    dswx_metadata_dict['OCEAN_MASKING_ENABLED'] = \
+        'TRUE' if apply_ocean_masking else 'FALSE'
+
     if shoreline_shapefile:
         dswx_metadata_dict['OCEAN_MASKING_SHORELINE_DISTANCE_KM'] = \
             ocean_masking_shoreline_distance_km
     else:
-        dswx_metadata_dict['OCEAN_MASKING_SHORELINE_DISTANCE_KM'] = '-'
+        dswx_metadata_dict['OCEAN_MASKING_SHORELINE_DISTANCE_KM'] = 'NOT_USED'
 
 
 class Logger(object):
@@ -4588,6 +4601,8 @@ def generate_dswx_layers(input_list,
 
     _populate_dswx_metadata_processing_parameters(
         dswx_metadata_dict,
+        apply_ocean_masking=apply_ocean_masking,
+        apply_aerosol_class_remapping=apply_aerosol_class_remapping,
         aerosol_not_water_to_high_conf_water_fmask_values =
             aerosol_not_water_to_high_conf_water_fmask_values,
         aerosol_water_moderate_conf_to_high_conf_water_fmask_values =
