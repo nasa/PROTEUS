@@ -30,6 +30,11 @@ If enabled, set all negative reflectance values to 1 before scaling is applied
 '''
 FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 
+LANDCOVER_LAT_MAX = 80
+LANDCOVER_LAT_MIN = -60
+WORLDCOVER_LAT_MAX = 84
+WORLDCOVER_LAT_MIN = -60
+
 landcover_mask_type = 'standard'
 
 
@@ -3268,7 +3273,7 @@ def _warp(input_file, geotransform, projection,
     logger.info(f'    cropping antimeridian-left side: {input_file} to'
                 f' temporary file: {cropped_input_antimeridian_left_temp}'
                 ' with indexes (ulx uly lrx lry):'
-                f'{proj_win_antimeridian_left}')
+                f' {proj_win_antimeridian_left}')
 
     gdal.Translate(cropped_input_antimeridian_left_temp, input_file,
                    projWin=proj_win_antimeridian_left,
@@ -3287,7 +3292,7 @@ def _warp(input_file, geotransform, projection,
     logger.info(f'    cropping antimeridian-right side: {input_file} to'
                 f' temporary file: {cropped_input_antimeridian_right_temp}'
                 ' with indexes (ulx uly lrx lry):'
-                f'{proj_win_antimeridian_right}')
+                f' {proj_win_antimeridian_right}')
 
     gdal.Translate(cropped_input_antimeridian_right_temp, input_file,
                    projWin=proj_win_antimeridian_right,
@@ -4227,38 +4232,41 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
                             check_shoreline_shapefile,
                             dem_file, landcover_file, worldcover_file,
                             shoreline_shapefile, geotransform, projection,
-                            length, width):
-    """
-    Check for existence and coverage of provided ancillary inputs: DEM,
-    Copernicus CGLS Land Cover 100m, and
-    ESA WorldCover 10m files; and existence of the NOAAshoreline shapefile
+                            length, width, dswx_metadata_dict):
+    """Check for the existence and coverage of provided ancillary inputs
+       wrt. to the HLS tile: DEM, Copernicus CGLS Land Cover 100m, and
+       ESA WorldCover 10m files; it also tests the
+       existence of the NOAA shoreline shapefile. The function
+       also updates the DSWx-HLS product's metadata indicating the coverage
+       of each ancillary input wrt. to the input HLS tile
 
        Parameters
        ----------
        check_ancillary_inputs_coverage: bool
-              Flag that enable/disable checks for all ancillary inputs
-              excluding the shoreline shapefile
+               Flag that enable/disable checks for all ancillary inputs
+               excluding the shoreline shapefile
        check_shoreline_shapefile: bool
-              Flag that checks for the shoreline shapefile
+               Flag that checks for the shoreline shapefile
        dem_file: str
-              DEM filename
+               DEM filename
        landcover_file: str
-              Copernicus CGLS Land Cover 100m filename
+               Copernicus CGLS Land Cover 100m filename
        worldcover_file: str
-              ESA Worldcover 10m filename
+               ESA Worldcover 10m filename
        shoreline_shapefile: str
-              NOAA shoreline shapefile
+               NOAA shoreline shapefile
        geotransform: numpy.ndarray
-              Geotransform describing the DSWx-HLS product geolocation
+               Geotransform describing the DSWx-HLS product geolocation
        projection: str
-              DSWx-HLS product's projection
+               DSWx-HLS product's projection
        length: int
-              DSWx-HLS product's length (number of lines)
+               DSWx-HLS product's length (number of lines)
        width: int
-              DSWx-HLS product's width (number of columns)
+               DSWx-HLS product's width (number of columns)
+       dswx_metadata_dict: collections.OrderedDict
+               Metadata dictionary
     """
-    if not check_ancillary_inputs_coverage and not check_shoreline_shapefile:
-        return
+    logger.info(f"check ancillary inputs' coverage:")
 
     # file description (to be printed to the user if an error happens)
     dem_file_description = 'DEM file'
@@ -4266,17 +4274,35 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
     worldcover_file_description = 'ESA WorldCover 10m file'
     shoreline_shapefile_description = 'NOAA shoreline shapefile'
 
+    if not check_ancillary_inputs_coverage:
+
+        # print messages to the user
+        logger.info(f'    {dem_file_description} coverage:'
+                    ' (not tested)')
+        logger.info(f'    {landcover_file_description} coverage:'
+                    ' (not tested)')
+        logger.info(f'    {worldcover_file_description} coverage:'
+                    ' (not tested)')
+
+        # update DSWx-HLS product metadata
+        dswx_metadata_dict['DEM_COVERAGE'] = 'NOT_TESTED'
+        dswx_metadata_dict['LANDCOVER_COVERAGE'] = 'NOT_TESTED'
+        dswx_metadata_dict['WORLDCOVER_COVERAGE'] = 'NOT_TESTED'
+
+        if not check_shoreline_shapefile:
+            return
+
     if check_ancillary_inputs_coverage:
         rasters_to_check_dict = {
-            dem_file_description: dem_file,
-            landcover_file_description: landcover_file,
-            worldcover_file_description: worldcover_file,
+            'DEM': (dem_file_description, dem_file),
+            'LANDCOVER': (landcover_file_description, landcover_file),
+            'WORLDCOVER': (worldcover_file_description, worldcover_file),
         }
     else:
         rasters_to_check_dict = {}
     if check_shoreline_shapefile:
-        rasters_to_check_dict[shoreline_shapefile_description] = \
-            shoreline_shapefile
+        rasters_to_check_dict['SHORELINE_SHAPEFILE'] = \
+            (shoreline_shapefile_description, shoreline_shapefile)
 
     tile_min_x_utm, tile_dx_utm, _, tile_max_y_utm, _, tile_dy_utm = \
         geotransform
@@ -4285,7 +4311,8 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
     tile_srs = osr.SpatialReference()
     tile_srs.ImportFromProj4(projection)
 
-    for file_description, file_name in rasters_to_check_dict.items():
+    for file_type, (file_description, file_name) in \
+            rasters_to_check_dict.items():
 
         # check if file was provided
         if not file_name:
@@ -4299,7 +4326,7 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
             logger.error(error_msg)
             raise FileNotFoundError(error_msg)
 
-        if file_description == shoreline_shapefile_description:
+        if file_type == 'SHORELINE_SHAPEFILE':
             continue
 
         # test if tile is fully covered by the ancillary input
@@ -4328,9 +4355,18 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
         # Create input ancillary polygon
         file_polygon = _get_ogr_polygon(min_x, max_y, max_x, min_y, file_srs)
 
+        coverage_logger_str = file_description+' coverage'
+        coverage_metadata_str = file_type+'_COVERAGE'
+
         if tile_polygon.Within(file_polygon):
+            # print messages to the user
+            logger.info(f'    {coverage_logger_str}: Full')
+
+            # update DSWx-HLS product metadata
+            dswx_metadata_dict[coverage_metadata_str] = 'FULL'
             continue
 
+        flag_error = False
         # Handle antimeridian ("dateline") crossing
         if file_srs.IsGeographic() and tile_min_x < 180 and tile_max_x >= 180:
 
@@ -4358,16 +4394,93 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
             logger.info(f'    right side (+180 -> +360): {check_2_str}')
 
             if flag_1_ok and flag_2_ok:
-                continue
+                # print messages to the user
+                logger.info(f'    {coverage_logger_str}:'
+                            'Full (with antimeridian crossing')
 
-        error_msg = f'ERROR the {file_description} with extents'
-        error_msg += f' S/N: [{min_y},{max_y}]'
-        error_msg += f' W/E: [{min_x},{max_x}],'
-        error_msg += ' does not fully cover input tile with'
-        error_msg += f' extents S/N: [{tile_min_y},{tile_max_y}]'
-        error_msg += f' W/E: [{tile_min_x},{tile_max_x}]'
-        logger.error(error_msg)
-        raise ValueError(error_msg)
+                # update DSWx-HLS product metadata
+                dswx_metadata_dict[coverage_metadata_str] = \
+                    'FULL_WITH_ANTIMERIDIAN_CROSSING'
+                continue
+            flag_error = True
+
+        # test margin in degrees (5 arcsec ~ 150 m)
+        test_margin_degrees = 5.0 / 3600
+
+        # If an error was encountered, ignore next tests
+        if flag_error:
+            pass
+
+        # check Copernicus Land Cover 100m for zero intersection
+        elif file_type == 'LANDCOVER' and (tile_min_y > LANDCOVER_LAT_MAX or
+                                           tile_max_y < LANDCOVER_LAT_MIN):
+            # print messages to the user
+            logger.info(f'    {coverage_logger_str}: None')
+
+            # update DSWx-HLS product metadata
+            dswx_metadata_dict[coverage_metadata_str] = 'NONE'
+
+        # check ESA WorldCover 10m for zero intersection
+        elif file_type == 'WORLDCOVER' and (tile_min_y > WORLDCOVER_LAT_MAX or
+                                            tile_max_y < WORLDCOVER_LAT_MIN):
+            # print messages to the user
+            logger.info(f'    {coverage_logger_str}: None')
+
+            # update DSWx-HLS product metadata                               
+            dswx_metadata_dict[coverage_metadata_str] = 'NONE'
+
+        # check Copernicus Land Cover 100m for partial intersection
+        # make sure that ancillary input has coverage
+        # near LANDCOVER_LAT_MAX or LANDCOVER_LAT_MIN
+        elif (file_type == 'LANDCOVER' and
+                ((tile_max_y >= LANDCOVER_LAT_MAX and
+                  max_y > LANDCOVER_LAT_MAX - test_margin_degrees) or
+                 (tile_min_y <= LANDCOVER_LAT_MIN and
+                  min_y < LANDCOVER_LAT_MIN + test_margin_degrees))):
+
+            # print messages to the user
+            logger.info(f'    {coverage_logger_str}: Partial')
+
+            # update DSWx-HLS product metadata
+            dswx_metadata_dict[coverage_metadata_str] = 'PARTIAL'
+
+        # check ESA WorldCover 10m for partial intersection
+        # make sure that ancillary input has coverage
+        # near WORLDCOVER_LAT_MAX or WORLDCOVER_LAT_MIN
+        elif (file_type == 'WORLDCOVER' and
+                ((tile_max_y >= WORLDCOVER_LAT_MAX and
+                  max_y > WORLDCOVER_LAT_MAX - test_margin_degrees) or
+                 (tile_min_y <= WORLDCOVER_LAT_MIN and
+                  min_y < WORLDCOVER_LAT_MIN + test_margin_degrees))):
+            # print messages to the user
+            logger.info(f'    {coverage_logger_str}: Partial')
+
+            # update DSWx-HLS product metadata
+            dswx_metadata_dict[coverage_metadata_str] = 'PARTIAL'
+
+        # if not one of the exceptions above, there's an error
+        else:
+            flag_error = True
+
+        # prepare message to the user
+        message_type_str = 'ERROR' if flag_error else 'WARNING'
+        msg = f'{message_type_str} the {file_description} with extents'
+        msg += f' S/N: [{min_y},{max_y}]'
+        msg += f' W/E: [{min_x},{max_x}],'
+        msg += ' does not fully cover input tile with'
+        msg += f' extents S/N: [{tile_min_y},{tile_max_y}]'
+        msg += f' W/E: [{tile_min_x},{tile_max_x}]'
+
+        # if there's an error, stop execution
+        if flag_error:
+            logger.error(msg)
+            raise ValueError(msg)
+
+        # otherwise, print warning message to the user
+        logger.warning(msg)
+
+    return
+
 
 def _get_ogr_polygon(min_x, max_y, max_x, min_y, file_srs):
     file_ring = ogr.Geometry(ogr.wkbLinearRing)
@@ -4839,11 +4952,13 @@ def generate_dswx_layers(input_list,
     logger.info(f'    mean elevation angle: {sun_elevation_angle}')
 
     # check ancillary inputs
-    _check_ancillary_inputs(check_ancillary_inputs_coverage,
-                            apply_ocean_masking,
-                            dem_file, landcover_file, worldcover_file,
-                            shoreline_shapefile, geotransform,
-                            projection, length, width)
+    ancillary_inputs_coverage_dict = \
+        _check_ancillary_inputs(check_ancillary_inputs_coverage,
+                                apply_ocean_masking,
+                                dem_file, landcover_file, worldcover_file,
+                                shoreline_shapefile, geotransform,
+                                projection, length, width,
+                                dswx_metadata_dict)
 
     # print input HLS product spatial and cloud coverage
     logger.info(f'data coverage:')
