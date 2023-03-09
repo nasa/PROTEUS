@@ -4228,9 +4228,9 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
                     ' (not tested)')
 
         # update DSWx-HLS product metadata
-        dswx_metadata_dict['DEM_COVERAGE'] = '(not tested)'
-        dswx_metadata_dict['LANDCOVER_COVERAGE'] = '(not tested)'
-        dswx_metadata_dict['WORLDCOVER_COVERAGE'] = '(not tested)'
+        dswx_metadata_dict['DEM_COVERAGE'] = 'NOT_TESTED'
+        dswx_metadata_dict['LANDCOVER_COVERAGE'] = 'NOT_TESTED'
+        dswx_metadata_dict['WORLDCOVER_COVERAGE'] = 'NOT_TESTED'
 
         if not check_shoreline_shapefile:
             return
