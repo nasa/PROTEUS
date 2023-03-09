@@ -3229,7 +3229,7 @@ def _warp(input_file, geotransform, projection,
     logger.info(f'    cropping antimeridian-left side: {input_file} to'
                 f' temporary file: {cropped_input_antimeridian_left_temp}'
                 ' with indexes (ulx uly lrx lry):'
-                f'{proj_win_antimeridian_left}')
+                f' {proj_win_antimeridian_left}')
 
     gdal.Translate(cropped_input_antimeridian_left_temp, input_file,
                    projWin=proj_win_antimeridian_left,
@@ -3248,7 +3248,7 @@ def _warp(input_file, geotransform, projection,
     logger.info(f'    cropping antimeridian-right side: {input_file} to'
                 f' temporary file: {cropped_input_antimeridian_right_temp}'
                 ' with indexes (ulx uly lrx lry):'
-                f'{proj_win_antimeridian_right}')
+                f' {proj_win_antimeridian_right}')
 
     gdal.Translate(cropped_input_antimeridian_right_temp, input_file,
                    projWin=proj_win_antimeridian_right,
@@ -4221,11 +4221,11 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
 
         # print messages to the user
         logger.info(f'    {dem_file_description} coverage:'
-                    '(not tested)')
+                    ' (not tested)')
         logger.info(f'    {landcover_file_description} coverage:'
-                    '(not tested)')
+                    ' (not tested)')
         logger.info(f'    {worldcover_file_description} coverage:'
-                    '(not tested)')
+                    ' (not tested)')
 
         # update DSWx-HLS product metadata
         dswx_metadata_dict['DEM_COVERAGE'] = '(not tested)'
