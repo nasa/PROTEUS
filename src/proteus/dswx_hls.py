@@ -3733,9 +3733,9 @@ def _populate_dswx_metadata_processing_parameters(
        ----------
        dswx_metadata_dict : collections.OrderedDict
               Metadata dictionary
-       apply_ocean_masking: bool (optional)
+       apply_ocean_masking: bool
               Apply ocean masking
-       apply_aerosol_class_remapping: bool (optional)
+       apply_aerosol_class_remapping: bool
               Apply aerosol masking
        aerosol_not_water_to_high_conf_water_fmask_values: list(int)
               HLS Fmask values to convert not-water to high-confidence water
