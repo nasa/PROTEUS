@@ -82,6 +82,7 @@ runconfig:
             aerosol_water_moderate_conf_to_high_conf_water_fmask_values: list(int(), min=0, required=False)
 
             # HLS Fmask values to convert partial surface water conservative to
+
             # high-confidence water in the presence of high aerosol
             aerosol_partial_surface_water_conservative_to_high_conf_water_fmask_values: list(int(), min=0, required=False)
 
