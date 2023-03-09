@@ -894,7 +894,8 @@ def _update_landcover_array(conglomerate_array, agg_sum, threshold,
 
 
 def create_landcover_mask(copernicus_landcover_file,
-                          worldcover_file, output_file, scratch_dir,
+                          worldcover_file, worldcover_file_description,
+                          output_file, scratch_dir,
                           mask_type, geotransform, projection, length, width,
                           forest_mask_landcover_classes,
                           dswx_metadata_dict = None, output_files_list = None,
@@ -910,6 +911,8 @@ def create_landcover_mask(copernicus_landcover_file,
             collection 3 at 100m
        worldcover_file : str
             ESA WorldCover map file
+       worldcover_file_description : str
+            ESA WorldCover map file description
        output_file : str
             Output landcover mask (LAND layer)
        scratch_dir : str
@@ -1038,15 +1041,38 @@ def create_landcover_mask(copernicus_landcover_file,
     worldcover_gdal_ds = gdal.Open(worldcover_file, gdal.GA_ReadOnly)
     worldcover_metadata = worldcover_gdal_ds.GetMetadata()
     del worldcover_gdal_ds
-    worldcover_datetime_format = '%Y-%m-%dT%H:%M:%SZ'
-    worldcover_time_start = datetime.strptime(worldcover_metadata['time_start'],
-                                              worldcover_datetime_format)
-    worldcover_time_end = datetime.strptime(worldcover_metadata['time_end'],
-                                            worldcover_datetime_format)
 
-    # the Worldcover dataset year is extracted from the average date times
-    worldcover_time_range = (worldcover_time_end - worldcover_time_start)
-    year = (worldcover_time_start + worldcover_time_range / 2.0).year - 2000
+    if ('time_start' in worldcover_metadata.keys() and
+            'time_end' in worldcover_metadata.keys()):
+        worldcover_datetime_format = '%Y-%m-%dT%H:%M:%SZ'
+        worldcover_time_start = datetime.strptime(worldcover_metadata['time_start'],
+                                                  worldcover_datetime_format)
+        worldcover_time_end = datetime.strptime(worldcover_metadata['time_end'],
+                                                worldcover_datetime_format)
+
+        # the Worldcover dataset year is extracted from the average date times
+        worldcover_time_range = (worldcover_time_end - worldcover_time_start)
+        year = (worldcover_time_start + worldcover_time_range / 2.0).year
+        logger.info('ESA WorldCover map year: {year}'
+                    '(source: WorldCover file metadata)')
+
+    else:
+        logger.warning('WARNING Could not read the ESA WorldCover 10m metadata'
+                       ' fields `time_start` and/or `time_end`')
+        year_start = 2000
+        year_end_next = 2100
+        for year in range(year_start, year_end_next)
+            if str(year) in worldcover_file_description:
+                logger.info('ESA WorldCover map year: {year}'
+                            '(source: WorldCover file description)')
+                break
+        else:
+            year = 2000
+            logger.warning('WARNING Could not infer the ESA WorldCover 10m'
+                           ' data year from the WorldCover file description.'
+                           ' Considering it as 0 (2000)')
+
+    year -= 2000
 
     # majority of pixels are urban
     low_intensity_developed_class = \
@@ -4922,9 +4948,9 @@ def generate_dswx_layers(input_list,
     if landcover_file is not None and worldcover_file is not None:
         # land cover
         landcover_mask = create_landcover_mask(
-            landcover_file, worldcover_file, output_landcover,
-            scratch_dir, landcover_mask_type, geotransform, projection,
-            length, width, forest_mask_landcover_classes,
+            landcover_file, worldcover_file, worldcover_file_description,
+            output_landcover, scratch_dir, landcover_mask_type, geotransform,
+            projection, length, width, forest_mask_landcover_classes,
             dswx_metadata_dict = dswx_metadata_dict,
             output_files_list=build_vrt_list, temp_files_list=temp_files_list)
 
