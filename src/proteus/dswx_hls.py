@@ -4176,39 +4176,38 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
                             dem_file, landcover_file, worldcover_file,
                             shoreline_shapefile, geotransform, projection,
                             length, width, dswx_metadata_dict):
-    """
-    Check for existence and coverage of provided ancillary inputs
-    wrt. to the HLS tile: DEM, Copernicus CGLS Land Cover 100m, and
-    ESA WorldCover 10m files; it also tests the
-    existence of the NOAAshoreline shapefile. The function
-    also updates the DSWx-HLS product's metadata indicating the coverage
-    of each ancillary input wrt. to the input HLS tile
+    """Check for the existence and coverage of provided ancillary inputs
+       wrt. to the HLS tile: DEM, Copernicus CGLS Land Cover 100m, and
+       ESA WorldCover 10m files; it also tests the
+       existence of the NOAA shoreline shapefile. The function
+       also updates the DSWx-HLS product's metadata indicating the coverage
+       of each ancillary input wrt. to the input HLS tile
 
-    Parameters
-    ----------
-    check_ancillary_inputs_coverage: bool
-            Flag that enable/disable checks for all ancillary inputs
-            excluding the shoreline shapefile
-    check_shoreline_shapefile: bool
-            Flag that checks for the shoreline shapefile
-    dem_file: str
-            DEM filename
-    landcover_file: str
-            Copernicus CGLS Land Cover 100m filename
-    worldcover_file: str
-            ESA Worldcover 10m filename
-    shoreline_shapefile: str
-            NOAA shoreline shapefile
-    geotransform: numpy.ndarray
-            Geotransform describing the DSWx-HLS product geolocation
-    projection: str
-            DSWx-HLS product's projection
-    length: int
-            DSWx-HLS product's length (number of lines)
-    width: int
-            DSWx-HLS product's width (number of columns)
-    dswx_metadata_dict: collections.OrderedDict
-            Metadata dictionary
+       Parameters
+       ----------
+       check_ancillary_inputs_coverage: bool
+               Flag that enable/disable checks for all ancillary inputs
+               excluding the shoreline shapefile
+       check_shoreline_shapefile: bool
+               Flag that checks for the shoreline shapefile
+       dem_file: str
+               DEM filename
+       landcover_file: str
+               Copernicus CGLS Land Cover 100m filename
+       worldcover_file: str
+               ESA Worldcover 10m filename
+       shoreline_shapefile: str
+               NOAA shoreline shapefile
+       geotransform: numpy.ndarray
+               Geotransform describing the DSWx-HLS product geolocation
+       projection: str
+               DSWx-HLS product's projection
+       length: int
+               DSWx-HLS product's length (number of lines)
+       width: int
+               DSWx-HLS product's width (number of columns)
+       dswx_metadata_dict: collections.OrderedDict
+               Metadata dictionary
     """
     logger.info(f"check ancillary inputs' coverage:")
 
@@ -4422,6 +4421,7 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
         logger.warning(msg)
 
     return
+
 
 def _get_ogr_polygon(min_x, max_y, max_x, min_y, file_srs):
     file_ring = ogr.Geometry(ogr.wkbLinearRing)
