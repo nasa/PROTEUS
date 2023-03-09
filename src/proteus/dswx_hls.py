@@ -957,8 +957,8 @@ def create_landcover_mask(copernicus_landcover_file,
         dir=scratch_dir, suffix='.tif').name
 
     copernicus_landcover_array = _warp(copernicus_landcover_file,
-        geotransform, projection,
-        length, width, scratch_dir, resample_algorithm='nearest',
+        geotransform, projection, length, width,
+        scratch_dir, resample_algorithm='nearest',
         relocated_file=copernicus_landcover_reprojected_file,
         temp_files_list=temp_files_list)
     temp_files_list.append(copernicus_landcover_reprojected_file)
@@ -972,8 +972,8 @@ def create_landcover_mask(copernicus_landcover_file,
     worldcover_reprojected_up_3_file = tempfile.NamedTemporaryFile(
         dir=scratch_dir, suffix='.tif').name
     worldcover_array_up_3 = _warp(worldcover_file, geotransform_up_3,
-        projection, length_up_3, width_up_3, scratch_dir,
-        resample_algorithm='nearest',
+        projection, length_up_3, width_up_3,
+        scratch_dir, resample_algorithm='nearest',
         relocated_file=worldcover_reprojected_up_3_file,
         temp_files_list=temp_files_list)
     temp_files_list.append(worldcover_reprojected_up_3_file)
@@ -1059,9 +1059,9 @@ def create_landcover_mask(copernicus_landcover_file,
         dswx_hls_landcover_classes_dict['water']
     _update_landcover_array(hierarchy_combined, water_aggregate_sum,
                             threshold_list[3], water_class)
-    
+
     ctable = _get_landcover_mask_ctable()
-    
+
     description = band_description_dict['LAND']
 
     if output_file is not None:
@@ -1088,7 +1088,7 @@ def _is_landcover_class_evergreen(landcover_mask):
        -------
        evergreen_mask : numpy.ndarray
               Evergreen mask
-    """ 
+    """
     evergreen_forest_class = \
         dswx_hls_landcover_classes_dict['evergreen_forest']
     return landcover_mask == evergreen_forest_class
@@ -1105,7 +1105,7 @@ def _is_landcover_class_water_or_wetland(landcover_mask):
        -------
        evergreen_mask : numpy.ndarray
               Water or wetland mask
-    """ 
+    """
     water_class = \
         dswx_hls_landcover_classes_dict['water']
     return landcover_mask == water_class
@@ -1123,7 +1123,7 @@ def _is_landcover_class_low_intensity_developed(landcover_mask):
        -------
        low_intensity_developed_mask : numpy.ndarray
               Low-intensity developed
-    """ 
+    """
     low_intensity_developed_class_offset = \
         dswx_hls_landcover_classes_dict['low_intensity_developed_offset']
     low_intensity_developed_mask = (
@@ -1144,7 +1144,7 @@ def _is_landcover_class_high_intensity_developed(landcover_mask):
        -------
        high_intensity_developed_mask : numpy.ndarray
               High-intensity developed
-    """ 
+    """
     high_intensity_developed_class_offset = \
         dswx_hls_landcover_classes_dict['high_intensity_developed_offset']
     high_intensity_developed_mask = \
@@ -1415,7 +1415,7 @@ def _get_browse_ctable(
                               valid data, and will be fully transparent
     cloud_color : str
         How to color cloud in the color table. Defaults to 'gray'. Options are:
-            'cyan'          : cloud will be opaque cyan
+            'gray'          : cloud will be opaque gray
             'nodata'        : cloud pixels will be marked as not having
                               valid data, and will be fully transparent
     snow_color : str
@@ -1465,8 +1465,8 @@ def _get_browse_ctable(
         # Make sure to do this step after parsing the gray color for snow.
         out_ctable.SetColorEntry(WTR_CLOUD_MASKED, FILL_VALUE_RGBA)
     else:
-        # Cloud color will remain the same as in WTR
-        pass
+        # Make the gray cloud color for the browse a lighter gray than in WTR
+        out_ctable.SetColorEntry(WTR_CLOUD_MASKED, (175,175,175))
 
     if not_water_color == 'nodata':
         # The no-data fill RGBA was set by `_get_interpreted_dswx_ctable`.
@@ -1577,7 +1577,7 @@ def _get_landcover_mask_ctable():
                                   (255, 0, 0))
 
     # Fill value
-    mask_ctable.SetColorEntry(UINT8_FILL_VALUE, FILL_VALUE_RGBA)
+    mask_ctable.SetColorEntry(fill_value, FILL_VALUE_RGBA)
 
     return mask_ctable
 
@@ -1858,7 +1858,7 @@ def _compute_diagnostic_tests(blue, green, red, nir, swir1, swir2,
                    (swir2 < hls_thresholds.pswt_2_swir2) &
                    (nir < hls_thresholds.pswt_2_nir))
     diagnostic_layer[ind] += 16
-   
+ 
     return diagnostic_layer
 
 
@@ -1937,7 +1937,6 @@ def _compute_preliminary_cloud_layer(fmask, mask_adjacent_to_cloud_mode):
     preliminary_cloud_layer[np.bitwise_and(fmask, 2**1) == 2**1] += 4
 
     return preliminary_cloud_layer
-
 
 
 def _add_snow_to_cloud_layer(wtr_2_layer, cloud_layer, fmask,
@@ -2078,8 +2077,6 @@ def _apply_cloud_masking(wtr_2_layer, cloud_layer):
     wtr_layer[wtr_2_layer == UINT8_FILL_VALUE] = UINT8_FILL_VALUE
 
     return wtr_layer
-
-
 
 
 def _load_hls_band_from_file(filename, image_dict, offset_dict, scale_dict,
@@ -2434,7 +2431,7 @@ def _get_confidence_layer_ctable():
     # The CONF layer colors will be based off of these.
     conf_ctable = _get_interpreted_dswx_ctable(flag_collapse_wtr_classes=False,
                                                layer_name='WTR')
-    
+ 
     # Extract the RGB values from the DSWx color table.
     # These represent the rgb values for the "_CLEAR" classifications.
     # which have the same classificaion values for both WTR and CONF
@@ -2457,7 +2454,7 @@ def _get_confidence_layer_ctable():
 
     # Set "_CLOUD" color table entries
     alpha = 0.52
-    
+ 
     rgb = get_transparency_rgb_vals(cloud_rgb, not_water_rgb, alpha)
     conf_ctable.SetColorEntry(WATER_NOT_WATER_CLOUD, rgb)
 
@@ -2626,11 +2623,11 @@ def save_dswx_product(layer_image, layer_name,
             continue
 
         # index using processed key from band name (e.g., WTR-1 to wtr_1)
-        band_array = dswx_processed_bands[band_name.replace('-', '_').lower()]
+        band_array = dswx_processed_bands[layer_name.replace('-', '_').lower()]
 
         if description is None:
             description = description_from_dict
-            
+ 
         gdal_band = gdal_ds.GetRasterBand(band_index + 1)
         band_index += 1
 
@@ -3096,10 +3093,11 @@ def get_projection_proj4(projection):
 
 
 def _warp(input_file, geotransform, projection,
-              length, width, scratch_dir = '.',
-              resample_algorithm='nearest',
-              relocated_file=None, margin_in_pixels=0,
-              temp_files_list = None):
+          length, width,
+          scratch_dir = '.',
+          resample_algorithm='nearest',
+          relocated_file=None, margin_in_pixels=0,
+          temp_files_list = None):
     """Relocate/reproject a file (e.g., landcover or DEM) based on geolocation
        defined by a geotransform, output dimensions (length and width)
        and projection
@@ -3142,36 +3140,137 @@ def _warp(input_file, geotransform, projection,
     dx = geotransform[1]
 
     # Output Y-coordinate start (North) position with margin
-    y0 = geotransform[3] - margin_in_pixels * dy
+    tile_max_y_utm = geotransform[3] - margin_in_pixels * dy
 
     # Output X-coordinate start (West) position with margin
-    x0 = geotransform[0] - margin_in_pixels * dx
+    tile_min_x_utm = geotransform[0] - margin_in_pixels * dx
 
     # Output Y-coordinate end (South) position with margin
-    yf = y0 + (length + 2 * margin_in_pixels) * dy
+    tile_min_y_utm = tile_max_y_utm + (length + 2 * margin_in_pixels) * dy
 
     # Output X-coordinate end (East) position with margin
-    xf = x0 + (width + 2 * margin_in_pixels) * dx
+    tile_max_x_utm = tile_min_x_utm + (width + 2 * margin_in_pixels) * dx
 
     # Set output spatial reference system (SRS) from projection
-    dstSRS = get_projection_proj4(projection)
+    tile_srs_str = get_projection_proj4(projection)
+    tile_srs = osr.SpatialReference()
+    tile_srs.ImportFromProj4(projection)
 
     if relocated_file is None:
         relocated_file = tempfile.NamedTemporaryFile(
                     dir=scratch_dir, suffix='.tif').name
-        logger.info(f'    relocating file: {input_file} to'
-                    f' temporary file: {relocated_file}')
         if temp_files_list is not None:
             temp_files_list.append(relocated_file)
-    else:
-        logger.info(f'    relocating file: {input_file} to'
-                    f' file: {relocated_file}')
 
     _makedirs(relocated_file)
 
-    gdal.Warp(relocated_file, input_file, format='GTiff',
-              dstSRS=dstSRS,
-              outputBounds=[x0, yf, xf, y0], multithread=True,
+    # Test for antimeridian ("dateline") crossing
+    gdal_ds = gdal.Open(input_file, gdal.GA_ReadOnly)
+    file_projection = gdal_ds.GetProjection()
+    file_srs = osr.SpatialReference()
+    file_srs.ImportFromProj4(file_projection)
+
+    # margin 5km
+    margin_m = 5000
+
+    tile_polygon, tile_min_y, tile_max_y, tile_min_x, tile_max_x = \
+        _get_tile_srs_bbox(tile_min_y_utm - margin_m,
+                           tile_max_y_utm + margin_m,
+                           tile_min_x_utm - margin_m,
+                           tile_max_x_utm + margin_m,
+                           tile_srs, file_srs)
+
+    # if it doesn't cross the antimeridian, reproject
+    # input file using gdalwarp
+    if not (file_srs.IsGeographic() and tile_min_x < 180 and
+            tile_max_x >= 180):
+
+        logger.info(f'    relocating file: {input_file} to'
+                    f' file: {relocated_file}')
+
+        gdal.Warp(relocated_file, input_file,
+                  format='GTiff',
+                  dstSRS=tile_srs_str,
+                  outputBounds=[tile_min_x_utm, tile_min_y_utm,
+                                tile_max_x_utm, tile_max_y_utm],
+                  multithread=True,
+                  xRes=dx, yRes=abs(dy), resampleAlg=resample_algorithm,
+                  errorThreshold=0)
+
+        gdal_ds = gdal.Open(relocated_file, gdal.GA_ReadOnly)
+        relocated_array = gdal_ds.ReadAsArray()
+        del gdal_ds
+
+        return relocated_array
+
+    logger.info(f'    tile crosses the antimeridian')
+
+    file_geotransform = gdal_ds.GetGeoTransform()
+    file_min_x, file_dx, _, file_max_y, _, file_dy = file_geotransform
+
+    file_width = gdal_ds.GetRasterBand(1).XSize
+    file_length = gdal_ds.GetRasterBand(1).YSize
+    no_data = gdal_ds.GetRasterBand(1).GetNoDataValue()
+
+    del gdal_ds
+
+    file_max_x = file_min_x + file_width * file_dx
+    file_min_y = file_max_y + file_length * file_dy
+
+    # Crop input at the two sides of the antimeridian:
+    # left side: use tile bbox with file_max_x from input
+    proj_win_antimeridian_left = [tile_min_x,
+                                  tile_max_y,
+                                  file_max_x,
+                                  tile_min_y]
+
+    cropped_input_antimeridian_left_temp = tempfile.NamedTemporaryFile(
+                dir=scratch_dir, suffix='.tif').name
+    logger.info(f'    cropping antimeridian-left side: {input_file} to'
+                f' temporary file: {cropped_input_antimeridian_left_temp}'
+                ' with indexes (ulx uly lrx lry):'
+                f'{proj_win_antimeridian_left}')
+
+    gdal.Translate(cropped_input_antimeridian_left_temp, input_file,
+                   projWin=proj_win_antimeridian_left,
+                   outputSRS=file_srs,
+                   noData=no_data)
+
+    # right side: use tile bbox with file_min_x from input and tile_max_x
+    # with subtracted 360 (lon) degrees
+    proj_win_antimeridian_right = [file_min_x,
+                                   tile_max_y,
+                                   tile_max_x - 360,
+                                   tile_min_y]
+    cropped_input_antimeridian_right_temp = tempfile.NamedTemporaryFile(
+                dir=scratch_dir, suffix='.tif').name
+
+    logger.info(f'    cropping antimeridian-right side: {input_file} to'
+                f' temporary file: {cropped_input_antimeridian_right_temp}'
+                ' with indexes (ulx uly lrx lry):'
+                f'{proj_win_antimeridian_right}')
+
+    gdal.Translate(cropped_input_antimeridian_right_temp, input_file,
+                   projWin=proj_win_antimeridian_right,
+                   outputSRS=file_srs,
+                   noData=no_data)
+
+    if temp_files_list is not None:
+        temp_files_list.append(cropped_input_antimeridian_left_temp)
+        temp_files_list.append(cropped_input_antimeridian_right_temp)
+
+    gdalwarp_input_file_list = [cropped_input_antimeridian_left_temp,
+                                cropped_input_antimeridian_right_temp]
+
+    logger.info(f'    relocating file: {input_file} to'
+                f' file: {relocated_file}')
+
+    gdal.Warp(relocated_file, gdalwarp_input_file_list,
+              format='GTiff',
+              dstSRS=tile_srs_str,
+              outputBounds=[tile_min_x_utm, tile_min_y_utm,
+                            tile_max_x_utm, tile_max_y_utm],
+              multithread=True,
               xRes=dx, yRes=abs(dy), resampleAlg=resample_algorithm,
               errorThreshold=0)
 
@@ -3244,7 +3343,7 @@ def _get_tile_srs_bbox(tile_min_y_utm, tile_max_y_utm,
     tile_min_x = np.min(tile_x_array)
     tile_max_x = np.max(tile_x_array)
 
-    # handles anti-meridian: tile_max_x around +180 and tile_min_x around -180
+    # handles antimeridian: tile_max_x around +180 and tile_min_x around -180
     # add 360 to tile_min_x, so it becomes a little greater than +180
     if tile_max_x > tile_min_x + 340:
         tile_min_x, tile_max_x = tile_max_x, tile_min_x + 360
@@ -3293,7 +3392,7 @@ def _create_ocean_mask(shapefile, margin_km, scratch_dir,
        ocean_mask : numpy.ndarray
               Ocean mask (1: land, 0: ocean)
     """
-    logger.info('creating ocean mask')
+    logger.info('creating the ocean mask')
 
     tile_min_x_utm, tile_dx_utm, _, tile_max_y_utm, _, tile_dy_utm = \
         geotransform
@@ -3820,13 +3919,13 @@ class Logger(object):
     Class to redirect stdout and stderr to the logger
     """
     def __init__(self, logger, level, prefix=''):
-       """
-       Class constructor
-       """
-       self.logger = logger
-       self.level = level
-       self.prefix = prefix
-       self.buffer = ''
+        """
+        Class constructor
+        """
+        self.logger = logger
+        self.level = level
+        self.prefix = prefix
+        self.buffer = ''
 
     def write(self, message):
 
@@ -3985,7 +4084,7 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
     target_to_sun_unit_vector = [np.sin(sun_azimuth) * np.sin(sun_zenith),
                                  np.cos(sun_azimuth) * np.sin(sun_zenith),
                                  np.cos(sun_zenith)]
-    
+
     # numpy computes the gradient as (y, x)
     gradient_h = np.gradient(dem)
 
@@ -4006,7 +4105,7 @@ def _compute_opera_shadow_layer(dem, sun_azimuth_angle, sun_elevation_angle,
          normalization_factor)
 
     sun_inc_angle_degrees = np.degrees(sun_inc_angle)
-        
+
     directional_slope_angle = np.degrees(np.arctan(
         terrain_normal_vector[0] * np.sin(sun_azimuth) +
         terrain_normal_vector[1] * np.cos(sun_azimuth)))
@@ -4196,16 +4295,7 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
                                tile_srs, file_srs)
 
         # Create input ancillary polygon
-        file_ring = ogr.Geometry(ogr.wkbLinearRing)
-        file_ring.AddPoint(min_x, max_y)
-        file_ring.AddPoint(max_x, max_y)
-        file_ring.AddPoint(max_x, min_y)
-        file_ring.AddPoint(min_x, min_y)
-        file_ring.AddPoint(min_x, max_y)
-        file_polygon = ogr.Geometry(ogr.wkbPolygon)
-        file_polygon.AddGeometry(file_ring)
-        file_polygon.AssignSpatialReference(file_srs)
-        assert file_polygon.IsValid()
+        file_polygon = _get_ogr_polygon(min_x, max_y, max_x, min_y, file_srs)
 
         coverage_logger_str = file_description+' coverage'
         coverage_metadata_str = file_type+'_COVERAGE'
@@ -4219,13 +4309,53 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
             continue
 
         flag_error = False
+        # Handle antimeridian ("dateline") crossing
+        if file_srs.IsGeographic() and tile_min_x < 180 and tile_max_x >= 180:
+
+            logger.info(f'The input HLS product crosses the antimeridian'
+                        ' (dateline). Verifying the'
+                        f' {file_description}: {file_name}')
+
+            # Left side of the antimeridian crossing: -180 -> +180
+            file_polygon_1 = _get_ogr_polygon(-180, 90, max_x, -90, file_srs)
+            intersection_1 = tile_polygon.Intersection(file_polygon_1)
+            flag_1_ok = intersection_1.Within(file_polygon)
+            check_1_str = 'ok' if flag_1_ok else 'fail'
+            logger.info(f'    left side (-180 -> +180): {check_1_str}')
+
+            # Right side of the antimeridian crossing: +180 -> +360
+            buffer_in_degrees = 0.0002777  # buffer of 1 arcsec: ~ 30m
+            file_polygon_2 = _get_ogr_polygon(
+                max_x + buffer_in_degrees, 90, max_x + 360, -90, file_srs)
+            intersection_2 = tile_polygon.Intersection(file_polygon_2)
+            file_polygon_2 = _get_ogr_polygon(min_x + 360, max_y,
+                                                    max_x + 360, min_y,
+                                                    file_srs)
+            flag_2_ok = intersection_2.Within(file_polygon_2)
+            check_2_str = 'ok' if flag_2_ok else 'fail'
+            logger.info(f'    right side (+180 -> +360): {check_2_str}')
+
+            if flag_1_ok and flag_2_ok:
+                # print messages to the user
+                logger.info(f'    {coverage_logger_str}:'
+                            'Full (with antimeridian crossing')
+
+                # update DSWx-HLS product metadata
+                dswx_metadata_dict[coverage_metadata_str] = \
+                    'FULL_WITH_ANTIMERIDIAN_CROSSING'
+                continue
+            flag_error = True
 
         # test margin in degrees (5 arcsec ~ 150 m)
         test_margin_degrees = 5.0 / 3600
 
+        # If an error was encountered, ignore next tests
+        if flag_error:
+            pass
+
         # check Copernicus Land Cover 100m for zero intersection
-        if file_type == 'LANDCOVER' and (tile_min_y > LANDCOVER_LAT_MAX or
-                                         tile_max_y < LANDCOVER_LAT_MIN):
+        elif file_type == 'LANDCOVER' and (tile_min_y > LANDCOVER_LAT_MAX or
+                                           tile_max_y < LANDCOVER_LAT_MIN):
             # print messages to the user
             logger.info(f'    {coverage_logger_str}: None')
 
@@ -4292,6 +4422,19 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
         logger.warning(msg)
 
     return
+
+def _get_ogr_polygon(min_x, max_y, max_x, min_y, file_srs):
+    file_ring = ogr.Geometry(ogr.wkbLinearRing)
+    file_ring.AddPoint(min_x, max_y)
+    file_ring.AddPoint(max_x, max_y)
+    file_ring.AddPoint(max_x, min_y)
+    file_ring.AddPoint(min_x, min_y)
+    file_ring.AddPoint(min_x, max_y)
+    file_polygon = ogr.Geometry(ogr.wkbPolygon)
+    file_polygon.AddGeometry(file_ring)
+    file_polygon.AssignSpatialReference(file_srs)
+    assert file_polygon.IsValid()
+    return file_polygon
 
 
 def generate_dswx_layers(input_list,
@@ -4534,7 +4677,7 @@ def generate_dswx_layers(input_list,
             cloud_in_browse = runconfig_constants.cloud_in_browse
         if snow_in_browse is None:
             snow_in_browse = runconfig_constants.snow_in_browse
-        
+
     if scratch_dir is None:
         scratch_dir = '.'
 
@@ -4573,7 +4716,7 @@ def generate_dswx_layers(input_list,
     logger.info(f'    software version: {SOFTWARE_VERSION}')
     logger.info(f'processing parameters:')
     logger.info(f'    scratch directory: {scratch_dir}')
-    logger.info(f"    check ancillary inputs' coverage:"
+    logger.info(f'    check ancillary coverage:'
                 f' {check_ancillary_inputs_coverage}')
 
     logger.info(f'    apply ocean masking: {apply_ocean_masking}')
@@ -4828,8 +4971,8 @@ def generate_dswx_layers(input_list,
             temp_files_list.append(dem_cropped_file)
         logger.info(f'Preparing DEM file: {dem_file}')
         dem_with_margin = _warp(dem_file, geotransform, projection,
-                                    length, width, scratch_dir,
-                                    resample_algorithm='cubic',
+                                    length, width,
+                                    scratch_dir, resample_algorithm='cubic',
                                     relocated_file=dem_cropped_file,
                                     margin_in_pixels=DEM_MARGIN_IN_PIXELS,
                                     temp_files_list=temp_files_list)
@@ -4856,13 +4999,13 @@ def generate_dswx_layers(input_list,
         dem = _crop_2d_array_all_sides(dem_with_margin, DEM_MARGIN_IN_PIXELS)
         del dem_with_margin
         if output_dem_layer is not None:
-           _save_array(dem, output_dem_layer,
-                       dswx_metadata_dict, geotransform, projection,
-                       description=band_description_dict['DEM'],
-                       output_dtype = gdal.GDT_Float32,
-                       scratch_dir=scratch_dir,
-                       output_files_list=build_vrt_list,
-                       no_data_value=np.nan)
+            _save_array(dem, output_dem_layer,
+                        dswx_metadata_dict, geotransform, projection,
+                        description=band_description_dict['DEM'],
+                        output_dtype = gdal.GDT_Float32,
+                        scratch_dir=scratch_dir,
+                        output_files_list=build_vrt_list,
+                        no_data_value=np.nan)
         if not output_file:
             del dem
 
@@ -4978,10 +5121,10 @@ def generate_dswx_layers(input_list,
                           projection,
                           scratch_dir=scratch_dir,
                           output_files_list=build_vrt_list)
-    
+
     # Output the WTR-2 w/ Translucent clouds layer as the browse image
-    # Note: The browse image will be saved as a separate full-res geotiff 
-    # and low-res png files; they will not included in the combined 
+    # Note: The browse image will be saved as a separate full-res geotiff
+    # and low-res png files; they will not included in the combined
     # `output_file`.
     if output_browse_image:
 
