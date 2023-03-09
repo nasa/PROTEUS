@@ -1053,38 +1053,43 @@ def create_landcover_mask(copernicus_landcover_file,
         # the Worldcover dataset year is extracted from the average date times
         worldcover_time_range = (worldcover_time_end - worldcover_time_start)
         year = (worldcover_time_start + worldcover_time_range / 2.0).year
-        logger.info('ESA WorldCover map year: {year}'
+        logger.info('    ESA WorldCover map year: {year}'
                     '(source: WorldCover file metadata)')
 
-    else:
+    elif worldcover_file_description:
         logger.warning('WARNING Could not read the ESA WorldCover 10m metadata'
                        ' fields `time_start` and/or `time_end`')
         year_start = 2000
         year_end_next = 2100
-        for year in range(year_start, year_end_next)
+        for year in range(year_start, year_end_next):
             if str(year) in worldcover_file_description:
-                logger.info('ESA WorldCover map year: {year}'
+                logger.info('    ESA WorldCover map year: {year}'
                             '(source: WorldCover file description)')
                 break
         else:
             year = 2000
             logger.warning('WARNING Could not infer the ESA WorldCover 10m'
                            ' data year from the WorldCover file description.'
-                           ' Considering it as 0 (2000)')
+                           ' Considering year as 2000')
+    else:
+        year = 2000
+        logger.warning('WARNING Could not read the ESA WorldCover 10m metadata'
+                       ' fields `time_start` and/or `time_end`'
+                       ' Considering year as 2000')
 
-    year -= 2000
+    year_offset = year - 2000
 
     # majority of pixels are urban
     low_intensity_developed_class = \
         (dswx_hls_landcover_classes_dict['low_intensity_developed_offset'] +
-         year)
+         year_offset)
     _update_landcover_array(hierarchy_combined, urban_aggregate_sum,
                             threshold_list[1], low_intensity_developed_class)
 
     # high density urban at 7/9 or higher
     high_intensity_developed_class = \
         (dswx_hls_landcover_classes_dict['high_intensity_developed_offset'] +
-         year)
+         year_offset)
     _update_landcover_array(hierarchy_combined, urban_aggregate_sum,
                             threshold_list[2], high_intensity_developed_class)
 
