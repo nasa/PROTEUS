@@ -3941,7 +3941,7 @@ def _populate_dswx_metadata_processing_parameters(
             dswx_metadata_dict[aerosol_metadata_field_lower.upper()] = 'EMPTY'
 
     # shadow masking algorithm and parameters
-    dswx_metadata_dict['SHADOW_MASKING_ALGORITHM'] = shadow_masking_algorithm
+    dswx_metadata_dict['SHADOW_MASKING_ALGORITHM'] = shadow_masking_algorithm.upper()
     if shadow_masking_algorithm == 'sun_local_inc_angle':
         dswx_metadata_dict['MIN_SLOPE_ANGLE'] = min_slope_angle
         dswx_metadata_dict['MAX_SUN_LOCAL_INC_ANGLE'] = max_sun_local_inc_angle
