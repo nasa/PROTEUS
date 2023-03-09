@@ -4217,7 +4217,7 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
     worldcover_file_description = 'ESA WorldCover 10m file'
     shoreline_shapefile_description = 'NOAA shoreline shapefile'
 
-    if not check_ancillary_inputs_coverage and not check_shoreline_shapefile:
+    if not check_ancillary_inputs_coverage:
 
         # print messages to the user
         logger.info(f'    {dem_file_description} coverage:'
@@ -4231,7 +4231,9 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
         dswx_metadata_dict['DEM_COVERAGE'] = '(not tested)'
         dswx_metadata_dict['LANDCOVER_COVERAGE'] = '(not tested)'
         dswx_metadata_dict['WORLDCOVER_COVERAGE'] = '(not tested)'
-        return
+
+        if not check_shoreline_shapefile:
+            return
 
     if check_ancillary_inputs_coverage:
         rasters_to_check_dict = {
