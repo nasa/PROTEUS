@@ -3814,7 +3814,7 @@ def _populate_dswx_metadata_processing_parameters(
     dswx_metadata_dict['OCEAN_MASKING_ENABLED'] = \
         'TRUE' if apply_ocean_masking else 'FALSE'
 
-    if shoreline_shapefile:
+    if apply_ocean_masking and shoreline_shapefile:
         dswx_metadata_dict['OCEAN_MASKING_SHORELINE_DISTANCE_KM'] = \
             ocean_masking_shoreline_distance_km
     else:
