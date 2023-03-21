@@ -3155,17 +3155,21 @@ def _antimeridian_crossing_requires_special_handling(
 
     '''
 
-    # The dateline crossing by the tile is tested by the condition:
-    #     `tile_min_x < 180 and tile_max_x >= 180`
-    # The ancillary input only requires reprojection if it is in
-    # geographic coordinates and if its longitude domain is represented
-    # within the [-180, +180] range, verified by the test `min_x < -170`,
-    # rather than the [0, +360] interval. There's no specific reason why
-    # -170 is used. It could be -160, or even 0.
+    # Flag to indicate if the if the MGRS tile crosses the antimeridian.
+    flag_tile_crosses_antimeridian = tile_min_x < 180 and tile_max_x >= 180
 
+    # Flag to test if the ancillary input file is in geographic
+    # coordinates and if its longitude domain is represented
+    # within the [-180, +180] range, rather than the [0, +360] interval.
+    # This is verified by the test `min_x < -170`,
+    flag_input_geographic_and_longitude_not_0_360 = \
+        file_srs.IsGeographic() and file_min_x < -170
+
+    # If both are true, tile requires special handling due to the
+    # antimeridian crossing
     flag_requires_special_handling = (
-        file_srs.IsGeographic() and file_min_x < -170 and
-        tile_min_x < 180 and tile_max_x >= 180)
+        flag_tile_crosses_antimeridian and
+        flag_input_geographic_and_longitude_not_0_360)
 
     return flag_requires_special_handling
 
