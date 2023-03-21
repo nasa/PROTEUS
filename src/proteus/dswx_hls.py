@@ -3153,6 +3153,10 @@ def _antimeridian_crossing_requires_special_handling(
     tile_max_x: float
         MGRS tile max longitude value in degrees
 
+    Returns
+    -------
+    flag_requires_special_handling : bool
+        Flag that indicate if the ancillary input requires special handling
     '''
 
     # Flag to indicate if the if the MGRS tile crosses the antimeridian.
