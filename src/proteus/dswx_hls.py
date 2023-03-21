@@ -30,6 +30,9 @@ If enabled, set all negative reflectance values to 1 before scaling is applied
 '''
 FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 
+# Buffer for antimeridian crossing test (33 arcsec: ~ 1km)
+ANTIMERIDIAN_CROSSING_RIGHT_SIDE_TEST_BUFFER = 33 * 0.0002777 
+  
 LANDCOVER_LAT_MAX = 80
 LANDCOVER_LAT_MIN = -60
 WORLDCOVER_LAT_MAX = 84
@@ -819,7 +822,7 @@ def _compare_dswx_hls_metadata(metadata_1, metadata_2):
                 break
             # Exclude metadata fields that are not required to be the same
             if k1 in ['PROCESSING_DATETIME', 'DEM_SOURCE', 'LANDCOVER_SOURCE',
-                      'WORLDCOVER_SOURCE']:
+                      'WORLDCOVER_SOURCE', 'SOFTWARE_VERSION']:
                 continue
             if metadata_2[k1] != v1:
                 flag_same_metadata = False
@@ -3136,6 +3139,49 @@ def get_projection_proj4(projection):
     return projection_proj4
 
 
+def _antimeridian_crossing_requires_special_handling(
+        file_srs, file_min_x, tile_min_x, tile_max_x):
+    '''
+    Check if ancillary input requires special handling due to
+    the antimeridian crossing
+
+    Parameters
+    ----------
+    file_srs: osr.SpatialReference
+        Ancillary file spatial reference system (SRS)
+    file_min_x: float
+        Ancillary file min longitude value in degrees
+    tile_min_x: float
+        MGRS tile min longitude value in degrees
+    tile_max_x: float
+        MGRS tile max longitude value in degrees
+
+    Returns
+    -------
+    flag_requires_special_handling : bool
+        Flag that indicate if the ancillary input requires special handling
+    '''
+
+    # Flag to indicate if the if the MGRS tile crosses the antimeridian.
+    flag_tile_crosses_antimeridian = tile_min_x < 180 and tile_max_x >= 180
+
+    # Flag to test if the ancillary input file is in geographic
+    # coordinates and if its longitude domain is represented
+    # within the [-180, +180] range, rather than the [0, +360] interval.
+    # This is verified by the test `min_x < -170`. There's no specific reason
+    # why -170 is used. It could be -160, or even 0.
+    flag_input_geographic_and_longitude_not_0_360 = \
+        file_srs.IsGeographic() and file_min_x < -170
+
+    # If both are true, tile requires special handling due to the
+    # antimeridian crossing
+    flag_requires_special_handling = (
+        flag_tile_crosses_antimeridian and
+        flag_input_geographic_and_longitude_not_0_360)
+
+    return flag_requires_special_handling
+
+
 def _warp(input_file, geotransform, projection,
           length, width,
           scratch_dir = '.',
@@ -3211,6 +3257,15 @@ def _warp(input_file, geotransform, projection,
     # Test for antimeridian ("dateline") crossing
     gdal_ds = gdal.Open(input_file, gdal.GA_ReadOnly)
     file_projection = gdal_ds.GetProjection()
+
+    file_geotransform = gdal_ds.GetGeoTransform()
+    file_min_x, file_dx, _, file_max_y, _, file_dy = file_geotransform
+
+    file_width = gdal_ds.GetRasterBand(1).XSize
+    file_length = gdal_ds.GetRasterBand(1).YSize
+    no_data = gdal_ds.GetRasterBand(1).GetNoDataValue()
+
+    del gdal_ds
     file_srs = osr.SpatialReference()
     file_srs.ImportFromProj4(file_projection)
 
@@ -3224,11 +3279,13 @@ def _warp(input_file, geotransform, projection,
                            tile_max_x_utm + margin_m,
                            tile_srs, file_srs)
 
-    # if it doesn't cross the antimeridian, reproject
-    # input file using gdalwarp
-    if not (file_srs.IsGeographic() and tile_min_x < 180 and
-            tile_max_x >= 180):
+    # if input does not requires reprojection due to
+    # antimeridian crossing
+    if not _antimeridian_crossing_requires_special_handling(
+        file_srs, file_min_x, tile_min_x, tile_max_x):
 
+        # if it doesn't cross the antimeridian, reproject
+        # input file using gdalwarp
         logger.info(f'    relocating file: {input_file} to'
                     f' file: {relocated_file}')
 
@@ -3249,14 +3306,6 @@ def _warp(input_file, geotransform, projection,
 
     logger.info(f'    tile crosses the antimeridian')
 
-    file_geotransform = gdal_ds.GetGeoTransform()
-    file_min_x, file_dx, _, file_max_y, _, file_dy = file_geotransform
-
-    file_width = gdal_ds.GetRasterBand(1).XSize
-    file_length = gdal_ds.GetRasterBand(1).YSize
-    no_data = gdal_ds.GetRasterBand(1).GetNoDataValue()
-
-    del gdal_ds
 
     file_max_x = file_min_x + file_width * file_dx
     file_min_y = file_max_y + file_length * file_dy
@@ -4367,8 +4416,10 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
             continue
 
         flag_error = False
-        # Handle antimeridian ("dateline") crossing
-        if file_srs.IsGeographic() and tile_min_x < 180 and tile_max_x >= 180:
+
+        # If needed, handle antimeridian ("dateline") crossing
+        if _antimeridian_crossing_requires_special_handling(
+                file_srs, min_x, tile_min_x, tile_max_x):
 
             logger.info(f'The input HLS product crosses the antimeridian'
                         ' (dateline). Verifying the'
@@ -4382,13 +4433,13 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
             logger.info(f'    left side (-180 -> +180): {check_1_str}')
 
             # Right side of the antimeridian crossing: +180 -> +360
-            buffer_in_degrees = 0.0002777  # buffer of 1 arcsec: ~ 30m
             file_polygon_2 = _get_ogr_polygon(
-                max_x + buffer_in_degrees, 90, max_x + 360, -90, file_srs)
+                max_x + ANTIMERIDIAN_CROSSING_RIGHT_SIDE_TEST_BUFFER,
+                90, max_x + 360, -90, file_srs)
             intersection_2 = tile_polygon.Intersection(file_polygon_2)
             file_polygon_2 = _get_ogr_polygon(min_x + 360, max_y,
-                                                    max_x + 360, min_y,
-                                                    file_srs)
+                                              max_x + 360, min_y,
+                                              file_srs)
             flag_2_ok = intersection_2.Within(file_polygon_2)
             check_2_str = 'ok' if flag_2_ok else 'fail'
             logger.info(f'    right side (+180 -> +360): {check_2_str}')
@@ -4396,7 +4447,7 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
             if flag_1_ok and flag_2_ok:
                 # print messages to the user
                 logger.info(f'    {coverage_logger_str}:'
-                            'Full (with antimeridian crossing')
+                            ' Full (with antimeridian crossing')
 
                 # update DSWx-HLS product metadata
                 dswx_metadata_dict[coverage_metadata_str] = \

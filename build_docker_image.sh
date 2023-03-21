@@ -1,7 +1,7 @@
 #!/bin/bash
 
 IMAGE=opera/proteus
-t=final_4
+t=final_4.1
 echo "IMAGE is $IMAGE:$t"
 
 # fail on any non-zero exit codes
