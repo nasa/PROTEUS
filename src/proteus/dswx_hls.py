@@ -3136,6 +3136,40 @@ def get_projection_proj4(projection):
     return projection_proj4
 
 
+def _antimeridian_crossing_requires_special_handling(
+        file_srs, file_min_x, tile_min_x, tile_max_x):
+    '''
+    Check if ancillary input requires special handling due to
+    the antimeridian crossing
+
+    Parameters
+    ----------
+    file_srs: osr.SpatialReference
+        Ancillary file spatial reference system (SRS)
+    file_min_x: float
+        Ancillary file min longitude value in degrees
+    tile_min_x: float
+        MGRS tile min longitude value in degrees
+    tile_max_x: float
+        MGRS tile max longitude value in degrees
+
+    '''
+
+    # The dateline crossing by the tile is tested by the condition:
+    #     `tile_min_x < 180 and tile_max_x >= 180`
+    # The ancillary input only requires reprojection if it is in
+    # geographic coordinates and if its longitude domain is represented
+    # within the [-180, +180] range, verified by the test `min_x < -170`,
+    # rather than the [0, +360] interval. There's no specific reason why
+    # -170 is used. It could be -160, or even 0.
+
+    flag_requires_special_handling = (
+        file_srs.IsGeographic() and file_min_x < -170 and
+        tile_min_x < 180 and tile_max_x >= 180)
+
+    return flag_requires_special_handling
+
+
 def _warp(input_file, geotransform, projection,
           length, width,
           scratch_dir = '.',
@@ -3233,14 +3267,10 @@ def _warp(input_file, geotransform, projection,
                            tile_max_x_utm + margin_m,
                            tile_srs, file_srs)
 
-    # The dateline crossing by the tile is tested by the condition:
-    #     `tile_min_x < 180 and tile_max_x >= 180`
-    # The ancillary input only requires reprojection if it is in
-    # geographic coordinates and if its longitude domain is represented
-    # within the [-180, +180] range, verified by the test `min_x < -170`,
-    # rather than the [0, +360] interval.
-    if not (file_srs.IsGeographic() and file_min_x < -170 and
-            tile_min_x < 180 and tile_max_x >= 180):
+    # if input does not requires reprojection due to
+    # antimeridian crossing
+    if not _antimeridian_crossing_requires_special_handling(
+        file_srs, file_min_x, tile_min_x, tile_max_x):
 
         # if it doesn't cross the antimeridian, reproject
         # input file using gdalwarp
@@ -4374,16 +4404,10 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
             continue
 
         flag_error = False
-        # Handle antimeridian ("dateline") crossing
-        #
-        # The dateline crossing by the tile is tested by the condition:
-        #     `tile_min_x < 180 and tile_max_x >= 180`
-        # The ancillary input only requires special handling if it is in
-        # geographic coordinates and if its longitude domain is represented
-        # within the [-180, +180] range, verified by the test `min_x < -170`,
-        # rather than the [0, +360] interval.
-        if (file_srs.IsGeographic() and min_x < -170 and
-                tile_min_x < 180 and tile_max_x >= 180):
+
+        # If needed, handle antimeridian ("dateline") crossing
+        if _antimeridian_crossing_requires_special_handling(
+                file_srs, min_x, tile_min_x, tile_max_x):
 
             logger.info(f'The input HLS product crosses the antimeridian'
                         ' (dateline). Verifying the'
