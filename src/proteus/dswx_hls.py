@@ -3168,7 +3168,8 @@ def _antimeridian_crossing_requires_special_handling(
     # Flag to test if the ancillary input file is in geographic
     # coordinates and if its longitude domain is represented
     # within the [-180, +180] range, rather than the [0, +360] interval.
-    # This is verified by the test `min_x < -170`,
+    # This is verified by the test `min_x < -170`. There's no specific reason
+    # why -170 is used. It could be -160, or even 0.
     flag_input_geographic_and_longitude_not_0_360 = \
         file_srs.IsGeographic() and file_min_x < -170
 
