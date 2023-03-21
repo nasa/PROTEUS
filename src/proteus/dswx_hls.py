@@ -30,6 +30,9 @@ If enabled, set all negative reflectance values to 1 before scaling is applied
 '''
 FLAG_CLIP_NEGATIVE_REFLECTANCE = True
 
+# Buffer for antimeridian crossing test (33 arcsec: ~ 1km)
+ANTIMERIDIAN_CROSSING_RIGHT_SIDE_TEST_BUFFER = 33 * 0.0002777 
+  
 LANDCOVER_LAT_MAX = 80
 LANDCOVER_LAT_MIN = -60
 WORLDCOVER_LAT_MAX = 84
@@ -4429,9 +4432,9 @@ def _check_ancillary_inputs(check_ancillary_inputs_coverage,
             logger.info(f'    left side (-180 -> +180): {check_1_str}')
 
             # Right side of the antimeridian crossing: +180 -> +360
-            buffer_in_degrees = 33 * 0.0002777  # buffer of 33 arcsec: ~ 1km
             file_polygon_2 = _get_ogr_polygon(
-                max_x + buffer_in_degrees, 90, max_x + 360, -90, file_srs)
+                max_x + ANTIMERIDIAN_CROSSING_RIGHT_SIDE_TEST_BUFFER,
+                90, max_x + 360, -90, file_srs)
             intersection_2 = tile_polygon.Intersection(file_polygon_2)
             file_polygon_2 = _get_ogr_polygon(min_x + 360, max_y,
                                               max_x + 360, min_y,
