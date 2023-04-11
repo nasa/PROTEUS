@@ -1,5 +1,6 @@
 # PROTEUS
-PROTEUS - Parallelized Radar Optical Toolbox for Estimating dynamic sUrface water extentS
+
+The Dynamic Surface Water eXtent from Harmonized Landsat and Sentinel-2 (DSWx-HLS) Science Application Software (SAS).
 
 # License
 **Copyright (c) 2022** California Institute of Technology (“Caltech”). U.S. Government
