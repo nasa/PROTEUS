@@ -19,10 +19,9 @@ def _get_version():
     with open(version_file, 'r') as f:
         text = f.read()
 
-    # Get first match of the version number contained in the version file
-    # This regex should match a pattern like: VERSION = '3.2.5', but it
-    # allows for varying spaces, number of major/minor versions,
-    # and quotation mark styles.
+    # Obtain the first instance of the version number that matches what is in the version file. 
+    # This regex should match a pattern similar to VERSION = '3.2.5', except it allows for different spaces, 
+    # major/minor version numbers, and quote mark styles.
     p = re.search("VERSION[ ]*=[ ]*['\"]\d+([.]\d+)*['\"]", text)
 
     # Check that the version file contains properly formatted text string
@@ -31,7 +30,7 @@ def _get_version():
             f'Version file {version_file} not properly formatted.'
             " It should contain text matching e.g. VERSION = '2.3.4'")
 
-    # Extract just the numeric version number from the string
+    # Remove only the version number in numerical form from the string.
     p = re.search("\d+([.]\d+)*", p.group(0))
 
     return p.group(0)
