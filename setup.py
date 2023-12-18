@@ -76,7 +76,7 @@ setup(
     scripts=['bin/dswx_hls.py',
     	     'bin/dswx_compare.py'],
     install_requires=['argparse', 'numpy', 'yamale',
-                      'osgeo', 'scipy', 'pytest', 'requests'],
+                      'scipy', 'pytest', 'requests'],
     url='https://github.com/opera-adt/PROTEUS',
     license='Copyright by the California Institute of Technology.'
     ' ALL RIGHTS RESERVED.',
