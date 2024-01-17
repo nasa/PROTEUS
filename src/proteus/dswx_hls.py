@@ -2540,7 +2540,7 @@ def get_transparency_rgb_vals(top_rgb, bottom_rgb, alpha):
     Compute the RGB values to be displayed if the top layer
     has the given alpha (transparency) value over the
     bottom layer.
-    
+
     Parameters
     ----------
     top_rgb : tuple of int
@@ -2562,8 +2562,8 @@ def get_transparency_rgb_vals(top_rgb, bottom_rgb, alpha):
     if alpha < 0 or alpha > 1:
         raise ValueError("alpha must be in range [0, 1].")
 
-    new_rgb = [int((alpha * a) + ((1 - alpha) * b)) 
-                        for a, b in zip(top_rgb, bottom_rgb)]
+    new_rgb = [int((alpha * a) + ((1 - alpha) * b))
+               for a, b in zip(top_rgb, bottom_rgb)]
 
     return tuple(new_rgb)
 
