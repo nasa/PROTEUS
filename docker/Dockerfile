@@ -10,7 +10,6 @@ ENV LANG en_US.UTF-8
 
 # create user and install latest miniconda
 COPY docker/requirements.txt /tmp/requirements.txt
-COPY docker/requirements.txt.forge /tmp/requirements_forge.txt
 RUN set -ex \
  && groupadd -r conda -g $GROUP_ID \
  && useradd -u $USER_ID -r -g conda -d /home/conda -s /bin/bash -m conda \
@@ -27,11 +26,9 @@ RUN set -ex \
  && conda config --set show_channel_urls True \
  && conda update --all --yes --channel conda-forge --override-channels \
  && conda install --yes --channel conda-forge --override-channels --file /tmp/requirements.txt \
- && conda install --channel conda-forge --override-channels --file /tmp/requirements_forge.txt \
  && conda clean -tipy \
  && rm -rf /opt/conda/pkgs \
- && rm /tmp/requirements.txt \
- && rm /tmp/requirements_forge.txt
+ && rm /tmp/requirements.txt
 
 # set default user and workdir
 WORKDIR /home/conda

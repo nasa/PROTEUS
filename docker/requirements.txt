@@ -5,3 +5,5 @@ ruamel.yaml
 scipy
 pytest
 requests
+yamale
+setuptools
