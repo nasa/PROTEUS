@@ -2278,7 +2278,7 @@ def _load_hls_band_from_file(filename, image_dict, offset_dict, scale_dict,
             sensor_list_unique = list(dict.fromkeys(sensor_list))
             dswx_metadata_dict['SENSOR'] = '; '.join(sensor_list_unique)
 
-        elif 'SENTINEL' in spacecraft_name:
+        elif 'SENTINEL' in spacecraft_name.upper():
             dswx_metadata_dict['SENSOR'] = 'MSI'
         else:
             dswx_metadata_dict['SENSOR'] = 'OLI'
