@@ -10,25 +10,25 @@ ENV LANG en_US.UTF-8
 
 # create user and install latest miniconda
 COPY docker/requirements.txt /tmp/requirements.txt
-COPY docker/requirements.txt.forge /tmp/requirements_forge.txt
 RUN set -ex \
  && groupadd -r conda -g $GROUP_ID \
  && useradd -u $USER_ID -r -g conda -d /home/conda -s /bin/bash -m conda \
  && chmod 755 /home/conda \
  && echo 'conda ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers \
- && curl -sSL https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -o miniconda.sh \
- && bash miniconda.sh -b -p /opt/conda \
- && rm miniconda.sh \
+ && curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh" \
+ && bash Miniforge3-$(uname)-$(uname -m).sh -b -p /opt/conda \
+ && rm Miniforge3-$(uname)-$(uname -m).sh \
  && touch /opt/conda/conda-meta/pinned \
  && export PATH=/opt/conda/bin:$PATH \
+ && conda config --prepend channels conda-forge \
+ && conda config --append channels nodefaults \
+ && conda config --set channel_priority strict \
  && conda config --set show_channel_urls True \
- && conda update --all --yes \
- && conda install --yes --file /tmp/requirements.txt \
- && conda install --yes --channel conda-forge --file /tmp/requirements_forge.txt \
+ && conda update --all --yes --channel conda-forge --override-channels \
+ && conda install --yes --channel conda-forge --override-channels --file /tmp/requirements.txt \
  && conda clean -tipy \
  && rm -rf /opt/conda/pkgs \
- && rm /tmp/requirements.txt \
- && rm /tmp/requirements_forge.txt
+ && rm /tmp/requirements.txt
 
 # set default user and workdir
 WORKDIR /home/conda
