@@ -2540,7 +2540,7 @@ def get_transparency_rgb_vals(top_rgb, bottom_rgb, alpha):
     Compute the RGB values to be displayed if the top layer
     has the given alpha (transparency) value over the
     bottom layer.
-    
+
     Parameters
     ----------
     top_rgb : tuple of int
@@ -2562,8 +2562,8 @@ def get_transparency_rgb_vals(top_rgb, bottom_rgb, alpha):
     if alpha < 0 or alpha > 1:
         raise ValueError("alpha must be in range [0, 1].")
 
-    new_rgb = [int((alpha * a) + ((1 - alpha) * b)) 
-                        for a, b in zip(top_rgb, bottom_rgb)]
+    new_rgb = [int((alpha * a) + ((1 - alpha) * b))
+               for a, b in zip(top_rgb, bottom_rgb)]
 
     return tuple(new_rgb)
 
@@ -2674,18 +2674,19 @@ def save_dswx_product(layer_image, layer_name,
 
         if description is None:
             description = description_from_dict
- 
+
         gdal_band = gdal_ds.GetRasterBand(band_index + 1)
         band_index += 1
 
         if layer_name in collapsable_layers_list and flag_collapse_wtr_classes:
             band_array = _collapse_wtr_classes(band_array)
 
-        gdal_band.WriteArray(band_array)
         gdal_band.SetNoDataValue(UINT8_FILL_VALUE)
+        gdal_band.WriteArray(band_array)
         if n_valid_bands == 1:
             # set color table and color interpretation
-            dswx_ctable = _get_interpreted_dswx_ctable(flag_collapse_wtr_classes,
+            dswx_ctable = _get_interpreted_dswx_ctable(
+                flag_collapse_wtr_classes,
                 layer_name=layer_name)
             gdal_band.SetRasterColorTable(dswx_ctable)
             gdal_band.SetRasterColorInterpretation(
@@ -2806,8 +2807,8 @@ def save_cloud_layer(mask, output_file, dswx_metadata_dict, geotransform, projec
     gdal_ds.SetGeoTransform(geotransform)
     gdal_ds.SetProjection(projection)
     mask_band = gdal_ds.GetRasterBand(1)
-    mask_band.WriteArray(mask)
     mask_band.SetNoDataValue(UINT8_FILL_VALUE)
+    mask_band.WriteArray(mask)
 
     # set color table and color interpretation
     mask_ctable = _get_cloud_layer_ctable()
@@ -2860,8 +2861,8 @@ def _save_binary_water(binary_water_layer, output_file, dswx_metadata_dict,
     gdal_ds.SetGeoTransform(geotransform)
     gdal_ds.SetProjection(projection)
     binary_water_band = gdal_ds.GetRasterBand(1)
-    binary_water_band.WriteArray(binary_water_layer)
     binary_water_band.SetNoDataValue(UINT8_FILL_VALUE)
+    binary_water_band.WriteArray(binary_water_layer)
 
     # set color table and color interpretation
     binary_water_ctable = _get_binary_water_ctable()
@@ -2922,9 +2923,9 @@ def _save_array(input_array, output_file, dswx_metadata_dict, geotransform,
     gdal_ds.SetGeoTransform(geotransform)
     gdal_ds.SetProjection(projection)
     raster_band = gdal_ds.GetRasterBand(1)
-    raster_band.WriteArray(input_array)
     if no_data_value is not None:
         raster_band.SetNoDataValue(no_data_value)
+    raster_band.WriteArray(input_array)
 
     if description is not None:
         raster_band.SetDescription(description)
