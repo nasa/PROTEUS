@@ -822,7 +822,8 @@ def _compare_dswx_hls_metadata(metadata_1, metadata_2):
                 break
             # Exclude metadata fields that are not required to be the same
             if k1 in ['PROCESSING_DATETIME', 'DEM_SOURCE', 'LANDCOVER_SOURCE',
-                      'WORLDCOVER_SOURCE', 'SOFTWARE_VERSION', 'SENSOR']:
+                      'WORLDCOVER_SOURCE', 'SOFTWARE_VERSION', 'SENSOR',
+                      'LICENSE']:
                 continue
             if metadata_2[k1] != v1:
                 flag_same_metadata = False
