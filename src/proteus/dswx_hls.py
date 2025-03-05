@@ -822,7 +822,7 @@ def _compare_dswx_hls_metadata(metadata_1, metadata_2):
                 break
             # Exclude metadata fields that are not required to be the same
             if k1 in ['PROCESSING_DATETIME', 'DEM_SOURCE', 'LANDCOVER_SOURCE',
-                      'WORLDCOVER_SOURCE', 'SOFTWARE_VERSION']:
+                      'WORLDCOVER_SOURCE', 'SOFTWARE_VERSION', 'SENSOR']:
                 continue
             if metadata_2[k1] != v1:
                 flag_same_metadata = False
@@ -2278,7 +2278,7 @@ def _load_hls_band_from_file(filename, image_dict, offset_dict, scale_dict,
             sensor_list_unique = list(dict.fromkeys(sensor_list))
             dswx_metadata_dict['SENSOR'] = '; '.join(sensor_list_unique)
 
-        elif 'SENTINEL' in spacecraft_name:
+        elif 'SENTINEL' in spacecraft_name.upper():
             dswx_metadata_dict['SENSOR'] = 'MSI'
         else:
             dswx_metadata_dict['SENSOR'] = 'OLI'
