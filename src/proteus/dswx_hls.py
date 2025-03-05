@@ -3886,10 +3886,9 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
     else:
         dswx_metadata_dict['DEM_SOURCE'] = 'NOT_PROVIDED'
 
-    flag_has_copernicus_data = False
-
     # create `LICENSE` metadata field
     license_str = ''
+    flag_has_copernicus_data = False
 
     # Add Copernicus Sentinel-2 statements (if applicable)
     if 'SENTINEL' in dswx_metadata_dict['SPACECRAFT_NAME'].upper():
