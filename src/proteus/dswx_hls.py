@@ -3906,8 +3906,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
     if 'COPERNICUS DEM' in dswx_metadata_dict['DEM_SOURCE'].upper():
         flag_has_copernicus_data = True
         license_str += \
-            ('This OPERA DSWx-HLS product contains modified Copernicus DEM'
-             ' data, provided by the European Space Agency.'
+            ('This OPERA DSWx-HLS product contains modified Copernicus DEM data.'
              ' The Copernicus DEM 30-m and Copernicus DEM 90-m were produced'
              ' using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus'
              ' Defence and Space GmbH 2014-2018 provided under COPERNICUS by'
