@@ -822,8 +822,7 @@ def _compare_dswx_hls_metadata(metadata_1, metadata_2):
                 break
             # Exclude metadata fields that are not required to be the same
             if k1 in ['PROCESSING_DATETIME', 'DEM_SOURCE', 'LANDCOVER_SOURCE',
-                      'WORLDCOVER_SOURCE', 'SOFTWARE_VERSION', 'SENSOR',
-                      'LICENSE']:
+                      'WORLDCOVER_SOURCE', 'SOFTWARE_VERSION', 'SENSOR']:
                 continue
             if metadata_2[k1] != v1:
                 flag_same_metadata = False
@@ -3896,9 +3895,11 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         flag_has_copernicus_data = True
         license_str += \
             ('This OPERA DSWx-HLS product contains modified Copernicus'
-             ' Sentinel data corresponding to the time period indicated'
-             ' in the metadata field ‘SENSING_TIME’.'
-             ' Users, including'
+             ' Sentinel Earth Observation (EO) data corresponding to the time'
+             ' period when this data was acquired by the Sentinel-2 system'
+             " (see metadata field 'SENSING_TIME')."
+             'Sentinel EO data is provided under COPERNICUS by the'
+             ' European Union and ESA; all rights reserved. Users, including'
              ' those who redistribute, adapt, modify, or combine the contents'
              ' of this product, must comply with the terms of the Copernicus'
              ' Sentinel Data License Agreement. ')
@@ -3910,13 +3911,13 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
             ('This OPERA DSWx-HLS product contains modified Copernicus DEM data.'
              ' The Copernicus DEM 30-m and Copernicus DEM 90-m were produced'
              ' using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus'
-             ' Defence and Space GmbH 2014-2018 provided under COPERNICUS by'
-             ' the European Union and the European Space Agency (ESA); all'
-             ' rights reserved.'
+             ' Defence and Space GmbH 2014-2018, provided under COPERNICUS by'
+             ' the European Union and ESA; all rights reserved.'
              ' Users, including those who'
              ' redistribute, adapt, modify, or combine the DEM layer (band 10)'
              ' or derived SHAD layer (band 8), must comply with the terms of'
-             ' the Copernicus DEM License Agreement. ')
+             ' the Copernicus DEM License Agreement. For additional'
+             ' information, please refer to https://doi.org/10.5270/ESA-c5d3d65')
 
     # If the product contains Copernicus data, add responsability and liability
     # terms for OPERA project AND Copernicus programme
