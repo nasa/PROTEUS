@@ -3915,7 +3915,7 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
              ' redistribute, adapt, modify, or combine the DEM layer (band 10)'
              ' or derived SHAD layer (band 8), must comply with the terms of'
              ' the Copernicus DEM License Agreement. For additional'
-             ' information, please refer to https://doi.org/10.5270/ESA-c5d3d65')
+             ' information, please refer to https://doi.org/10.5270/ESA-c5d3d65. ')
 
     # If the product contains Copernicus data, add responsability and liability
     # terms for OPERA project AND Copernicus programme
