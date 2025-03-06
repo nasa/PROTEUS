@@ -3886,6 +3886,58 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
     else:
         dswx_metadata_dict['DEM_SOURCE'] = 'NOT_PROVIDED'
 
+    # create `LICENSE` metadata field
+    license_str = ''
+    flag_has_copernicus_data = False
+
+    # Add Copernicus Sentinel-2 statements (if applicable)
+    if 'SENTINEL' in dswx_metadata_dict['SPACECRAFT_NAME'].upper():
+        flag_has_copernicus_data = True
+        license_str += \
+            ('This OPERA DSWx-HLS product contains modified Copernicus'
+             ' Sentinel Earth Observation (EO) data.'
+             ' Sentinel EO data is provided under COPERNICUS by the'
+             ' European Union and ESA; all rights reserved. Users, including'
+             ' those who redistribute, adapt, modify, or combine the contents'
+             ' of this product, must comply with the terms of the Copernicus'
+             ' Sentinel Data License Agreement. ')
+        
+    # Add Copernicus DEM statements (if applicable)
+    if 'COPERNICUS DEM' in dswx_metadata_dict['DEM_SOURCE'].upper():
+        flag_has_copernicus_data = True
+        license_str += \
+            ('This OPERA DSWx-HLS product contains modified Copernicus DEM data.'
+             ' The Copernicus DEM 30-m and Copernicus DEM 90-m were produced'
+             ' using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus'
+             ' Defence and Space GmbH 2014-2018, provided under COPERNICUS by'
+             ' the European Union and ESA; all rights reserved.'
+             ' Users, including those who'
+             ' redistribute, adapt, modify, or combine the DEM layer (band 10)'
+             ' or derived SHAD layer (band 8), must comply with the terms of'
+             ' the Copernicus DEM License Agreement. For additional'
+             ' information, please refer to https://doi.org/10.5270/ESA-c5d3d65. ')
+
+    # If the product contains Copernicus data, add responsability and liability
+    # terms for OPERA project AND Copernicus programme
+    if flag_has_copernicus_data:
+        license_str += \
+             ('The organizations'
+              ' in charge of the OPERA project and the Copernicus programme'
+              ' by law or by delegation do not assume any legal'
+              ' responsibility or liability, whether express or implied,'
+              ' arising from any use of this product.')
+
+    # Otherwise, add responsability and liability terms for the OPERA project
+    else:
+        license_str += \
+             ('The organizations'
+              ' in charge of the OPERA project'
+              ' by law or by delegation do not assume any legal'
+              ' responsibility or liability, whether express or implied,'
+              ' arising from any use of this product.')
+
+    dswx_metadata_dict['LICENSE'] = license_str
+
     if landcover_file_description:
         dswx_metadata_dict['LANDCOVER_SOURCE'] = landcover_file_description
     elif landcover_file:
