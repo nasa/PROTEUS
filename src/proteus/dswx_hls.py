@@ -3895,10 +3895,8 @@ def _populate_dswx_metadata_datasets(dswx_metadata_dict,
         flag_has_copernicus_data = True
         license_str += \
             ('This OPERA DSWx-HLS product contains modified Copernicus'
-             ' Sentinel Earth Observation (EO) data corresponding to the time'
-             ' period when this data was acquired by the Sentinel-2 system'
-             " (see metadata field 'SENSING_TIME')."
-             'Sentinel EO data is provided under COPERNICUS by the'
+             ' Sentinel Earth Observation (EO) data.'
+             ' Sentinel EO data is provided under COPERNICUS by the'
              ' European Union and ESA; all rights reserved. Users, including'
              ' those who redistribute, adapt, modify, or combine the contents'
              ' of this product, must comply with the terms of the Copernicus'
