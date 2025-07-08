@@ -796,6 +796,13 @@ def _compare_dswx_hls_metadata(metadata_1, metadata_2):
             Metadata of the second
     """
     metadata_error_message = None
+
+    # Comparison of the "LICENSE" metadata field is skipped because it was
+    # introduced later.
+    for metadata_dict in [metadata_1, metadata_2]:
+        if "LICENSE" in metadata_dict.keys():
+            del metadata_dict["LICENSE"]
+
     flag_same_metadata = len(metadata_1.keys()) == len(metadata_2.keys())
     if not flag_same_metadata:
         metadata_error_message = (
