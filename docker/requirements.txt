@@ -1,9 +1,10 @@
-gdal>=3.0
+gdal==3.6.2
 numpy
-python>=3.6
+python==3.10.0
 ruamel.yaml
 scipy
 pytest
 requests
 yamale
 setuptools
+mamba<=2.1.1
